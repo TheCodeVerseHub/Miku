@@ -16,3 +16,4 @@ tp.txt
 # Database files
 data/
 *.db
+data/leveling.db

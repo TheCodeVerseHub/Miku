@@ -45,7 +45,7 @@ A feature-rich Discord leveling bot inspired by Arcane, with support for both **
 
 1. **Clone the repository**
 ```bash
-cd "Bot_Programming/Miku"
+cd "Miku"
 ```
 
 2. **Install dependencies**
