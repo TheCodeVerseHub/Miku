@@ -1,18 +1,18 @@
-# Miku - Discord Leveling Bot 🎯
+# Miku - Discord Leveling Bot
 
 A feature-rich Discord leveling bot inspired by Arcane, with support for both **slash commands** and **prefix commands** (prefix: `&`).
 
-## ✨ Features
+## Features
 
-- 🎖️ **XP & Leveling System** - Users gain 15-25 XP per message (60-second cooldown)
-- 📊 **Rank Cards** - Beautiful embeds showing user rank, level, and progress
-- 🏆 **Leaderboards** - View top members by XP with pagination
-- ⚡ **Hybrid Commands** - Works with both `/` slash commands and `&` prefix
-- 💾 **SQLite Database** - Persistent data storage with async operations
-- 🎨 **Rich Embeds** - Clean, visually appealing messages
-- 🔧 **Admin Tools** - Manage user levels and XP
+- **XP & Leveling System** - Users gain 15-25 XP per message (60-second cooldown)
+- **Rank Cards** - Beautiful embeds showing user rank, level, and progress
+- **Leaderboards** - View top members by XP with pagination
+- **Hybrid Commands** - Works with both `/` slash commands and `&` prefix
+- **SQLite Database** - Persistent data storage with async operations
+- **Rich Embeds** - Clean, visually appealing messages
+- **Admin Tools** - Manage user levels and XP
 
-## 📋 Commands
+## Commands
 
 ### User Commands
 
@@ -33,7 +33,7 @@ A feature-rich Discord leveling bot inspired by Arcane, with support for both **
 | **resetlevel** | `/resetlevel <user>` | `&resetlevel <user>` | Reset a user's level data |
 | **resetalllevels** | `/resetalllevels CONFIRM` | `&resetalllevels CONFIRM` | Reset all server levels (requires CONFIRM) |
 
-## 🚀 Setup
+## Setup
 
 ### Prerequisites
 
@@ -66,15 +66,15 @@ export DISCORD_BOT_TOKEN='your_bot_token_here'
 python main.py
 ```
 
-## 🔐 Bot Setup on Discord Developer Portal
+## Bot Setup on Discord Developer Portal
 
 1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
 2. Create a new application or select your existing one
 3. Go to the **Bot** section
 4. Enable these **Privileged Gateway Intents**:
-   - ✅ Message Content Intent
-   - ✅ Server Members Intent
-   - ✅ Presence Intent (optional)
+   - Message Content Intent
+   - Server Members Intent
+   - Presence Intent (optional)
 5. Copy your bot token and set it as `DISCORD_BOT_TOKEN`
 6. Go to **OAuth2 > URL Generator**
 7. Select scopes: `bot` and `applications.commands`
@@ -85,7 +85,7 @@ python main.py
    - Use Slash Commands
 9. Use the generated URL to invite your bot
 
-## 📊 Leveling Formula
+## Leveling Formula
 
 The bot uses a formula similar to Arcane/MEE6:
 
@@ -107,7 +107,7 @@ XP Required = 5 × (level²) + (50 × level) + 100
 | 20 | 14,600 |
 | 50 | 89,250 |
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 Miku/
@@ -126,7 +126,7 @@ Miku/
         └── database.py   # Database operations
 ```
 
-## 🎨 Features Breakdown
+## Features Breakdown
 
 ### XP Gain System
 - Automatic XP on every message (excluding bots and DMs)
@@ -145,7 +145,7 @@ Shows:
 ### Leaderboard
 - Shows top 50 members
 - Paginated display (10 per page)
-- Medal emojis for top 3 (🥇🥈🥉)
+- Medal emojis for top 3 ()
 - Displays level, XP, and message count
 
 ### Database
@@ -154,7 +154,7 @@ Shows:
 - Auto-creates tables on first run
 - Data persists across restarts
 
-## 🛠️ Customization
+## Customization
 
 ### Change XP Gain Range
 Edit in `src/cogs/leveling.py`:
@@ -177,7 +177,7 @@ command_prefix='&'  # Change to your preferred prefix
 ### Modify Level Formula
 Edit the `calculate_level` and `calculate_xp_for_level` methods in `src/cogs/leveling.py`
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Bot doesn't respond to commands
 - Make sure Message Content intent is enabled
@@ -193,15 +193,15 @@ Edit the `calculate_level` and `calculate_xp_for_level` methods in `src/cogs/lev
 - Ensure the `data/` directory is writable
 - Check file permissions for `leveling.db`
 
-## 📝 License
+## License
 
 This project is open source and available for personal and educational use.
 
-## 🤝 Contributing
+## Contributing
 
 Feel free to fork, modify, and improve this bot! Contributions are welcome.
 
-## 💡 Tips
+## Tips
 
 - The bot works in multiple servers simultaneously
 - Each server has its own leaderboard and levels
@@ -211,4 +211,4 @@ Feel free to fork, modify, and improve this bot! Contributions are welcome.
 
 ---
 
-Made with ❤️ using discord.py
+Made with using discord.py
