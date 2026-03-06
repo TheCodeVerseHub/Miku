@@ -28,6 +28,16 @@ export default async function handler(
     const enrichedData = await Promise.all(
       leaderboardData.data.map(async (entry) => {
         try {
+          if (!process.env.DISCORD_BOT_TOKEN || process.env.DISCORD_BOT_TOKEN === 'your_bot_token_here') {
+            console.warn('DISCORD_BOT_TOKEN not configured properly')
+            return {
+              ...entry,
+              username: entry.userId,
+              discriminator: '0000',
+              avatar: null,
+            }
+          }
+
           const userResponse = await fetch(`https://discord.com/api/v10/users/${entry.userId}`, {
             headers: {
               Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
@@ -43,21 +53,23 @@ export default async function handler(
               avatar: userData.avatar,
             }
           } else {
-            // Fallback if user fetch fails
+            const errorData = await userResponse.text()
+            console.error(`Discord API error for user ${entry.userId}: ${userResponse.status} - ${errorData}`)
+            // Fallback if user fetch fails - use user ID as username
             return {
               ...entry,
-              username: `User`,
-              discriminator: entry.userId.slice(-4),
+              username: entry.userId,
+              discriminator: '0000',
               avatar: null,
             }
           }
         } catch (error) {
           console.error(`Error fetching user ${entry.userId}:`, error)
-          // Fallback
+          // Fallback - use user ID as username
           return {
             ...entry,
-            username: `User`,
-            discriminator: entry.userId.slice(-4),
+            username: entry.userId,
+            discriminator: '0000',
             avatar: null,
           }
         }

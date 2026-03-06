@@ -26,30 +26,40 @@ export default async function handler(
     let topUser = null
     if (dbStats.topUser) {
       try {
-        const userResponse = await fetch(`https://discord.com/api/v10/users/${dbStats.topUser.userId}`, {
-          headers: {
-            Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
-          },
-        })
-        
-        if (userResponse.ok) {
-          const userData = await userResponse.json()
+        if (!process.env.DISCORD_BOT_TOKEN || process.env.DISCORD_BOT_TOKEN === 'your_bot_token_here') {
+          console.warn('DISCORD_BOT_TOKEN not configured properly')
           topUser = {
-            username: `${userData.username}#${userData.discriminator}`,
+            username: `${dbStats.topUser.userId}`,
             level: dbStats.topUser.level,
           }
         } else {
-          // Fallback if user fetch fails
-          topUser = {
-            username: `User#${dbStats.topUser.userId.slice(-4)}`,
-            level: dbStats.topUser.level,
+          const userResponse = await fetch(`https://discord.com/api/v10/users/${dbStats.topUser.userId}`, {
+            headers: {
+              Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+            },
+          })
+          
+          if (userResponse.ok) {
+            const userData = await userResponse.json()
+            topUser = {
+              username: `${userData.username}#${userData.discriminator}`,
+              level: dbStats.topUser.level,
+            }
+          } else {
+            const errorData = await userResponse.text()
+            console.error(`Discord API error for top user: ${userResponse.status} - ${errorData}`)
+            // Fallback if user fetch fails - use user ID
+            topUser = {
+              username: `${dbStats.topUser.userId}`,
+              level: dbStats.topUser.level,
+            }
           }
         }
       } catch (error) {
         console.error('Error fetching top user:', error)
-        // Fallback
+        // Fallback - use user ID
         topUser = {
-          username: `User#${dbStats.topUser.userId.slice(-4)}`,
+          username: `${dbStats.topUser.userId}`,
           level: dbStats.topUser.level,
         }
       }
