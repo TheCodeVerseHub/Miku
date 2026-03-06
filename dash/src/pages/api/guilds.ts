@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getSession } from 'next-auth/react'
+import { guildHasBot } from '@/lib/database'
 
 export default async function handler(
   req: NextApiRequest,
@@ -32,13 +33,12 @@ export default async function handler(
     })
 
     // Check which guilds have the bot
-    // In production, this would query your bot's database
     const guildsWithStatus = adminGuilds.map((guild: any) => ({
       id: guild.id,
       name: guild.name,
       icon: guild.icon,
       memberCount: 0, // Would be fetched from bot API
-      hasMiku: Math.random() > 0.3, // Mock data - replace with actual check
+      hasMiku: guildHasBot(guild.id),
     }))
 
     res.status(200).json(guildsWithStatus)

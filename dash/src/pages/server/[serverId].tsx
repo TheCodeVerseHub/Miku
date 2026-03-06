@@ -17,7 +17,7 @@ interface ServerStats {
   topUser: {
     username: string
     level: number
-  }
+  } | null
 }
 
 export default function ServerStats() {

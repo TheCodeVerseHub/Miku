@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getSession } from 'next-auth/react'
+import { getServerStats } from '@/lib/database'
 
 export default async function handler(
   req: NextApiRequest,
@@ -13,20 +14,53 @@ export default async function handler(
 
   const { serverId } = req.query
 
+  if (typeof serverId !== 'string') {
+    return res.status(400).json({ error: 'Invalid server ID' })
+  }
+
   try {
-    // In production, fetch from your Python bot's API endpoint
-    // const response = await fetch(`${process.env.API_URL}/api/server/${serverId}/stats`)
+    // Fetch stats from database
+    const dbStats = getServerStats(serverId)
     
-    // Mock data for now
+    // If there's a top user, fetch their Discord username
+    let topUser = null
+    if (dbStats.topUser) {
+      try {
+        const userResponse = await fetch(`https://discord.com/api/v10/users/${dbStats.topUser.userId}`, {
+          headers: {
+            Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+          },
+        })
+        
+        if (userResponse.ok) {
+          const userData = await userResponse.json()
+          topUser = {
+            username: `${userData.username}#${userData.discriminator}`,
+            level: dbStats.topUser.level,
+          }
+        } else {
+          // Fallback if user fetch fails
+          topUser = {
+            username: `User#${dbStats.topUser.userId.slice(-4)}`,
+            level: dbStats.topUser.level,
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching top user:', error)
+        // Fallback
+        topUser = {
+          username: `User#${dbStats.topUser.userId.slice(-4)}`,
+          level: dbStats.topUser.level,
+        }
+      }
+    }
+    
     const stats = {
-      totalMembers: 1234,
-      totalXP: 5678900,
-      activeUsers: 432,
-      averageLevel: 12.5,
-      topUser: {
-        username: 'TopPlayer#1234',
-        level: 45,
-      },
+      totalMembers: dbStats.totalMembers || 0,
+      totalXP: dbStats.totalXP || 0,
+      activeUsers: dbStats.activeUsers || 0,
+      averageLevel: dbStats.averageLevel ? Math.round(dbStats.averageLevel * 10) / 10 : 0,
+      topUser,
     }
 
     res.status(200).json(stats)
@@ -35,3 +69,4 @@ export default async function handler(
     res.status(500).json({ error: 'Failed to fetch server stats' })
   }
 }
+
