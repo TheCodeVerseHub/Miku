@@ -11,6 +11,7 @@ A feature-rich Discord leveling bot inspired by Arcane, with support for both **
 - **SQLite Database** - Persistent data storage with async operations
 - **Rich Embeds** - Clean, visually appealing messages
 - **Admin Tools** - Manage user levels and XP
+- **Web Dashboard** - Modern Next.js dashboard with real-time statistics and management
 
 ## Commands
 
@@ -84,6 +85,33 @@ python main.py
    - Read Message History
    - Use Slash Commands
 9. Use the generated URL to invite your bot
+
+## Web Dashboard
+
+Miku comes with a modern web dashboard built with **Next.js 14** and **React** for managing your bot and viewing statistics.
+
+### Dashboard Features
+
+- 🔐 **Discord OAuth2 Login** - Secure authentication
+- 📊 **Live Statistics** - Real-time server stats and analytics
+- 🏆 **Interactive Leaderboards** - View top members with pagination
+- 🎮 **Multi-Server Management** - Manage all servers from one place
+- 📱 **Responsive Design** - Works on desktop, tablet, and mobile
+- 🎨 **Beautiful UI** - Discord-themed design with Tailwind CSS
+
+### Quick Start
+
+```bash
+cd dash
+npm install
+cp .env.example .env.local
+# Edit .env.local with your Discord OAuth2 credentials
+npm run dev
+```
+
+Dashboard will be available at [http://localhost:3000](http://localhost:3000)
+
+For detailed setup instructions, see [dash/README.md](dash/README.md) and [dash/SETUP.md](dash/SETUP.md)
 
 ## Leveling Formula
 

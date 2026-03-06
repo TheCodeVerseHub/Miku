@@ -1,0 +1,55 @@
+name: Deploy Dashboard to Vercel
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'dash/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'dash/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: dash/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./dash
+        run: npm ci
+
+      - name: Run linter
+        working-directory: ./dash
+        run: npm run lint
+
+      - name: Build dashboard
+        working-directory: ./dash
+        run: npm run build
+        env:
+          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+          DISCORD_CLIENT_SECRET: ${{ secrets.DISCORD_CLIENT_SECRET }}
+          API_URL: ${{ secrets.API_URL }}
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: ./dash
+          vercel-args: '--prod'
