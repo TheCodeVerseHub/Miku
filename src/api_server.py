@@ -45,7 +45,38 @@ class GuildSettings(BaseModel):
 
 # Helper function to get database connection
 async def get_db():
-    db = await aiosqlite.connect(DB_PATH)
+    # Check if database file exists
+    if not os.path.exists(DB_PATH):
+        # Create data directory if it doesn't exist
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+        # Create a new database with required tables
+        db = await aiosqlite.connect(DB_PATH)
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS user_levels (
+                user_id INTEGER,
+                guild_id INTEGER,
+                xp INTEGER DEFAULT 0,
+                level INTEGER DEFAULT 0,
+                PRIMARY KEY (user_id, guild_id)
+            )
+        ''')
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS guild_settings (
+                guild_id INTEGER PRIMARY KEY,
+                levelup_channel_id INTEGER
+            )
+        ''')
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS role_rewards (
+                guild_id INTEGER,
+                level INTEGER,
+                role_id INTEGER,
+                PRIMARY KEY (guild_id, level)
+            )
+        ''')
+        await db.commit()
+    else:
+        db = await aiosqlite.connect(DB_PATH)
     db.row_factory = aiosqlite.Row
     return db
 
