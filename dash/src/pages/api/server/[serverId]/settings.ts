@@ -88,23 +88,43 @@ export default async function handler(
       // Update guild settings via bot API
       const { levelupChannelId, roleRewards } = req.body
 
-      const response = await fetch(`${BOT_API_URL}/api/server/${serverId}/settings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          levelupChannelId,
-          roleRewards,
-        }),
-      })
+      console.log(`[API] Updating settings for guild ${serverId}:`, { levelupChannelId, roleRewardsCount: roleRewards?.length })
 
-      if (!response.ok) {
-        throw new Error('Failed to update settings via bot API')
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+
+      try {
+        const response = await fetch(`${BOT_API_URL}/api/server/${serverId}/settings`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            levelupChannelId,
+            roleRewards,
+          }),
+          signal: controller.signal,
+        })
+
+        clearTimeout(timeoutId)
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error')
+          console.error(`[API] Failed to update settings: ${response.status} ${response.statusText}`, errorText)
+          return res.status(response.status).json({ error: `Failed to update settings: ${errorText}` })
+        }
+
+        const result = await response.json()
+        console.log('[API] Settings updated successfully')
+        return res.status(200).json(result)
+      } catch (error) {
+        clearTimeout(timeoutId)
+        if ((error as Error).name === 'AbortError') {
+          console.error('[API] Settings update timed out')
+          return res.status(504).json({ error: 'Request timed out - API may be on cold start. Please try again.' })
+        }
+        throw error
       }
-
-      const result = await response.json()
-      return res.status(200).json(result)
     } else {
       return res.status(405).json({ error: 'Method not allowed' })
     }

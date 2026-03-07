@@ -14,14 +14,26 @@ export default function ServerSettings() {
   const { serverId } = router.query
   const { data: session, status } = useSession()
 
-  const { data: settings, error: settingsError, mutate } = useSWR<GuildSettings>(
+  const { data: settings, error: settingsError, mutate, isLoading: settingsLoading } = useSWR<GuildSettings>(
     serverId ? `/api/server/${serverId}/settings` : null,
-    fetcher
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60000, // 1 minute
+      errorRetryCount: 3,
+      errorRetryInterval: 2000,
+    }
   )
 
-  const { data: guildData, error: guildError } = useSWR<GuildData>(
+  const { data: guildData, error: guildError, isLoading: guildLoading } = useSWR<GuildData>(
     serverId ? `/api/server/${serverId}/guild-data` : null,
-    fetcher
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60000, // 1 minute
+      errorRetryCount: 3,
+      errorRetryInterval: 2000,
+    }
   )
 
   const [levelupChannelId, setLevelupChannelId] = useState<string>('')
@@ -38,8 +50,13 @@ export default function ServerSettings() {
     }
   }, [settings])
 
-  if (status === 'loading' || !settings || !guildData) {
-    return <LoadingSpinner />
+  if (status === 'loading' || settingsLoading || guildLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner />
+        <p className="ml-4 text-gray-400">Loading settings...</p>
+      </div>
+    )
   }
 
   if (status === 'unauthenticated') {
@@ -51,8 +68,27 @@ export default function ServerSettings() {
     return (
       <div className="min-h-screen">
         <Navbar />
-        <div className="flex items-center justify-center h-96">
-          <p className="text-red-500">Failed to load settings</p>
+        <div className="max-w-4xl mx-auto px-4 py-8">
+          <button
+            onClick={() => router.push(`/server/${serverId}`)}
+            className="mb-6 text-discord-blue hover:underline flex items-center"
+          >
+            ← Back to Server Stats
+          </button>
+          <div className="bg-red-900/20 border border-red-500 rounded-lg p-8 text-center">
+            <p className="text-red-400 text-lg mb-4">Failed to load settings</p>
+            <p className="text-gray-400 mb-4">
+              {settingsError ? 'Could not load server settings. ' : ''}
+              {guildError ? 'Could not load server data. ' : ''}
+              The API server may be unavailable or on cold start.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg transition"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -65,6 +101,8 @@ export default function ServerSettings() {
 
   const handleSave = async () => {
     setSaving(true)
+    setMessage(null) // Clear previous messages
+    
     try {
       const response = await fetch(`/api/server/${serverId}/settings`, {
         method: 'POST',
@@ -84,10 +122,14 @@ export default function ServerSettings() {
         showMessage('success', 'Settings saved successfully!')
         mutate()
       } else {
-        showMessage('error', 'Failed to save settings')
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        const errorMessage = errorData.error || 'Failed to save settings'
+        showMessage('error', errorMessage)
+        console.error('Failed to save settings:', errorData)
       }
     } catch (error) {
-      showMessage('error', 'An error occurred while saving')
+      console.error('Error saving settings:', error)
+      showMessage('error', 'Network error - check if API server is running and try again')
     } finally {
       setSaving(false)
     }

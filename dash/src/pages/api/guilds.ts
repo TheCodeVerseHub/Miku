@@ -46,7 +46,7 @@ export default async function handler(
     
     try {
       const batchController = new AbortController()
-      const batchTimeoutId = setTimeout(() => batchController.abort(), 3000) // 3 second timeout
+      const batchTimeoutId = setTimeout(() => batchController.abort(), 10000) // 10 second timeout for cold starts
       
       const guildIds = adminGuilds.map((g: any) => g.id)
       
@@ -63,9 +63,15 @@ export default async function handler(
       
       if (batchResponse.ok) {
         botStatusMap = await batchResponse.json()
+      } else {
+        console.warn(`Batch check returned ${batchResponse.status}: ${batchResponse.statusText}`)
       }
     } catch (error) {
-      console.error('Error batch checking bot status:', error)
+      if ((error as Error).name === 'AbortError') {
+        console.warn('Batch check timed out after 10 seconds - API may be on cold start')
+      } else {
+        console.error('Error batch checking bot status:', error)
+      }
       // Continue without bot status rather than failing completely
     }
 
