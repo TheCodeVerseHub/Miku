@@ -46,6 +46,36 @@ export default async function handler(
     return res.status(400).json({ error: 'Invalid server ID' })
   }
 
+  // Check if user has access to this guild
+  try {
+    const guildsResponse = await fetch('https://discord.com/api/v10/users/@me/guilds', {
+      headers: {
+        Authorization: `Bearer ${(session as any).accessToken}`,
+      },
+    })
+
+    if (!guildsResponse.ok) {
+      return res.status(401).json({ error: 'Failed to verify guild access' })
+    }
+
+    const userGuilds = await guildsResponse.json()
+    const guild = userGuilds.find((g: any) => g.id === serverId)
+
+    if (!guild) {
+      return res.status(403).json({ error: 'You do not have access to this server' })
+    }
+
+    // Check if user has MANAGE_GUILD permission (0x20 = 32) or is owner
+    const hasPermission = guild.owner || (parseInt(guild.permissions) & 0x20) === 0x20
+
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'You do not have permission to manage this server' })
+    }
+  } catch (error) {
+    console.error('Error checking guild permissions:', error)
+    return res.status(500).json({ error: 'Failed to verify permissions' })
+  }
+
   try {
     // Fetch leaderboard from bot API with timeout
     const controller = new AbortController()
