@@ -97,38 +97,50 @@ async def migrate():
             
             # Migrate guild_settings
             print("⚙️  Migrating guild settings...")
-            async with sqlite_conn.execute('SELECT * FROM guild_settings') as cursor:
-                rows = await cursor.fetchall()
-                count = 0
-                for row in rows:
-                    # Handle optional columns safely
-                    levelup_channel_id = row['levelup_channel_id'] if 'levelup_channel_id' in row.keys() else None
-                    updated_at = row['updated_at'] if 'updated_at' in row.keys() else 0
-                    
-                    await pg_conn.execute('''
-                        INSERT INTO guild_settings (guild_id, levelup_channel_id, updated_at)
-                        VALUES ($1, $2, $3)
-                        ON CONFLICT (guild_id) DO UPDATE SET
-                            levelup_channel_id = EXCLUDED.levelup_channel_id,
-                            updated_at = EXCLUDED.updated_at
-                    ''', row['guild_id'], levelup_channel_id, updated_at)
-                    count += 1
-                print(f"✅ Migrated {count} guild settings\n")
+            try:
+                async with sqlite_conn.execute('SELECT * FROM guild_settings') as cursor:
+                    rows = await cursor.fetchall()
+                    count = 0
+                    for row in rows:
+                        # Handle optional columns safely
+                        levelup_channel_id = row['levelup_channel_id'] if 'levelup_channel_id' in row.keys() else None
+                        updated_at = row['updated_at'] if 'updated_at' in row.keys() else 0
+                        
+                        await pg_conn.execute('''
+                            INSERT INTO guild_settings (guild_id, levelup_channel_id, updated_at)
+                            VALUES ($1, $2, $3)
+                            ON CONFLICT (guild_id) DO UPDATE SET
+                                levelup_channel_id = EXCLUDED.levelup_channel_id,
+                                updated_at = EXCLUDED.updated_at
+                        ''', row['guild_id'], levelup_channel_id, updated_at)
+                        count += 1
+                    print(f"✅ Migrated {count} guild settings\n")
+            except Exception as e:
+                if "no such table" in str(e):
+                    print(f"⚠️  guild_settings table doesn't exist (skipping)\n")
+                else:
+                    raise
             
             # Migrate role_rewards
             print("🎖️  Migrating role rewards...")
-            async with sqlite_conn.execute('SELECT * FROM role_rewards') as cursor:
-                rows = await cursor.fetchall()
-                count = 0
-                for row in rows:
-                    await pg_conn.execute('''
-                        INSERT INTO role_rewards (guild_id, level, role_id)
-                        VALUES ($1, $2, $3)
-                        ON CONFLICT (guild_id, level) DO UPDATE SET
-                            role_id = EXCLUDED.role_id
-                    ''', row['guild_id'], row['level'], row['role_id'])
-                    count += 1
-                print(f"✅ Migrated {count} role rewards\n")
+            try:
+                async with sqlite_conn.execute('SELECT * FROM role_rewards') as cursor:
+                    rows = await cursor.fetchall()
+                    count = 0
+                    for row in rows:
+                        await pg_conn.execute('''
+                            INSERT INTO role_rewards (guild_id, level, role_id)
+                            VALUES ($1, $2, $3)
+                            ON CONFLICT (guild_id, level) DO UPDATE SET
+                                role_id = EXCLUDED.role_id
+                        ''', row['guild_id'], row['level'], row['role_id'])
+                        count += 1
+                    print(f"✅ Migrated {count} role rewards\n")
+            except Exception as e:
+                if "no such table" in str(e):
+                    print(f"⚠️  role_rewards table doesn't exist (skipping)\n")
+                else:
+                    raise
             
             print("🎉 Migration completed successfully!")
             print("\n📌 Next steps:")
