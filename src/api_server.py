@@ -235,7 +235,27 @@ async def check_guild_has_bot(guild_id: int):
         
         return {"hasMiku": count > 0}
 
+# Batch check multiple guilds
+@app.post("/api/guilds/batch-check")
+async def batch_check_guilds(guild_ids: List[int]):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Use a single query to check all guilds at once
+        result = await conn.fetch(
+            'SELECT DISTINCT guild_id FROM user_levels WHERE guild_id = ANY($1::bigint[])',
+            guild_ids
+        )
+        
+        guilds_with_bot = {row['guild_id'] for row in result}
+        
+        return {
+            str(guild_id): guild_id in guilds_with_bot 
+            for guild_id in guild_ids
+        }
+
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("API_PORT", "8000"))
+    # Render sets PORT env var, fallback to API_PORT or 8000
+    port = int(os.getenv("PORT", os.getenv("API_PORT", "8000")))
+    print(f"[INFO] Starting API server on port {port}")
     uvicorn.run(app, host="0.0.0.0", port=port)

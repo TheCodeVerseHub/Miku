@@ -3,6 +3,31 @@ import { getSession } from 'next-auth/react'
 
 const BOT_API_URL = process.env.BOT_API_URL || process.env.API_URL || 'http://localhost:8000'
 
+// Helper function to fetch user with timeout
+async function fetchUserWithTimeout(userId: string, botToken: string): Promise<any> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 2000) // 2 second timeout per user
+  
+  try {
+    const userResponse = await fetch(`https://discord.com/api/v10/users/${userId}`, {
+      headers: {
+        Authorization: `Bot ${botToken}`,
+      },
+      signal: controller.signal,
+    })
+    
+    clearTimeout(timeoutId)
+    
+    if (userResponse.ok) {
+      return await userResponse.json()
+    }
+    return null
+  } catch (error) {
+    clearTimeout(timeoutId)
+    return null
+  }
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -22,8 +47,15 @@ export default async function handler(
   }
 
   try {
-    // Fetch leaderboard from bot API
-    const response = await fetch(`${BOT_API_URL}/api/server/${serverId}/leaderboard?page=${page}&limit=${limit}`)
+    // Fetch leaderboard from bot API with timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+    
+    const response = await fetch(`${BOT_API_URL}/api/server/${serverId}/leaderboard?page=${page}&limit=${limit}`, {
+      signal: controller.signal,
+    })
+    
+    clearTimeout(timeoutId)
     
     if (!response.ok) {
       throw new Error('Failed to fetch leaderboard from bot API')
@@ -31,28 +63,25 @@ export default async function handler(
     
     const leaderboardData = await response.json()
     
-    // Fetch Discord user data for each user
+    // Fetch Discord user data for each user (with individual timeouts)
+    const botToken = process.env.DISCORD_BOT_TOKEN
+    const hasValidToken = botToken && botToken !== 'your_bot_token_here'
+    
     const enrichedData = await Promise.all(
       leaderboardData.data.map(async (entry: any) => {
-        try {
-          if (!process.env.DISCORD_BOT_TOKEN || process.env.DISCORD_BOT_TOKEN === 'your_bot_token_here') {
-            console.warn('DISCORD_BOT_TOKEN not configured properly')
-            return {
-              ...entry,
-              username: entry.userId,
-              discriminator: '0000',
-              avatar: null,
-            }
+        if (!hasValidToken) {
+          return {
+            ...entry,
+            username: `User ${entry.userId}`,
+            discriminator: '0000',
+            avatar: null,
           }
+        }
 
-          const userResponse = await fetch(`https://discord.com/api/v10/users/${entry.userId}`, {
-            headers: {
-              Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
-            },
-          })
+        try {
+          const userData = await fetchUserWithTimeout(entry.userId, botToken)
           
-          if (userResponse.ok) {
-            const userData = await userResponse.json()
+          if (userData) {
             return {
               ...entry,
               username: userData.username,
@@ -62,16 +91,15 @@ export default async function handler(
           } else {
             return {
               ...entry,
-              username: entry.userId,
+              username: `User ${entry.userId}`,
               discriminator: '0000',
               avatar: null,
             }
           }
         } catch (error) {
-          console.error(`Error fetching user ${entry.userId}:`, error)
           return {
             ...entry,
-            username: entry.userId,
+            username: `User ${entry.userId}`,
             discriminator: '0000',
             avatar: null,
           }

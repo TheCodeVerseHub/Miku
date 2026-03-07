@@ -7,7 +7,10 @@ import LeaderboardTable from '@/components/LeaderboardTable'
 import StatsOverview from '@/components/StatsOverview'
 import useSWR from 'swr'
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json())
+const fetcher = (url: string) => fetch(url).then((res) => {
+  if (!res.ok) throw new Error('Failed to fetch')
+  return res.json()
+})
 
 interface ServerStats {
   totalMembers: number
@@ -25,18 +28,31 @@ export default function ServerStats() {
   const { serverId } = router.query
   const { data: session, status } = useSession()
 
-  const { data: stats, error: statsError } = useSWR<ServerStats>(
+  const { data: stats, error: statsError, isLoading: statsLoading } = useSWR<ServerStats>(
     serverId ? `/api/server/${serverId}/stats` : null,
-    fetcher
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 30000,
+    }
   )
 
-  const { data: leaderboard, error: lbError } = useSWR(
+  const { data: leaderboard, error: lbError, isLoading: lbLoading } = useSWR(
     serverId ? `/api/server/${serverId}/leaderboard` : null,
-    fetcher
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 30000,
+    }
   )
 
-  if (status === 'loading' || !stats || !leaderboard) {
-    return <LoadingSpinner />
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner />
+        <p className="ml-4 text-gray-400">Loading session...</p>
+      </div>
+    )
   }
 
   if (status === 'unauthenticated') {
@@ -48,12 +64,29 @@ export default function ServerStats() {
     return (
       <div className="min-h-screen">
         <Navbar />
-        <div className="flex items-center justify-center h-96">
-          <p className="text-red-500">Failed to load server data</p>
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="mb-6 text-discord-blue hover:underline flex items-center"
+          >
+            ← Back to Dashboard
+          </button>
+          <div className="bg-red-900/20 border border-red-500 rounded-lg p-8 text-center">
+            <p className="text-red-400 text-lg mb-4">Failed to load server data</p>
+            <p className="text-gray-400 mb-4">The server may not have Miku or the API is unavailable.</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg transition"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       </div>
     )
   }
+
+  const isLoading = statsLoading || lbLoading
 
   return (
     <>
@@ -84,29 +117,49 @@ export default function ServerStats() {
             </button>
           </div>
 
+          {/* Loading State */}
+          {isLoading && (
+            <div className="space-y-8">
+              <div className="animate-pulse">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                  <div className="bg-discord-gray h-32 rounded-lg"></div>
+                  <div className="bg-discord-gray h-32 rounded-lg"></div>
+                  <div className="bg-discord-gray h-32 rounded-lg"></div>
+                  <div className="bg-discord-gray h-32 rounded-lg"></div>
+                </div>
+                <div className="bg-discord-gray h-96 rounded-lg"></div>
+              </div>
+            </div>
+          )}
+
           {/* Stats Overview */}
-          <StatsOverview stats={stats} />
+          {stats && <StatsOverview stats={stats} />}
 
           {/* Leaderboard */}
-          <div className="mt-12">
-            <h2 className="text-3xl font-bold mb-6">Leaderboard</h2>
-            <LeaderboardTable data={leaderboard} />
-          </div>
+          {leaderboard && (
+            <div className="mt-12">
+              <h2 className="text-3xl font-bold mb-6">Leaderboard</h2>
+              <LeaderboardTable data={leaderboard} />
+            </div>
+          )}
 
           {/* Charts Section */}
-          <div className="mt-12 grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-discord-gray p-6 rounded-lg">
-              <h3 className="text-xl font-semibold mb-4">XP Distribution</h3>
-              <p className="text-gray-400">Coming soon: Chart showing XP distribution across levels</p>
-            </div>
+          {!isLoading && (
+            <div className="mt-12 grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-discord-gray p-6 rounded-lg">
+                <h3 className="text-xl font-semibold mb-4">XP Distribution</h3>
+                <p className="text-gray-400">Coming soon: Chart showing XP distribution across levels</p>
+              </div>
 
-            <div className="bg-discord-gray p-6 rounded-lg">
-              <h3 className="text-xl font-semibold mb-4">Activity Trends</h3>
-              <p className="text-gray-400">Coming soon: Chart showing user activity over time</p>
+              <div className="bg-discord-gray p-6 rounded-lg">
+                <h3 className="text-xl font-semibold mb-4">Activity Trends</h3>
+                <p className="text-gray-400">Coming soon: Chart showing user activity over time</p>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </>
   )
 }
+

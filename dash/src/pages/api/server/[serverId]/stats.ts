@@ -20,8 +20,15 @@ export default async function handler(
   }
 
   try {
-    // Fetch stats from bot API
-    const response = await fetch(`${BOT_API_URL}/api/server/${serverId}/stats`)
+    // Fetch stats from bot API with timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+    
+    const response = await fetch(`${BOT_API_URL}/api/server/${serverId}/stats`, {
+      signal: controller.signal,
+    })
+    
+    clearTimeout(timeoutId)
     
     if (!response.ok) {
       throw new Error('Failed to fetch stats from bot API')
@@ -40,11 +47,17 @@ export default async function handler(
             level: dbStats.topUser.level,
           }
         } else {
+          const userController = new AbortController()
+          const userTimeoutId = setTimeout(() => userController.abort(), 3000) // 3 second timeout
+          
           const userResponse = await fetch(`https://discord.com/api/v10/users/${dbStats.topUser.userId}`, {
             headers: {
               Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
             },
+            signal: userController.signal,
           })
+          
+          clearTimeout(userTimeoutId)
           
           if (userResponse.ok) {
             const userData = await userResponse.json()

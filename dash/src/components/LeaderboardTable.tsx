@@ -9,7 +9,7 @@ interface LeaderboardEntry {
   avatar: string | null
   level: number
   xp: number
-  totalXp: number
+  messages?: number
 }
 
 interface LeaderboardData {
@@ -40,8 +40,24 @@ export default function LeaderboardTable({ data }: LeaderboardTableProps) {
     return '/default-avatar.png'
   }
 
+  const calculateXpForLevel = (level: number) => {
+    // Calculate total XP needed to reach a level
+    let total = 0
+    for (let i = 1; i <= level; i++) {
+      total += 100 * i + 50 * (i - 1)
+    }
+    return total
+  }
+
   const calculateXpForNextLevel = (level: number) => {
     return 100 * level + 50 * (level - 1)
+  }
+
+  const getCurrentLevelProgress = (totalXp: number, level: number) => {
+    // Calculate XP needed for current level
+    const xpForCurrentLevel = calculateXpForLevel(level)
+    // Current progress in this level
+    return totalXp - xpForCurrentLevel
   }
 
   return (
@@ -60,8 +76,10 @@ export default function LeaderboardTable({ data }: LeaderboardTableProps) {
           </thead>
           <tbody className="divide-y divide-discord-light">
             {data.data.map((entry) => {
+              const totalXp = entry.xp || 0
+              const currentLevelProgress = getCurrentLevelProgress(totalXp, entry.level)
               const xpForNext = calculateXpForNextLevel(entry.level + 1)
-              const progress = (entry.xp / xpForNext) * 100
+              const progress = Math.min((currentLevelProgress / xpForNext) * 100, 100)
 
               return (
                 <tr key={entry.userId} className="hover:bg-discord-light transition-colors">
@@ -92,10 +110,10 @@ export default function LeaderboardTable({ data }: LeaderboardTableProps) {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-gray-300">
-                    {entry.xp.toLocaleString()} / {xpForNext.toLocaleString()}
+                    {currentLevelProgress.toLocaleString()} / {xpForNext.toLocaleString()}
                   </td>
                   <td className="px-6 py-4 text-gray-300">
-                    {entry.totalXp.toLocaleString()}
+                    {totalXp.toLocaleString()}
                   </td>
                   <td className="px-6 py-4">
                     <div className="w-32">

@@ -16,12 +16,18 @@ export default async function handler(
   console.log(`[DEBUG] BOT_API_URL: ${BOT_API_URL}`)
 
   try {
-    // Fetch user's guilds from Discord API
+    // Fetch user's guilds from Discord API with timeout
+    const controller = new AbortController()
+    const discordTimeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+    
     const discordResponse = await fetch('https://discord.com/api/users/@me/guilds', {
       headers: {
         Authorization: `Bearer ${session.accessToken}`,
       },
+      signal: controller.signal,
     })
+    
+    clearTimeout(discordTimeoutId)
 
     if (!discordResponse.ok) {
       throw new Error('Failed to fetch guilds from Discord')
@@ -35,37 +41,42 @@ export default async function handler(
       return (permissions & 0x8) === 0x8 || (permissions & 0x20) === 0x20
     })
 
-    // Check which guilds have the bot by querying bot API
-    const guildsWithStatus = await Promise.all(
-      adminGuilds.map(async (guild: any) => {
-        let hasMiku = false
-        try {
-          // Add timeout to prevent hanging
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
-          
-          const botResponse = await fetch(`${BOT_API_URL}/api/guild/${guild.id}/has-bot`, {
-            signal: controller.signal
-          })
-          clearTimeout(timeoutId)
-          
-          if (botResponse.ok) {
-            const data = await botResponse.json()
-            hasMiku = data.hasMiku
-          }
-        } catch (error) {
-          console.error(`Error checking bot status for guild ${guild.id}:`, error)
-        }
-
-        return {
-          id: guild.id,
-          name: guild.name,
-          icon: guild.icon,
-          memberCount: 0,
-          hasMiku,
-        }
+    // Batch check all guilds at once (much faster!)
+    let botStatusMap: Record<string, boolean> = {}
+    
+    try {
+      const batchController = new AbortController()
+      const batchTimeoutId = setTimeout(() => batchController.abort(), 3000) // 3 second timeout
+      
+      const guildIds = adminGuilds.map((g: any) => g.id)
+      
+      const batchResponse = await fetch(`${BOT_API_URL}/api/guilds/batch-check`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(guildIds),
+        signal: batchController.signal,
       })
-    )
+      
+      clearTimeout(batchTimeoutId)
+      
+      if (batchResponse.ok) {
+        botStatusMap = await batchResponse.json()
+      }
+    } catch (error) {
+      console.error('Error batch checking bot status:', error)
+      // Continue without bot status rather than failing completely
+    }
+
+    // Map guilds with their bot status
+    const guildsWithStatus = adminGuilds.map((guild: any) => ({
+      id: guild.id,
+      name: guild.name,
+      icon: guild.icon,
+      memberCount: guild.approximate_member_count || 0,
+      hasMiku: botStatusMap[guild.id] || false,
+    }))
 
     // Return the guilds with their status
     return res.status(200).json(guildsWithStatus)

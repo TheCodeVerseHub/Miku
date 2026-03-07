@@ -3,7 +3,22 @@ services:
     name: miku-api
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python -c "import sys; sys.path.insert(0, 'src'); from api_server import app; import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8000)"
+    startCommand: python src/api_server.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
+      - key: API_PORT
+        value: 8000
+      # IMPORTANT: Add these environment variables in Render Dashboard:
+      # - DATABASE_URL (from your Render PostgreSQL database - Internal Database URL)
+      # - ALLOWED_ORIGINS (your Vercel dashboard URL, e.g., https://your-dashboard.vercel.app)
+      # Do NOT commit sensitive values to this file!
+    healthCheckPath: /api/health
+
+# Uncomment to create a PostgreSQL database:
+# databases:
+#   - name: miku-db
+#     databaseName: miku
+#     user: miku
+#     plan: free
+
