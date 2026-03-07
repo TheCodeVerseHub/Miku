@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getSession } from 'next-auth/react'
-import { guildHasBot } from '@/lib/database'
+
+const BOT_API_URL = process.env.BOT_API_URL || process.env.API_URL || 'http://localhost:8000'
 
 export default async function handler(
   req: NextApiRequest,
@@ -32,16 +33,29 @@ export default async function handler(
       return (permissions & 0x8) === 0x8 || (permissions & 0x20) === 0x20
     })
 
-    // Check which guilds have the bot
-    const guildsWithStatus = adminGuilds.map((guild: any) => ({
-      id: guild.id,
-      name: guild.name,
-      icon: guild.icon,
-      memberCount: 0, // Would be fetched from bot API
-      hasMiku: guildHasBot(guild.id),
-    }))
+    // Check which guilds have the bot by querying bot API
+    const guildsWithStatus = await Promise.all(
+      adminGuilds.map(async (guild: any) => {
+        let hasMiku = false
+        try {
+          const botResponse = await fetch(`${BOT_API_URL}/api/guild/${guild.id}/has-bot`)
+          if (botResponse.ok) {
+            const data = await botResponse.json()
+            hasMiku = data.hasMiku
+          }
+        } catch (error) {
+          console.error(`Error checking bot status for guild ${guild.id}:`, error)
+        }
 
-    res.status(200).json(guildsWithStatus)
+        return {
+          id: guild.id,
+          name: guild.name,
+          icon: guild.icon,
+          memberCount: 0,
+          hasMiku,
+        }
+      })
+    )
   } catch (error) {
     console.error('Error fetching guilds:', error)
     res.status(500).json({ error: 'Failed to fetch guilds' })

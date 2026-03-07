@@ -33,6 +33,10 @@ A feature-rich Discord leveling bot inspired by Arcane, with support for both **
 | **addxp** | `/addxp <user> <amount>` | `&addxp <user> <amount>` | Add XP to a user |
 | **resetlevel** | `/resetlevel <user>` | `&resetlevel <user>` | Reset a user's level data |
 | **resetalllevels** | `/resetalllevels CONFIRM` | `&resetalllevels CONFIRM` | Reset all server levels (requires CONFIRM) |
+| **setlevelchannel** | `/setlevelchannel <channel>` | `&setlevelchannel #channel` | Set channel for level-up announcements |
+| **addrole** | `/addrole <level> <role>` | `&addrole <level> @role` | Add role reward for a level |
+| **removerole** | `/removerole <level>` | `&removerole <level>` | Remove role reward for a level |
+| **rolerewards** | `/rolerewards` | `&rolerewards` | List all configured role rewards |
 
 ## Setup
 
@@ -95,11 +99,12 @@ Miku comes with a modern web dashboard built with **Next.js 14** and **React** f
 - 🔐 **Discord OAuth2 Login** - Secure authentication
 - 📊 **Live Statistics** - Real-time server stats and analytics
 - 🏆 **Interactive Leaderboards** - View top members with pagination
+- ⚙️ **Leveling Configuration** - Set level-up channels and role rewards
 - 🎮 **Multi-Server Management** - Manage all servers from one place
 - 📱 **Responsive Design** - Works on desktop, tablet, and mobile
 - 🎨 **Beautiful UI** - Discord-themed design with Tailwind CSS
 
-### Quick Start
+### Quick Start (Local Development)
 
 ```bash
 cd dash
@@ -111,7 +116,35 @@ npm run dev
 
 Dashboard will be available at [http://localhost:3000](http://localhost:3000)
 
-For detailed setup instructions, see [dash/README.md](dash/README.md) and [dash/SETUP.md](dash/SETUP.md)
+### Production Deployment (FREE!)
+
+The dashboard can be deployed for **completely free** on Vercel while your bot runs on WispByte or any other hosting service.
+
+**Quick Deploy:**
+1. Bot runs on WispByte (includes API server)
+2. Dashboard deploys to Vercel
+3. They communicate via REST API
+
+See complete deployment guide: **[DEPLOYMENT.md](DEPLOYMENT.md)**
+
+For detailed setup instructions, see:
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Complete deployment guide
+- [dash/QUICK_DEPLOY.md](dash/QUICK_DEPLOY.md) - Quick reference
+- [dash/SETUP.md](dash/SETUP.md) - Local development setup
+
+## Running Bot with Dashboard Support
+
+To enable dashboard connectivity, run both the bot and API server:
+
+```bash
+python start_all.py
+```
+
+This starts:
+- Discord bot (handles messages, commands)
+- REST API server (serves data to dashboard)
+
+For production deployment guide, see [DEPLOYMENT.md](DEPLOYMENT.md)
 
 ## Leveling Formula
 
@@ -136,18 +169,35 @@ XP Required = 5 × (level²) + (50 × level) + 100
 | 50 | 89,250 |
 
 ## Project Structure
-
-```
-Miku/
-├── main.py                 # Entry point
+start_all.py           # Run bot + API server (for deployment)
 ├── pyproject.toml         # Dependencies
+├── requirements.txt       # Python dependencies
 ├── README.md              # Documentation
+├── DEPLOYMENT.md          # Production deployment guide
+├── LEVELING_CONFIG.md     # Leveling configuration guide
 ├── data/                  # Database files (auto-created)
 │   └── leveling.db
-└── src/
-    ├── bot.py            # Bot setup and initialization
-    ├── cogs/
-    │   ├── __init__.py
+├── src/
+│   ├── bot.py            # Bot setup and initialization
+│   ├── api_server.py     # FastAPI server for dashboard
+│   ├── cogs/
+│   │   ├── __init__.py
+│   │   ├── leveling.py   # Leveling system cog
+│   │   └── help.py       # Help command
+│   └── utils/
+│       ├── __init__.py
+│       ├── database.py   # Database operations
+│       └── rank_card.py  # Rank card generator
+└── dash/                 # Next.js Dashboard
+    ├── src/
+    │   ├── pages/        # Next.js pages
+    │   ├── components/   # React components
+    │   ├── lib/          # Utility functions
+    │   └── types/        # TypeScript types
+    ├── public/           # Static files
+    ├── vercel.json       # Vercel deployment config
+    ├── QUICK_DEPLOY.md   # Quick deployment guide
+    └── package.json      # Node dependencie
     │   └── leveling.py   # Leveling system cog
     └── utils/
         ├── __init__.py

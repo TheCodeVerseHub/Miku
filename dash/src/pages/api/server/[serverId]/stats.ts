@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getSession } from 'next-auth/react'
-import { getServerStats } from '@/lib/database'
+
+const BOT_API_URL = process.env.BOT_API_URL || process.env.API_URL || 'http://localhost:8000'
 
 export default async function handler(
   req: NextApiRequest,
@@ -19,8 +20,14 @@ export default async function handler(
   }
 
   try {
-    // Fetch stats from database
-    const dbStats = getServerStats(serverId)
+    // Fetch stats from bot API
+    const response = await fetch(`${BOT_API_URL}/api/server/${serverId}/stats`)
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch stats from bot API')
+    }
+    
+    const dbStats = await response.json()
     
     // If there's a top user, fetch their Discord username
     let topUser = null
@@ -29,7 +36,7 @@ export default async function handler(
         if (!process.env.DISCORD_BOT_TOKEN || process.env.DISCORD_BOT_TOKEN === 'your_bot_token_here') {
           console.warn('DISCORD_BOT_TOKEN not configured properly')
           topUser = {
-            username: `${dbStats.topUser.userId}`,
+            username: `User ${dbStats.topUser.userId}`,
             level: dbStats.topUser.level,
           }
         } else {
@@ -42,24 +49,22 @@ export default async function handler(
           if (userResponse.ok) {
             const userData = await userResponse.json()
             topUser = {
-              username: `${userData.username}#${userData.discriminator}`,
+              username: userData.discriminator === '0' 
+                ? userData.username 
+                : `${userData.username}#${userData.discriminator}`,
               level: dbStats.topUser.level,
             }
           } else {
-            const errorData = await userResponse.text()
-            console.error(`Discord API error for top user: ${userResponse.status} - ${errorData}`)
-            // Fallback if user fetch fails - use user ID
             topUser = {
-              username: `${dbStats.topUser.userId}`,
+              username: `User ${dbStats.topUser.userId}`,
               level: dbStats.topUser.level,
             }
           }
         }
       } catch (error) {
         console.error('Error fetching top user:', error)
-        // Fallback - use user ID
         topUser = {
-          username: `${dbStats.topUser.userId}`,
+          username: `User ${dbStats.topUser.userId}`,
           level: dbStats.topUser.level,
         }
       }
@@ -69,7 +74,7 @@ export default async function handler(
       totalMembers: dbStats.totalMembers || 0,
       totalXP: dbStats.totalXP || 0,
       activeUsers: dbStats.activeUsers || 0,
-      averageLevel: dbStats.averageLevel ? Math.round(dbStats.averageLevel * 10) / 10 : 0,
+      averageLevel: dbStats.averageLevel || 0,
       topUser,
     }
 
@@ -79,4 +84,3 @@ export default async function handler(
     res.status(500).json({ error: 'Failed to fetch server stats' })
   }
 }
-

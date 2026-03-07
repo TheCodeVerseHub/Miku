@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getSession } from 'next-auth/react'
-import { getLeaderboard } from '@/lib/database'
+
+const BOT_API_URL = process.env.BOT_API_URL || process.env.API_URL || 'http://localhost:8000'
 
 export default async function handler(
   req: NextApiRequest,
@@ -21,12 +22,18 @@ export default async function handler(
   }
 
   try {
-    // Fetch leaderboard from database
-    const leaderboardData = getLeaderboard(serverId, page, limit)
+    // Fetch leaderboard from bot API
+    const response = await fetch(`${BOT_API_URL}/api/server/${serverId}/leaderboard?page=${page}&limit=${limit}`)
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch leaderboard from bot API')
+    }
+    
+    const leaderboardData = await response.json()
     
     // Fetch Discord user data for each user
     const enrichedData = await Promise.all(
-      leaderboardData.data.map(async (entry) => {
+      leaderboardData.data.map(async (entry: any) => {
         try {
           if (!process.env.DISCORD_BOT_TOKEN || process.env.DISCORD_BOT_TOKEN === 'your_bot_token_here') {
             console.warn('DISCORD_BOT_TOKEN not configured properly')
@@ -53,9 +60,6 @@ export default async function handler(
               avatar: userData.avatar,
             }
           } else {
-            const errorData = await userResponse.text()
-            console.error(`Discord API error for user ${entry.userId}: ${userResponse.status} - ${errorData}`)
-            // Fallback if user fetch fails - use user ID as username
             return {
               ...entry,
               username: entry.userId,
@@ -65,7 +69,6 @@ export default async function handler(
           }
         } catch (error) {
           console.error(`Error fetching user ${entry.userId}:`, error)
-          // Fallback - use user ID as username
           return {
             ...entry,
             username: entry.userId,
@@ -87,4 +90,3 @@ export default async function handler(
     res.status(500).json({ error: 'Failed to fetch leaderboard' })
   }
 }
-

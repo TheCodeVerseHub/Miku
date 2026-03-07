@@ -9,9 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "axios": "^1.6.7",
-    "better-sqlite3": "^12.6.2",
     "chart.js": "^4.4.1",
     "next": "^14.1.0",
     "next-auth": "^4.24.6",

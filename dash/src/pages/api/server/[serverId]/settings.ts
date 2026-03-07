@@ -1,10 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getSession } from 'next-auth/react'
-import Database from 'better-sqlite3'
-import path from 'path'
 
-// Database path (same as bot)
-const DB_PATH = path.join(process.cwd(), '../../data/leveling.db')
+const BOT_API_URL = process.env.BOT_API_URL || process.env.API_URL || 'http://localhost:8000'
 
 export default async function handler(
   req: NextApiRequest,
@@ -23,24 +20,22 @@ export default async function handler(
   }
 
   try {
-    const db = new Database(DB_PATH)
-
     if (req.method === 'GET') {
-      // Get guild settings and role rewards
-      const settings = db.prepare(
-        'SELECT * FROM guild_settings WHERE guild_id = ?'
-      ).get(serverId) as { levelup_channel_id?: number; updated_at?: number } | undefined
+      // Get guild settings from bot API
+      const response = await fetch(`${BOT_API_URL}/api/server/${serverId}/settings`)
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch settings from bot API')
+      }
+      
+      const settings = await response.json()
 
-      const roleRewards = db.prepare(
-        'SELECT level, role_id FROM role_rewards WHERE guild_id = ? ORDER BY level'
-      ).all(serverId) as Array<{ level: number; role_id: number }>
-
-      // Fetch channel and role info from Discord API
+      // Fetch channel info if set
       let channelInfo = null
-      if (settings?.levelup_channel_id) {
+      if (settings.levelupChannelId) {
         try {
           const channelResponse = await fetch(
-            `https://discord.com/api/v10/channels/${settings.levelup_channel_id}`,
+            `https://discord.com/api/v10/channels/${settings.levelupChannelId}`,
             {
               headers: {
                 Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
@@ -74,64 +69,43 @@ export default async function handler(
       }
 
       // Get role names
-      const roleRewardsWithNames = roleRewards.map((rr) => {
-        const role = guildInfo?.roles?.find((r: any) => r.id === rr.role_id.toString())
+      const roleRewardsWithNames = settings.roleRewards.map((rr: any) => {
+        const role = guildInfo?.roles?.find((r: any) => r.id === rr.roleId)
         return {
           level: rr.level,
-          roleId: rr.role_id.toString(),
+          roleId: rr.roleId,
           roleName: role?.name || 'Unknown Role',
           roleColor: role?.color || 0,
         }
       })
 
-      db.close()
-
       return res.status(200).json({
-        levelupChannelId: settings?.levelup_channel_id?.toString() || null,
+        levelupChannelId: settings.levelupChannelId || null,
         levelupChannelName: channelInfo?.name || null,
         roleRewards: roleRewardsWithNames,
       })
     } else if (req.method === 'POST') {
-      // Update guild settings
+      // Update guild settings via bot API
       const { levelupChannelId, roleRewards } = req.body
 
-      // Update levelup channel if provided
-      if (levelupChannelId !== undefined) {
-        if (levelupChannelId === null) {
-          // Remove channel setting
-          db.prepare(
-            'UPDATE guild_settings SET levelup_channel_id = NULL WHERE guild_id = ?'
-          ).run(serverId)
-        } else {
-          db.prepare(
-            `INSERT INTO guild_settings (guild_id, levelup_channel_id, updated_at)
-             VALUES (?, ?, ?)
-             ON CONFLICT(guild_id) DO UPDATE SET
-               levelup_channel_id = excluded.levelup_channel_id,
-               updated_at = excluded.updated_at`
-          ).run(serverId, levelupChannelId, Date.now() / 1000)
-        }
+      const response = await fetch(`${BOT_API_URL}/api/server/${serverId}/settings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          levelupChannelId,
+          roleRewards,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update settings via bot API')
       }
 
-      // Update role rewards if provided
-      if (roleRewards !== undefined) {
-        // Clear existing role rewards
-        db.prepare('DELETE FROM role_rewards WHERE guild_id = ?').run(serverId)
-
-        // Add new role rewards
-        const insertStmt = db.prepare(
-          `INSERT INTO role_rewards (guild_id, level, role_id) VALUES (?, ?, ?)`
-        )
-        for (const reward of roleRewards) {
-          insertStmt.run(serverId, reward.level, reward.roleId)
-        }
-      }
-
-      db.close()
-
-      return res.status(200).json({ success: true })
+      const result = await response.json()
+      return res.status(200).json(result)
     } else {
-      db.close()
       return res.status(405).json({ error: 'Method not allowed' })
     }
   } catch (error) {
