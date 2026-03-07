@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: miku-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -c "import sys; sys.path.insert(0, 'src'); from api_server import app; import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8000)"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
