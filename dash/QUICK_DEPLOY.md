@@ -56,6 +56,7 @@
 5. **Deploy to Vercel:**
    - Push code to GitHub
    - Import project in Vercel
+   - **⚠️ Set Root Directory to `dash`** (very important!)
    - Add environment variables
    - Deploy!
 

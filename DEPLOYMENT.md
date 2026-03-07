@@ -154,7 +154,13 @@ git push -u origin main
 1. Go to https://vercel.com
 2. Click **"Add New Project"**
 3. Import your Git repository
-4. Vercel will auto-detect Next.js
+4. **⚠️ IMPORTANT: Configure Root Directory**
+   - In the project configuration screen
+   - Find **"Root Directory"** setting
+   - Click **"Edit"**
+   - Set it to: `dash`
+   - Click **"Continue"**
+5. Vercel will auto-detect Next.js
 
 ### Step 3: Configure Environment Variables
 
