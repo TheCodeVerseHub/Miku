@@ -22,6 +22,11 @@ app.add_middleware(
 
 # Database connection
 DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError(
+        "DATABASE_URL environment variable is not set! "
+        "Please set it in your Render dashboard Environment variables."
+    )
 _pool = None
 
 # Models
