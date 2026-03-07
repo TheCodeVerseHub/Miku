@@ -66,8 +66,11 @@ export default async function handler(
         }
       })
     )
+
+    // Return the guilds with their status
+    return res.status(200).json(guildsWithStatus)
   } catch (error) {
     console.error('Error fetching guilds:', error)
-    res.status(500).json({ error: 'Failed to fetch guilds' })
+    return res.status(500).json({ error: 'Failed to fetch guilds' })
   }
 }
