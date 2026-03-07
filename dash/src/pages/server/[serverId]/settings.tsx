@@ -153,6 +153,11 @@ export default function ServerSettings() {
       return
     }
 
+    if (!guildData) {
+      showMessage('error', 'Guild data not loaded')
+      return
+    }
+
     const role = guildData.roles.find((r) => r.id === newRewardRoleId)
     if (!role) {
       showMessage('error', 'Role not found')
@@ -228,7 +233,7 @@ export default function ServerSettings() {
               className="w-full bg-discord-dark text-white p-3 rounded-lg border border-gray-700 focus:border-discord-blue focus:outline-none"
             >
               <option value="">No specific channel (use current channel)</option>
-              {guildData.channels.map((channel) => (
+              {guildData?.channels.map((channel) => (
                 <option key={channel.id} value={channel.id}>
                   # {channel.name}
                 </option>
@@ -290,7 +295,7 @@ export default function ServerSettings() {
                   className="bg-discord-dark text-white p-3 rounded-lg border border-gray-700 focus:border-discord-blue focus:outline-none"
                 >
                   <option value="">Select a role...</option>
-                  {guildData.roles.map((role) => (
+                  {guildData?.roles.map((role) => (
                     <option key={role.id} value={role.id}>
                       @{role.name}
                     </option>
