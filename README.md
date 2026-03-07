@@ -169,6 +169,8 @@ XP Required = 5 × (level²) + (50 × level) + 100
 | 50 | 89,250 |
 
 ## Project Structure
+
+```
 start_all.py           # Run bot + API server (for deployment)
 ├── pyproject.toml         # Dependencies
 ├── requirements.txt       # Python dependencies
