@@ -28,6 +28,11 @@ class Leveling(commands.Cog):
         await db.init_db()
         print("Leveling database initialized")
     
+    async def cog_unload(self):
+        """Close database connection when cog unloads"""
+        await db.close_pool()
+        print("Leveling database connection closed")
+    
     def calculate_level(self, xp: int) -> int:
         """Calculate level based on XP (similar to Arcane/MEE6 formula)"""
         # Formula: xp = 5 * (level^2) + (50 * level) + 100
