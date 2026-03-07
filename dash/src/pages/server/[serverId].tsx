@@ -73,8 +73,16 @@ export default function ServerStats() {
             ← Back to Dashboard
           </button>
 
-          {/* Server Name */}
-          <h1 className="text-4xl font-bold mb-8">Server Statistics</h1>
+          {/* Server Name and Settings Button */}
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-4xl font-bold">Server Statistics</h1>
+            <button
+              onClick={() => router.push(`/server/${serverId}/settings`)}
+              className="bg-discord-blue hover:bg-blue-600 text-white font-semibold px-6 py-3 rounded-lg transition-colors flex items-center gap-2"
+            >
+              ⚙️ Leveling Settings
+            </button>
+          </div>
 
           {/* Stats Overview */}
           <StatsOverview stats={stats} />

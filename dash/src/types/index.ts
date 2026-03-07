@@ -45,3 +45,34 @@ export interface LeaderboardResponse {
   totalPages: number
   total: number
 }
+
+export interface RoleReward {
+  level: number
+  roleId: string
+  roleName: string
+  roleColor: number
+}
+
+export interface GuildSettings {
+  levelupChannelId: string | null
+  levelupChannelName: string | null
+  roleRewards: RoleReward[]
+}
+
+export interface Channel {
+  id: string
+  name: string
+  position: number
+}
+
+export interface Role {
+  id: string
+  name: string
+  color: number
+  position: number
+}
+
+export interface GuildData {
+  channels: Channel[]
+  roles: Role[]
+}

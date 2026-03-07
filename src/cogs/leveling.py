@@ -98,20 +98,51 @@ class Leveling(commands.Cog):
         
         # Check if user leveled up
         if new_level > current_level:
-            await self.send_level_up_message(message.channel, message.author, new_level)
+            await self.send_level_up_message(message, message.author, new_level)
+            # Check for role rewards
+            await self.assign_role_rewards(message.guild, message.author, new_level)
     
-    async def send_level_up_message(self, channel, user, level):
-        """Send level up notification"""
+    async def send_level_up_message(self, message, user, level):
+        """Send level up notification to configured channel or current channel"""
         embed = discord.Embed(
-            title="Level Up",
-            description=f"Congratulations {user.mention}! You've reached **Level {level}**",
+            title="🎉 Level Up!",
+            description=f"Congratulations {user.mention}! You've reached **Level {level}**! 🌟",
             color=self.EMBED_COLOR
         )
         embed.set_thumbnail(url=user.display_avatar.url)
+        
+        # Get guild settings to check for custom level-up channel
+        guild_settings = await db.get_guild_settings(message.guild.id)
+        
+        target_channel = message.channel  # Default to current channel
+        
+        if guild_settings and guild_settings.get('levelup_channel_id'):
+            custom_channel = message.guild.get_channel(guild_settings['levelup_channel_id'])
+            if custom_channel:
+                target_channel = custom_channel
+        
         try:
-            await channel.send(embed=embed, delete_after=10)
+            await target_channel.send(embed=embed, delete_after=15)
         except:
-            pass
+            # If custom channel fails, try current channel
+            if target_channel != message.channel:
+                try:
+                    await message.channel.send(embed=embed, delete_after=15)
+                except:
+                    pass
+    
+    async def assign_role_rewards(self, guild, user, level):
+        """Assign role rewards when user reaches a level"""
+        role_id = await db.get_role_for_level(guild.id, level)
+        
+        if role_id:
+            role = guild.get_role(role_id)
+            if role:
+                try:
+                    await user.add_roles(role, reason=f"Level {level} reward")
+                    print(f"Assigned role {role.name} to {user.name} for reaching level {level}")
+                except Exception as e:
+                    print(f"Failed to assign role {role.name} to {user.name}: {e}")
     
     # Rank/Level Command (Hybrid)
     @commands.hybrid_command(name='rank', aliases=['level', 'lvl'], description='Check your or another user\'s rank and level')
@@ -323,6 +354,84 @@ class Leveling(commands.Cog):
         await db.update_user_xp(user.id, ctx.guild.id, new_xp, new_level, messages, time.time())
         
         await ctx.send(f"Added {amount:,} XP to {user.mention} (Level {new_level}, Total XP: {new_xp:,})")
+    
+    # Configuration Commands
+    @commands.hybrid_command(name='setlevelchannel', description='Set the level-up announcement channel (Admin only)')
+    @app_commands.describe(channel='The channel for level-up messages')
+    @commands.has_permissions(administrator=True)
+    async def setlevelchannel(self, ctx: commands.Context, channel: discord.TextChannel):
+        """Set the level-up announcement channel (Admin only)"""
+        await db.set_levelup_channel(ctx.guild.id, channel.id)
+        
+        embed = discord.Embed(
+            title="✅ Level-Up Channel Set",
+            description=f"Level-up announcements will now be sent to {channel.mention}",
+            color=self.EMBED_COLOR
+        )
+        await ctx.send(embed=embed)
+    
+    @commands.hybrid_command(name='addrole', description='Add a role reward for a level (Admin only)')
+    @app_commands.describe(level='The level to award the role', role='The role to award')
+    @commands.has_permissions(administrator=True)
+    async def addrole(self, ctx: commands.Context, level: int, role: discord.Role):
+        """Add a role reward for a level (Admin only)"""
+        if level < 1:
+            await ctx.send("Level must be 1 or higher!", ephemeral=True)
+            return
+        
+        # Check if bot can manage this role
+        if role >= ctx.guild.me.top_role:
+            await ctx.send("❌ I cannot assign this role as it's higher than or equal to my highest role!", ephemeral=True)
+            return
+        
+        await db.add_role_reward(ctx.guild.id, level, role.id)
+        
+        embed = discord.Embed(
+            title="✅ Role Reward Added",
+            description=f"Users will now receive {role.mention} when they reach **Level {level}**",
+            color=self.EMBED_COLOR
+        )
+        await ctx.send(embed=embed)
+    
+    @commands.hybrid_command(name='removerole', description='Remove a role reward for a level (Admin only)')
+    @app_commands.describe(level='The level to remove the role reward from')
+    @commands.has_permissions(administrator=True)
+    async def removerole(self, ctx: commands.Context, level: int):
+        """Remove a role reward for a level (Admin only)"""
+        await db.remove_role_reward(ctx.guild.id, level)
+        
+        embed = discord.Embed(
+            title="✅ Role Reward Removed",
+            description=f"Role reward for **Level {level}** has been removed",
+            color=self.EMBED_COLOR
+        )
+        await ctx.send(embed=embed)
+    
+    @commands.hybrid_command(name='rolerewards', aliases=['listroles'], description='List all role rewards')
+    async def rolerewards(self, ctx: commands.Context):
+        """List all configured role rewards"""
+        role_rewards = await db.get_role_rewards(ctx.guild.id)
+        
+        if not role_rewards:
+            await ctx.send("No role rewards have been configured yet!", ephemeral=True)
+            return
+        
+        embed = discord.Embed(
+            title="🎁 Role Rewards",
+            description="Roles awarded for reaching specific levels",
+            color=self.EMBED_COLOR
+        )
+        
+        for reward in role_rewards:
+            role = ctx.guild.get_role(reward['role_id'])
+            if role:
+                embed.add_field(
+                    name=f"Level {reward['level']}",
+                    value=role.mention,
+                    inline=True
+                )
+        
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Leveling(bot))
