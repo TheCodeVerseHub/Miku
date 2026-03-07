@@ -12,7 +12,11 @@ load_dotenv()
 def run_bot():
     """Run the Discord bot"""
     print("Starting Discord bot...")
-    from src.bot import main
+    import sys
+    import os
+    # Add src to path so cogs can be imported
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+    from bot import main
     asyncio.run(main())
 
 def run_api():
