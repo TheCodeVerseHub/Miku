@@ -13,6 +13,8 @@ export default async function handler(
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
+  console.log(`[DEBUG] BOT_API_URL: ${BOT_API_URL}`)
+
   try {
     // Fetch user's guilds from Discord API
     const discordResponse = await fetch('https://discord.com/api/users/@me/guilds', {
@@ -38,7 +40,15 @@ export default async function handler(
       adminGuilds.map(async (guild: any) => {
         let hasMiku = false
         try {
-          const botResponse = await fetch(`${BOT_API_URL}/api/guild/${guild.id}/has-bot`)
+          // Add timeout to prevent hanging
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+          
+          const botResponse = await fetch(`${BOT_API_URL}/api/guild/${guild.id}/has-bot`, {
+            signal: controller.signal
+          })
+          clearTimeout(timeoutId)
+          
           if (botResponse.ok) {
             const data = await botResponse.json()
             hasMiku = data.hasMiku
