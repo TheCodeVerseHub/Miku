@@ -21,14 +21,20 @@ export default async function handler(
 
   // Check if user has access to this guild
   try {
+    const accessToken = (session as any).accessToken
+    
+    if (!accessToken) {
+      return res.status(401).json({ error: 'Authentication token missing. Please sign out and sign in again.' })
+    }
+
     const guildsResponse = await fetch('https://discord.com/api/v10/users/@me/guilds', {
       headers: {
-        Authorization: `Bearer ${(session as any).accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
       },
     })
 
     if (!guildsResponse.ok) {
-      return res.status(401).json({ error: 'Failed to verify guild access' })
+      return res.status(401).json({ error: 'Failed to verify guild access. Please sign out and sign in again.' })
     }
 
     const userGuilds = await guildsResponse.json()
@@ -38,8 +44,10 @@ export default async function handler(
       return res.status(403).json({ error: 'You do not have access to this server' })
     }
 
-    // Check if user has MANAGE_GUILD permission (0x20 = 32) or is owner
-    const hasPermission = guild.owner || (parseInt(guild.permissions) & 0x20) === 0x20
+    // Check if user has MANAGE_GUILD permission (0x20) or is owner
+    const permissions = BigInt(guild.permissions)
+    const hasManageGuild = (permissions & BigInt(0x20)) === BigInt(0x20)
+    const hasPermission = guild.owner || hasManageGuild
 
     if (!hasPermission) {
       return res.status(403).json({ error: 'You do not have permission to manage this server' })
