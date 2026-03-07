@@ -78,6 +78,10 @@ async def migrate():
                 rows = await cursor.fetchall()
                 count = 0
                 for row in rows:
+                    # Handle optional columns safely
+                    messages = row['messages'] if 'messages' in row.keys() else 0
+                    last_message_time = row['last_message_time'] if 'last_message_time' in row.keys() else 0
+                    
                     await pg_conn.execute('''
                         INSERT INTO user_levels (user_id, guild_id, xp, level, messages, last_message_time)
                         VALUES ($1, $2, $3, $4, $5, $6)
@@ -87,7 +91,7 @@ async def migrate():
                             messages = EXCLUDED.messages,
                             last_message_time = EXCLUDED.last_message_time
                     ''', row['user_id'], row['guild_id'], row['xp'], row['level'],
-                         row.get('messages', 0), row.get('last_message_time', 0))
+                         messages, last_message_time)
                     count += 1
                 print(f"✅ Migrated {count} user level records\n")
             
@@ -97,14 +101,17 @@ async def migrate():
                 rows = await cursor.fetchall()
                 count = 0
                 for row in rows:
+                    # Handle optional columns safely
+                    levelup_channel_id = row['levelup_channel_id'] if 'levelup_channel_id' in row.keys() else None
+                    updated_at = row['updated_at'] if 'updated_at' in row.keys() else 0
+                    
                     await pg_conn.execute('''
                         INSERT INTO guild_settings (guild_id, levelup_channel_id, updated_at)
                         VALUES ($1, $2, $3)
                         ON CONFLICT (guild_id) DO UPDATE SET
                             levelup_channel_id = EXCLUDED.levelup_channel_id,
                             updated_at = EXCLUDED.updated_at
-                    ''', row['guild_id'], row.get('levelup_channel_id'),
-                         row.get('updated_at', 0))
+                    ''', row['guild_id'], levelup_channel_id, updated_at)
                     count += 1
                 print(f"✅ Migrated {count} guild settings\n")
             
