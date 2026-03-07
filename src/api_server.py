@@ -22,7 +22,10 @@ app.add_middleware(
 
 # Database connection
 DATABASE_URL = os.getenv("DATABASE_URL")
+print(f"[DEBUG] DATABASE_URL loaded: {DATABASE_URL[:50] if DATABASE_URL else 'NOT SET'}...")
 if not DATABASE_URL:
+    print("[ERROR] DATABASE_URL environment variable is not set!")
+    print(f"[DEBUG] Available env vars: {', '.join([k for k in os.environ.keys() if 'DATA' in k or 'DB' in k or 'POSTGRES' in k])}")
     raise ValueError(
         "DATABASE_URL environment variable is not set! "
         "Please set it in your Render dashboard Environment variables."
