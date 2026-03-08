@@ -20,9 +20,16 @@ export default async function handler(
 
   // Check if user has access to this guild
   try {
-    const accessToken = (session as any).accessToken
+    const accessToken = session.accessToken
+    
+    console.log('[guild-data] Session check:', {
+      hasSession: !!session,
+      hasAccessToken: !!accessToken,
+      serverId
+    })
     
     if (!accessToken) {
+      console.error('[guild-data] No access token in session')
       return res.status(401).json({ error: 'Authentication token missing. Please sign out and sign in again.' })
     }
 

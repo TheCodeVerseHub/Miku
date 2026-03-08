@@ -49,7 +49,7 @@ export default async function handler(
 
   // Check if user has access to this guild
   try {
-    const accessToken = (session as any).accessToken
+    const accessToken = session.accessToken
     
     if (!accessToken) {
       return res.status(401).json({ error: 'Authentication token missing. Please sign out and sign in again.' })

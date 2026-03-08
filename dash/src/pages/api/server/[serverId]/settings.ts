@@ -22,7 +22,7 @@ export default async function handler(
 
   // Check if user has access to this guild
   try {
-    const accessToken = (session as any).accessToken
+    const accessToken = session.accessToken
     console.log('[API] Checking guild access for user, serverId:', serverId, 'hasToken:', !!accessToken)
     
     if (!accessToken) {

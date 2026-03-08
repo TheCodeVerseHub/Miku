@@ -7,7 +7,10 @@ import { useState, useEffect } from 'react'
 import useSWR from 'swr'
 import { GuildSettings, GuildData, RoleReward } from '@/types'
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json())
+const fetcher = (url: string) => fetch(url).then((res) => {
+  if (!res.ok) throw new Error('Failed to fetch')
+  return res.json()
+})
 
 export default function ServerSettings() {
   const router = useRouter()
@@ -233,7 +236,7 @@ export default function ServerSettings() {
               className="w-full bg-discord-dark text-white p-3 rounded-lg border border-gray-700 focus:border-discord-blue focus:outline-none"
             >
               <option value="">No specific channel (use current channel)</option>
-              {guildData?.channels.map((channel) => (
+              {guildData?.channels?.map((channel) => (
                 <option key={channel.id} value={channel.id}>
                   # {channel.name}
                 </option>
@@ -295,7 +298,7 @@ export default function ServerSettings() {
                   className="bg-discord-dark text-white p-3 rounded-lg border border-gray-700 focus:border-discord-blue focus:outline-none"
                 >
                   <option value="">Select a role...</option>
-                  {guildData?.roles.map((role) => (
+                  {guildData?.roles?.map((role) => (
                     <option key={role.id} value={role.id}>
                       @{role.name}
                     </option>
