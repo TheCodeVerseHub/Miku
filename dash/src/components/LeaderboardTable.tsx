@@ -56,10 +56,10 @@ export default function LeaderboardTable({ data }: LeaderboardTableProps) {
   }
 
   const getCurrentLevelProgress = (totalXp: number, level: number) => {
-    // Calculate XP needed for current level
-    const xpForCurrentLevel = calculateXpForLevel(level)
+    // Calculate XP for previous level to get progress in current level
+    const xpForPreviousLevel = level > 1 ? calculateXpForLevel(level - 1) : 0
     // Current progress in this level
-    return totalXp - xpForCurrentLevel
+    return totalXp - xpForPreviousLevel
   }
 
   return (

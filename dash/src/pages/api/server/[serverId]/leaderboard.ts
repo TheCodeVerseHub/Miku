@@ -7,7 +7,7 @@ const BOT_API_URL = process.env.BOT_API_URL || process.env.API_URL || 'http://lo
 // Helper function to fetch user with timeout
 async function fetchUserWithTimeout(userId: string, botToken: string): Promise<any> {
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 2000) // 2 second timeout per user
+  const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout per user
   
   try {
     const userResponse = await fetch(`https://discord.com/api/v10/users/${userId}`, {
