@@ -128,10 +128,8 @@ export default function ServerSettings() {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
         const errorMessage = errorData.error || 'Failed to save settings'
         showMessage('error', errorMessage)
-        console.error('Failed to save settings:', errorData)
       }
     } catch (error) {
-      console.error('Error saving settings:', error)
       showMessage('error', 'Network error - check if API server is running and try again')
     } finally {
       setSaving(false)

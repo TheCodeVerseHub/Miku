@@ -145,9 +145,8 @@ class Leveling(commands.Cog):
             if role:
                 try:
                     await user.add_roles(role, reason=f"Level {level} reward")
-                    print(f"Assigned role {role.name} to {user.name} for reaching level {level}")
-                except Exception as e:
-                    print(f"Failed to assign role {role.name} to {user.name}: {e}")
+                except Exception:
+                    pass
     
     # Rank/Level Command (Hybrid)
     @commands.hybrid_command(name='rank', aliases=['level', 'lvl'], description='Check your or another user\'s rank and level')
@@ -205,8 +204,7 @@ class Leveling(commands.Cog):
             file = discord.File(fp=image_bytes, filename='rank_card.png')
             await ctx.send(file=file)
             
-        except Exception as e:
-            print(f"Error generating rank card: {e}")
+        except Exception:
             # Fallback to embed if image generation fails
             embed = discord.Embed(
                 title=f"{target.display_name}'s Rank Card",

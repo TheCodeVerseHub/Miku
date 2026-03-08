@@ -14,8 +14,6 @@ export default async function handler(
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  console.log(`[DEBUG] BOT_API_URL: ${BOT_API_URL}`)
-
   try {
     // Fetch user's guilds from Discord API with timeout
     const controller = new AbortController()

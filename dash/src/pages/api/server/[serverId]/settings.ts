@@ -23,10 +23,8 @@ export default async function handler(
   // Check if user has access to this guild
   try {
     const accessToken = session.accessToken
-    console.log('[API] Checking guild access for user, serverId:', serverId, 'hasToken:', !!accessToken)
     
     if (!accessToken) {
-      console.error('[API] No access token in session')
       return res.status(401).json({ error: 'Authentication token missing. Please sign out and sign in again.' })
     }
 
@@ -45,7 +43,6 @@ export default async function handler(
     const guild = userGuilds.find((g: any) => g.id === serverId)
 
     if (!guild) {
-      console.warn('[API] User does not have access to guild:', serverId)
       return res.status(403).json({ error: 'You do not have access to this server' })
     }
 
@@ -53,8 +50,6 @@ export default async function handler(
     const permissions = BigInt(guild.permissions)
     const hasManageGuild = (permissions & BigInt(0x20)) === BigInt(0x20)
     const hasPermission = guild.owner || hasManageGuild
-
-    console.log('[API] Guild access check:', { owner: guild.owner, hasManageGuild, hasPermission })
 
     if (!hasPermission) {
       return res.status(403).json({ error: 'You do not have permission to manage this server' })
@@ -133,8 +128,6 @@ export default async function handler(
       // Update guild settings via bot API
       const { levelupChannelId, roleRewards } = req.body
 
-      console.log(`[API] Updating settings for guild ${serverId}:`, { levelupChannelId, roleRewardsCount: roleRewards?.length })
-
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
@@ -160,7 +153,6 @@ export default async function handler(
         }
 
         const result = await response.json()
-        console.log('[API] Settings updated successfully')
         return res.status(200).json(result)
       } catch (error) {
         clearTimeout(timeoutId)

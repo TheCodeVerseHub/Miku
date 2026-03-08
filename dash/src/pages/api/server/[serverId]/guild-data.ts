@@ -22,14 +22,7 @@ export default async function handler(
   try {
     const accessToken = session.accessToken
     
-    console.log('[guild-data] Session check:', {
-      hasSession: !!session,
-      hasAccessToken: !!accessToken,
-      serverId
-    })
-    
     if (!accessToken) {
-      console.error('[guild-data] No access token in session')
       return res.status(401).json({ error: 'Authentication token missing. Please sign out and sign in again.' })
     }
 

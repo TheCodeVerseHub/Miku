@@ -22,8 +22,8 @@ class RankCardGenerator:
                     if resp.status == 200:
                         data = await resp.read()
                         return Image.open(io.BytesIO(data))
-        except Exception as e:
-            print(f"Error fetching avatar: {e}")
+        except Exception:
+            pass
         return None
     
     def create_circular_avatar(self, avatar: Image.Image, size: int = 120):

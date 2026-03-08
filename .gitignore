@@ -5,10 +5,11 @@ build/
 dist/
 wheels/
 *.egg-info
-tp.txt
+
 # Virtual environments
 .venv
 .env
+
 # Environment files
 .env
 .env.local
@@ -17,3 +18,34 @@ tp.txt
 data/
 *.db
 data/leveling.db
+
+# Temporary and debug files
+tp.txt
+*.log
+*.tmp
+test-*.sh
+debug-*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node modules (dashboard)
+node_modules/
+.next/
+out/
+
+# Build artifacts
+*.pyc
+*.pyo
+*.pyd
+/.pytest_cache
+/.mypy_cache
+/.coverage
