@@ -50,16 +50,18 @@ export default function LeaderboardTable({ data }: LeaderboardTableProps) {
     return total
   }
 
-  const calculateXpForNextLevel = (level: number) => {
-    // XP needed for a specific level (not cumulative)
-    return 5 * (level ** 2) + (50 * level) + 100
+  const getCurrentLevelProgress = (totalXp: number, level: number) => {
+    // Calculate XP at start of current level (cumulative XP to reach this level)
+    const xpForCurrentLevel = calculateXpForLevel(level)
+    // Current progress beyond that threshold
+    return totalXp - xpForCurrentLevel
   }
 
-  const getCurrentLevelProgress = (totalXp: number, level: number) => {
-    // Calculate XP for previous level to get progress in current level
-    const xpForPreviousLevel = level > 1 ? calculateXpForLevel(level - 1) : 0
-    // Current progress in this level
-    return totalXp - xpForPreviousLevel
+  const getXpForNextLevel = (level: number) => {
+    // Calculate XP range for this level (difference between level thresholds)
+    const xpForCurrentLevel = calculateXpForLevel(level)
+    const xpForNextLevel = calculateXpForLevel(level + 1)
+    return xpForNextLevel - xpForCurrentLevel
   }
 
   return (
@@ -80,7 +82,7 @@ export default function LeaderboardTable({ data }: LeaderboardTableProps) {
             {data.data.map((entry) => {
               const totalXp = entry.xp || 0
               const currentLevelProgress = getCurrentLevelProgress(totalXp, entry.level)
-              const xpForNext = calculateXpForNextLevel(entry.level + 1)
+              const xpForNext = getXpForNextLevel(entry.level)
               const progress = Math.min((currentLevelProgress / xpForNext) * 100, 100)
 
               return (
