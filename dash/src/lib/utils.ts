@@ -1,8 +1,9 @@
 /**
  * Calculate XP required for a specific level
+ * Formula matches bot: 5 * (level²) + (50 * level) + 100
  */
 export function calculateXpForLevel(level: number): number {
-  return 100 * level + 50 * (level - 1)
+  return 5 * (level ** 2) + (50 * level) + 100
 }
 
 /**

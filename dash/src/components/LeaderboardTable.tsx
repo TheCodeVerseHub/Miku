@@ -42,15 +42,17 @@ export default function LeaderboardTable({ data }: LeaderboardTableProps) {
 
   const calculateXpForLevel = (level: number) => {
     // Calculate total XP needed to reach a level
+    // Formula matches bot: 5 * (level²) + (50 * level) + 100 per level
     let total = 0
     for (let i = 1; i <= level; i++) {
-      total += 100 * i + 50 * (i - 1)
+      total += 5 * (i ** 2) + (50 * i) + 100
     }
     return total
   }
 
   const calculateXpForNextLevel = (level: number) => {
-    return 100 * level + 50 * (level - 1)
+    // XP needed for a specific level (not cumulative)
+    return 5 * (level ** 2) + (50 * level) + 100
   }
 
   const getCurrentLevelProgress = (totalXp: number, level: number) => {
