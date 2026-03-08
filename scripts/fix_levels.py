@@ -100,7 +100,8 @@ async def fix_all_levels():
         print("📋 Sample corrections (first 10):")
         print("-" * 60)
         for i, correction in enumerate(corrections[:10]):
-            print(f"  User {correction['user_id'][:8]}... | {correction['xp']:,} XP | "
+            user_id_str = str(correction['user_id'])
+            print(f"  User {user_id_str[:8]}... | {correction['xp']:,} XP | "
                   f"Level {correction['old_level']} → {correction['new_level']}")
         
         if len(corrections) > 10:
