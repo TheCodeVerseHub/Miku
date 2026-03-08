@@ -7,7 +7,7 @@ const BOT_API_URL = process.env.BOT_API_URL || process.env.API_URL || 'http://lo
 // Helper function to fetch user with timeout
 async function fetchUserWithTimeout(userId: string, botToken: string): Promise<any> {
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout per user
+  const timeoutId = setTimeout(() => controller.abort(), 8000) // 8 second timeout per user
   
   try {
     const userResponse = await fetch(`https://discord.com/api/v10/users/${userId}`, {
@@ -27,6 +27,32 @@ async function fetchUserWithTimeout(userId: string, botToken: string): Promise<a
     clearTimeout(timeoutId)
     return null
   }
+}
+
+// Helper to batch fetch users with concurrency limit
+async function fetchUsersInBatches(userIds: string[], botToken: string, concurrency: number = 10) {
+  const results: { [key: string]: any } = {}
+  
+  for (let i = 0; i < userIds.length; i += concurrency) {
+    const batch = userIds.slice(i, i + concurrency)
+    const batchResults = await Promise.all(
+      batch.map(async (userId) => {
+        const userData = await fetchUserWithTimeout(userId, botToken)
+        return { userId, userData }
+      })
+    )
+    
+    for (const { userId, userData } of batchResults) {
+      results[userId] = userData
+    }
+    
+    // Small delay between batches to avoid rate limits (Discord allows 50 req/s)
+    if (i + concurrency < userIds.length) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+  }
+  
+  return results
 }
 
 export default async function handler(
@@ -102,49 +128,50 @@ export default async function handler(
     
     const leaderboardData = await response.json()
     
-    // Fetch Discord user data for each user (with individual timeouts)
+    // Fetch Discord user data for each user (with batching and concurrency control)
     const botToken = process.env.DISCORD_BOT_TOKEN
     const hasValidToken = botToken && botToken !== 'your_bot_token_here'
     
-    const enrichedData = await Promise.all(
-      leaderboardData.data.map(async (entry: any) => {
-        if (!hasValidToken) {
-          return {
-            ...entry,
-            username: `User ${entry.userId}`,
-            discriminator: '0000',
-            avatar: null,
-          }
-        }
-
-        try {
-          const userData = await fetchUserWithTimeout(entry.userId, botToken)
-          
-          if (userData) {
-            return {
-              ...entry,
-              username: userData.username,
-              discriminator: userData.discriminator || '0',
-              avatar: userData.avatar,
-            }
-          } else {
-            return {
-              ...entry,
-              username: `User ${entry.userId}`,
-              discriminator: '0000',
-              avatar: null,
-            }
-          }
-        } catch (error) {
-          return {
-            ...entry,
-            username: `User ${entry.userId}`,
-            discriminator: '0000',
-            avatar: null,
-          }
-        }
+    if (!hasValidToken) {
+      // No token, return with placeholder usernames
+      const enrichedData = leaderboardData.data.map((entry: any) => ({
+        ...entry,
+        username: `User ${entry.userId}`,
+        discriminator: '0000',
+        avatar: null,
+      }))
+      
+      return res.status(200).json({
+        data: enrichedData,
+        page: leaderboardData.page,
+        totalPages: leaderboardData.totalPages,
+        total: leaderboardData.total,
       })
-    )
+    }
+
+    // Fetch users in controlled batches
+    const userIds = leaderboardData.data.map((entry: any) => entry.userId)
+    const userDataMap = await fetchUsersInBatches(userIds, botToken, 10)
+    
+    const enrichedData = leaderboardData.data.map((entry: any) => {
+      const userData = userDataMap[entry.userId]
+      
+      if (userData) {
+        return {
+          ...entry,
+          username: userData.username || `User ${entry.userId}`,
+          discriminator: userData.discriminator || '0',
+          avatar: userData.avatar,
+        }
+      } else {
+        return {
+          ...entry,
+          username: `User ${entry.userId}`,
+          discriminator: '0000',
+          avatar: null,
+        }
+      }
+    })
 
     res.status(200).json({
       data: enrichedData,
