@@ -209,7 +209,7 @@ export default function ServerSettings() {
           </button>
 
           {/* Header */}
-          <h1 className="text-4xl font-bold mb-8">⚙️ Leveling Settings</h1>
+          <h1 className="text-4xl font-bold mb-8">Leveling Settings</h1>
 
           {/* Message */}
           {message && (
@@ -226,7 +226,7 @@ export default function ServerSettings() {
 
           {/* Level-up Channel Setting */}
           <div className="bg-discord-gray p-6 rounded-lg mb-6">
-            <h2 className="text-2xl font-semibold mb-4">📢 Level-Up Announcement Channel</h2>
+            <h2 className="text-2xl font-semibold mb-4">Level-Up Announcement Channel</h2>
             <p className="text-gray-400 mb-4">
               Choose where level-up messages should be sent. Leave empty to send in the current channel.
             </p>
@@ -246,7 +246,7 @@ export default function ServerSettings() {
 
           {/* Role Rewards Setting */}
           <div className="bg-discord-gray p-6 rounded-lg mb-6">
-            <h2 className="text-2xl font-semibold mb-4">🎁 Role Rewards</h2>
+            <h2 className="text-2xl font-semibold mb-4">Role Rewards</h2>
             <p className="text-gray-400 mb-4">
               Assign roles to users when they reach specific levels.
             </p>
@@ -321,13 +321,13 @@ export default function ServerSettings() {
               disabled={saving}
               className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold px-8 py-3 rounded-lg transition-colors text-lg"
             >
-              {saving ? 'Saving...' : '💾 Save Settings'}
+              {saving ? 'Saving...' : 'Save Settings'}
             </button>
           </div>
 
           {/* Info Box */}
           <div className="mt-8 bg-discord-blue/10 border border-discord-blue/50 p-4 rounded-lg">
-            <h3 className="font-semibold mb-2 text-discord-blue">ℹ️ Important Notes:</h3>
+            <h3 className="font-semibold mb-2 text-discord-blue">Important Notes:</h3>
             <ul className="list-disc list-inside space-y-1 text-gray-300 text-sm">
               <li>Role rewards are automatically assigned when users reach the specified level</li>
               <li>Make sure the bot has permission to assign the roles</li>
