@@ -151,9 +151,13 @@ class Leveling(commands.Cog):
     
     # Rank/Level Command (Hybrid)
     @commands.hybrid_command(name='rank', aliases=['level', 'lvl'], description='Check your or another user\'s rank and level')
+    @commands.guild_only()
     @app_commands.describe(user='The user to check (leave empty for yourself)')
     async def rank(self, ctx: commands.Context, user: Optional[discord.Member] = None):
         """Check rank and level of a user"""
+        if not ctx.guild:
+            return
+        
         target = user or ctx.author
         
         if target.bot:
@@ -173,6 +177,10 @@ class Leveling(commands.Cog):
         level = user_data['level']
         messages = user_data['messages']
         rank = await db.get_user_rank(target.id, ctx.guild.id)
+        
+        # Ensure rank is an integer (default to 0 if None)
+        if rank is None:
+            rank = 0
         
         xp_needed, xp_progress, xp_required = self.calculate_xp_to_next_level(xp, level)
         
@@ -228,9 +236,13 @@ class Leveling(commands.Cog):
     
     # Leaderboard Command (Hybrid)
     @commands.hybrid_command(name='leaderboard', aliases=['lb', 'top'], description='View the server leaderboard')
+    @commands.guild_only()
     @app_commands.describe(page='Page number to view')
     async def leaderboard(self, ctx: commands.Context, page: int = 1):
         """Display server leaderboard"""
+        if not ctx.guild:
+            return
+        
         if page < 1:
             page = 1
         
@@ -270,9 +282,13 @@ class Leveling(commands.Cog):
     
     # XP Command (Hybrid) - Check XP details
     @commands.hybrid_command(name='xp', description='Check detailed XP information')
+    @commands.guild_only()
     @app_commands.describe(user='The user to check')
     async def xp(self, ctx: commands.Context, user: Optional[discord.Member] = None):
         """Check detailed XP information"""
+        if not ctx.guild:
+            return
+        
         target = user or ctx.author
         
         if target.bot:
@@ -307,17 +323,25 @@ class Leveling(commands.Cog):
     
     # Admin Commands
     @commands.hybrid_command(name='resetlevel', description='Reset a user\'s level (Admin only)')
+    @commands.guild_only()
     @app_commands.describe(user='The user to reset')
     @commands.has_permissions(administrator=True)
     async def resetlevel(self, ctx: commands.Context, user: discord.Member):
         """Reset a user's level data (Admin only)"""
+        if not ctx.guild:
+            return
+        
         await db.reset_user_data(user.id, ctx.guild.id)
         await ctx.send(f"Reset level data for {user.mention}")
     
     @commands.hybrid_command(name='resetalllevels', description='Reset all server levels (Admin only)')
+    @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def resetalllevels(self, ctx: commands.Context, confirm: Optional[str] = None):
         """Reset all level data in the server (Admin only)"""
+        if not ctx.guild:
+            return
+        
         if confirm != "CONFIRM":
             await ctx.send("This will reset ALL level data in the server!\nUse `&resetalllevels CONFIRM` to proceed.")
             return
@@ -326,10 +350,14 @@ class Leveling(commands.Cog):
         await ctx.send("All level data has been reset for this server")
     
     @commands.hybrid_command(name='setlevel', description='Set a user\'s level (Admin only)')
+    @commands.guild_only()
     @app_commands.describe(user='The user', level='Level to set')
     @commands.has_permissions(administrator=True)
     async def setlevel(self, ctx: commands.Context, user: discord.Member, level: int):
         """Set a user's level (Admin only)"""
+        if not ctx.guild:
+            return
+        
         if level < 0:
             await ctx.send("Level must be 0 or higher!")
             return
@@ -342,10 +370,14 @@ class Leveling(commands.Cog):
         await ctx.send(f"Set {user.mention}'s level to {level} ({xp:,} XP)")
     
     @commands.hybrid_command(name='addxp', description='Add XP to a user (Admin only)')
+    @commands.guild_only()
     @app_commands.describe(user='The user', amount='Amount of XP to add')
     @commands.has_permissions(administrator=True)
     async def addxp(self, ctx: commands.Context, user: discord.Member, amount: int):
         """Add XP to a user (Admin only)"""
+        if not ctx.guild:
+            return
+        
         current_data = await db.get_user_data(user.id, ctx.guild.id)
         
         if current_data:
@@ -362,10 +394,14 @@ class Leveling(commands.Cog):
     
     # Configuration Commands
     @commands.hybrid_command(name='setlevelchannel', description='Set the level-up announcement channel (Admin only)')
+    @commands.guild_only()
     @app_commands.describe(channel='The channel for level-up messages')
     @commands.has_permissions(administrator=True)
     async def setlevelchannel(self, ctx: commands.Context, channel: discord.TextChannel):
         """Set the level-up announcement channel (Admin only)"""
+        if not ctx.guild:
+            return
+        
         await db.set_levelup_channel(ctx.guild.id, channel.id)
         
         embed = discord.Embed(
@@ -376,10 +412,14 @@ class Leveling(commands.Cog):
         await ctx.send(embed=embed)
     
     @commands.hybrid_command(name='addrole', description='Add a role reward for a level (Admin only)')
+    @commands.guild_only()
     @app_commands.describe(level='The level to award the role', role='The role to award')
     @commands.has_permissions(administrator=True)
     async def addrole(self, ctx: commands.Context, level: int, role: discord.Role):
         """Add a role reward for a level (Admin only)"""
+        if not ctx.guild:
+            return
+        
         if level < 1:
             await ctx.send("Level must be 1 or higher!", ephemeral=True)
             return
@@ -399,10 +439,14 @@ class Leveling(commands.Cog):
         await ctx.send(embed=embed)
     
     @commands.hybrid_command(name='removerole', description='Remove a role reward for a level (Admin only)')
+    @commands.guild_only()
     @app_commands.describe(level='The level to remove the role reward from')
     @commands.has_permissions(administrator=True)
     async def removerole(self, ctx: commands.Context, level: int):
         """Remove a role reward for a level (Admin only)"""
+        if not ctx.guild:
+            return
+        
         await db.remove_role_reward(ctx.guild.id, level)
         
         embed = discord.Embed(
@@ -413,8 +457,12 @@ class Leveling(commands.Cog):
         await ctx.send(embed=embed)
     
     @commands.hybrid_command(name='rolerewards', aliases=['listroles'], description='List all role rewards')
+    @commands.guild_only()
     async def rolerewards(self, ctx: commands.Context):
         """List all configured role rewards"""
+        if not ctx.guild:
+            return
+        
         role_rewards = await db.get_role_rewards(ctx.guild.id)
         
         if not role_rewards:
