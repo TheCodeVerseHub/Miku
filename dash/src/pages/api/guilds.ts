@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { getSession } from 'next-auth/react'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from './auth/[...nextauth]'
 
 const BOT_API_URL = process.env.BOT_API_URL || process.env.API_URL || 'http://localhost:8000'
 
@@ -7,7 +8,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const session = await getSession({ req })
+  const session = await getServerSession(req, res, authOptions)
 
   if (!session || !session.accessToken) {
     return res.status(401).json({ error: 'Unauthorized' })
