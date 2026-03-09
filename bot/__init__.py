@@ -12,63 +12,31 @@ intents.message_content = True
 intents.members = True
 
 
-def _is_module_a_discord_py_extension(import_string: str):
-    """Checks if a module is a Discord.py extension.
-
-    This method is used internally to validate discord.py extensions (cogs) before loading them.
-
-    If a module is not a Discord.py extension, this function will attempt to "un-import" it by deleting it.
-    This is mainly to free up memory and avoid memory leaks, though the implementation may be inadequate.
-
-    Args:
-        import_string (str): The import string of the module to check.
+def _find_available_extensions() -> set[str]:
+    """Discovers all (potential) extensions inside the extensions directory.
 
     Returns:
-        bool: True if the module is a Discord.py extension, False otherwise.
+        set[str]: A set of all discovered modules
     """
-    try:
-        module = importlib.import_module(import_string)
-        if hasattr(module, "setup"):
-            return True
-        else:
-            # This should - IN THEORY - free up memory and functionally "un-import" the module
-            # Haven't tested it, someone will have to check it out in the future.
-            del module
-            return False
-    except ModuleNotFoundError:
-        return False
+    extensions_path = pathlib.Path(__file__).parent / "extensions"
 
+    if not extensions_path.exists():
+        raise FileNotFoundError(f"Extensions directory not found: {extensions_path}")
 
-def _find_available_extensions() -> list[str]:
-    """Finds all available Discord.py extensions (cogs) in the extensions directory.
+    base_import = f"{__name__}.extensions"
 
-    This method is used internally to discover and return a list of all available extensions.
+    discovered: set[str] = set()
 
-    Returns:
-        list[str]: A list of import strings of all available extensions.
-
-    Raises:
-        FileNotFoundError: If the extensions directory is not found.
-    """
-    # We need to lazy load this import, otherwise we'll create an infinite import loop
-    import bot as package
-
-    bot_base_direction = pathlib.Path(package.__file__).parent.joinpath("./extensions/")
-    if not bot_base_direction.exists():
-        raise FileNotFoundError(
-            f"Could not find extension directory: {bot_base_direction}"
-        )
-
-    base_import_string = f"{package.__name__}.extensions"
-
-    extensions = []
-    for child in bot_base_direction.iterdir():
-        if child.name.startswith("__"):
+    for child in extensions_path.iterdir():
+        if child.name.startswith("_"):
             continue
-        if child.name.endswith(".py") or child.is_dir():
-            if _is_module_a_discord_py_extension(f"{base_import_string}.{child.name}"):
-                extensions.append(f"{base_import_string}.{child.name}")
-    return extensions
+
+        if child.is_file() and child.suffix == ".py":
+            discovered.add(f"{base_import}.{child.stem}")
+        elif child.is_dir():
+            discovered.add(f"{base_import}.{child.name}")
+
+    return discovered
 
 
 class MikuBot(commands.Bot):
@@ -112,10 +80,10 @@ class MikuBot(commands.Bot):
         The process works as follows:
 
         1. It checks if all required core extensions are available.
-           If any core extension is missing, it raises an exception.
+           If any core extension is missing, it logs an error and raises an exception.
         2. It checks if all additional extensions are available.
            If any additional extension is missing, it logs a warning.
-        3. It loads all available extensions.
+        3. It loads all available extensions in a deterministic order.
            If any extension fails to load, it logs an error.
            If the failed extension is a core extension, it raises an exception, preventing the bot from starting.
            If the failed extension is an additional extension, it logs an error but continues to the next extension.
@@ -123,52 +91,39 @@ class MikuBot(commands.Bot):
         This function is responsible for loading all extensions and setting up the bot.
         """
         core_extensions = set(settings.core_extensions)
-        additional_extensions = set(settings.additional_extensions)
+        optional_extensions = set(settings.additional_extensions)
 
-        if len(core_extensions & self.available_extensions) != len(core_extensions):
-            try:
-                raise Exception(
-                    "The following core extensions are missing: %s"
-                    % ", ".join(core_extensions - self.available_extensions)
-                )
-            except Exception as e:
-                # Once again, the try/catch here is to avoid duplicating the log message and then the logger call
-                # You can change this as well if you deem it too ugly to look at.
-                self.logger.error(e, exc_info=True, stack_info=True)
-                raise e
-
-        for missing_additional_extension in (
-            additional_extensions - self.available_extensions
-        ):
-            self.logger.warning(
-                "The following additional extension is missing: %s",
-                missing_additional_extension,
+        missing_core = core_extensions - self.available_extensions
+        if missing_core:
+            self.logger.error(
+                "Missing required core extensions: %s",
+                ", ".join(sorted(missing_core)),
             )
+            raise RuntimeError("Required extensions are missing")
 
-        for extension in (
-            core_extensions | additional_extensions
-        ) & self.available_extensions:
+        missing_optional = optional_extensions - self.available_extensions
+        for ext in sorted(missing_optional):
+            self.logger.warning("Optional extension not found: %s", ext)
+
+        to_load = sorted(
+            (core_extensions | optional_extensions) & self.available_extensions
+        )
+
+        for extension in to_load:
             try:
                 await self.load_extension(extension)
                 self.logger.info("Loaded extension: %s", extension)
-            except Exception as e:
+
+            except Exception:
                 if extension in core_extensions:
-                    self.logger.error(
-                        "The required extension %s failed to load: %s",
-                        extension,
-                        e,
-                        exc_info=True,
-                        stack_info=True,
+                    self.logger.exception(
+                        "Failed to load required extension: %s", extension
                     )
-                    raise e
-                else:
-                    self.logger.error(
-                        "Optional extension %s failed to load: %s",
-                        extension,
-                        e,
-                        exc_info=True,
-                        stack_info=True,
-                    )
+                    raise
+
+                self.logger.exception(
+                    "Failed to load optional extension: %s", extension
+                )
 
     async def on_ready(self):
         if self.user is None:
