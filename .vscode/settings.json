@@ -1,0 +1,13 @@
+{
+    "cSpell.words": [
+        "colorlog",
+        "cooldown",
+        "dotenv",
+        "isort",
+        "miku",
+        "Miku",
+        "pydantic",
+        "sessionmaker",
+        "sqlalchemy"
+    ]
+}

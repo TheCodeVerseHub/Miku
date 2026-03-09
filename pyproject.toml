@@ -1,0 +1,16 @@
+[project]
+name = "miku"
+version = "0.1.0"
+description = "A feature-rich Discord leveling bot inspired by Arcane."
+license = { file = "./LICENSE" }
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "asyncpg>=0.31.0",
+    "colorlog>=6.10.1",
+    "discord-py>=2.7.1",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.13.1",
+    "python-dotenv>=1.2.2",
+    "sqlalchemy>=2.0.48",
+]

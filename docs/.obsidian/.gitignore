@@ -1,0 +1,3 @@
+# Plugins are ignored, since we are most likely not allowed to distribute them.
+# They should get installed when you open the Vault and allow plugins in the Vault settings.
+.obsidian/plugins
