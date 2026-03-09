@@ -1,11 +1,16 @@
 """
 Miku - Discord Leveling Bot
-Entry point for the bot
+Main entry point
 """
 
+import sys
+import asyncio
+from pathlib import Path
+
+# Add src directory to path
+sys.path.insert(0, str(Path(__file__).parent / 'src'))
+
 if __name__ == "__main__":
-    import sys
-    sys.path.insert(0, 'src')
-    from src.bot import main
-    import asyncio
+    from bot import main
     asyncio.run(main())
+
