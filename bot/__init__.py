@@ -52,7 +52,7 @@ class MikuBot(commands.Bot):
                 exc_info=True,
                 stack_info=True,
             )
-            raise e
+            raise
 
     async def close(self) -> None:
         # We hook the close method in order to perform database connection cleanup
@@ -135,7 +135,7 @@ class MikuBot(commands.Bot):
                 # This try/catch is here to avoid duplicating the log message in the exception and then the logger call.
                 # Feel free to change this if you deem this ugly.
                 self.logger.error(e, exc_info=True, stack_info=True)
-                raise e
+                raise
         self.logger.info(
             f"Logged in as {self.user.name}#{self.user.discriminator} ({self.user.id})"
         )
