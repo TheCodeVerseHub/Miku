@@ -18,7 +18,6 @@ propcache>=0.4.1
 pydantic>=2.12.5
 pydantic-core>=2.41.5
 pydantic-settings>=2.13.1
-psycopg2-binary>=2.9.9    # ← ADD THIS LINE
 python-dotenv>=1.2.2
 sqlalchemy>=2.0.48
 typing-extensions>=4.15.0
