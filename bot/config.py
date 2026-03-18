@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     additional_extensions: list[str] = Field(default=[])
     core_extensions: list[str] = Field(default=[])
     command_prefix: str = Field(default="&")
+    developer_ids: list[int] = Field(default=[])
 
     model_config = SettingsConfigDict(env_file=".env")
 
