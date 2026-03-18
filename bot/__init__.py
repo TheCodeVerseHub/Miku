@@ -102,8 +102,8 @@ class MikuBot(commands.Bot):
             )
             raise RuntimeError("Required extensions are missing")
 
-        missing_optional = optional_extensions - self.available_extensions
-        for ext in sorted(missing_optional):
+        self.missing_optional = optional_extensions - self.available_extensions
+        for ext in sorted(self.missing_optional):
             self.logger.warning("Optional extension not found: %s", ext)
 
         to_load = sorted(
