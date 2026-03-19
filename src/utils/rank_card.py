@@ -1,12 +1,26 @@
 """Rank card image generator used by the leveling cog.
 
-This module lives under `src/utils/` so it can be imported as `utils.rank_card`
-when running the rewrite in `src/`.
+Where it's used:
+- `src/cogs/leveling.py` calls `RankCardGenerator.generate_rank_card(...)` when a
+    user runs the `/rank` or `&rank` command.
 
-The API is intentionally small:
+What it does:
+- Downloads the user's avatar (HTTP) using `aiohttp`.
+- Draws a simple image (Pillow) showing username, rank, level, and XP progress.
+- Returns PNG bytes so Discord can upload it as an attachment.
+
+Performance notes:
+- Avatar downloads are cached for a few minutes (`_avatar_cache`).
+- Completed cards are cached briefly (`_card_cache`) since users often spam rank.
+
+Operational notes:
+- This class owns an `aiohttp.ClientSession`, so it should be closed on cog unload.
+    See `Leveling.cog_unload()` for the cleanup call.
+
+Public API (keep stable for contributors):
 - `generate_rank_card(...)` -> bytes (PNG)
 - `save_to_bytes(image)` -> BytesIO (PNG) for backwards-compat
-- `close()` for cleaning up the internal aiohttp session
+- `close()` -> cleanup
 """
 
 from __future__ import annotations

@@ -1,6 +1,23 @@
 """
 PostgreSQL Database Module for Miku Bot
 Handles all database operations using asyncpg
+
+Beginner notes:
+- Required env var: `DATABASE_URL` (see `.env.example`).
+- This file owns:
+    - connection pool creation (`get_pool()`)
+    - schema creation/migrations (`init_db()`)
+    - all queries used by cogs (`get_user_data`, `update_user_xp`, ...)
+
+Tables:
+- `user_levels`: per-user XP/level/messages per guild
+- `guild_settings`: per-guild configuration (level-up channel, cooldown, etc.)
+- `role_rewards`: which role to award at which level
+
+When adding a new feature that needs data:
+1) Add columns/tables in `init_db()` (use IF NOT EXISTS / migrations)
+2) Add a small helper function here (single responsibility)
+3) Call that helper from your cog/service
 """
 
 import asyncpg
@@ -28,6 +45,10 @@ async def get_pool() -> asyncpg.Pool:
         if not database_url:
             raise ValueError("DATABASE_URL environment variable not set")
         
+        # NOTE: `statement_cache_size=0` is intentional.
+        # asyncpg caches prepared statements by default; after DDL (ALTER TABLE)
+        # some servers can raise InvalidCachedStatementError. Disabling the cache
+        # keeps behavior predictable for contributors.
         _pool = await asyncpg.create_pool(
             database_url,
             min_size=2,
@@ -70,8 +91,8 @@ async def init_db():
             )
         ''')
 
-        # Lightweight migrations for older schemas
-        # (Neon/hosted DB might already contain tables created by a previous version)
+        # Lightweight migrations for older schemas.
+        # Hosted DBs might already contain tables created by a previous version.
         await conn.execute(
             "ALTER TABLE user_levels ADD COLUMN IF NOT EXISTS last_message_time DOUBLE PRECISION DEFAULT 0"
         )

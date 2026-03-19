@@ -1,6 +1,21 @@
 """
 Help Cog - Interactive help system with dropdown menu
 Complete rewrite for Miku Bot
+
+Beginner notes:
+- This cog uses Discord "UI components" (a dropdown/select) to let users switch
+    between help categories without sending multiple messages.
+- The UI is handled by a `discord.ui.View` + `discord.ui.Select`.
+
+Hybrid command gotcha:
+- `@commands.hybrid_command` can be used as BOTH prefix and slash.
+- `ephemeral=True` and `ctx.defer()` only work for slash (interactions).
+    In prefix mode, passing `ephemeral` raises errors.
+    That's why `help_command()` uses a small local `send()` wrapper.
+
+Select option gotcha:
+- Discord rejects an empty emoji value. If you don't want an emoji, omit the
+    `emoji=` field entirely.
 """
 
 import discord
