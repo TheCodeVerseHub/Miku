@@ -61,7 +61,9 @@ class Leveling(commands.Cog):
     
     def calculate_level(self, xp: int) -> int:
         """Calculate level from total XP using Arcane/MEE6-style formula"""
-        # Formula: xp_needed = 5 * (level^2) + (50 * level) + 100
+        # We model leveling as: every level requires some XP, and total XP is the
+        # sum of all previous level requirements.
+        # Formula per-level: xp_needed = 5*(level^2) + 50*level + 100
         level = 0
         xp_needed = 0
         while xp_needed <= xp:
@@ -97,12 +99,21 @@ class Leveling(commands.Cog):
         # Ignore bots and DMs
         if message.author.bot or not message.guild:
             return
+
+        # High-level flow:
+        # 1) Cooldown check (to avoid farming XP by spamming messages)
+        # 2) Read current user row from DB (or treat as new user)
+        # 3) Add random XP and recompute level
+        # 4) Upsert DB row
+        # 5) If level increased -> announce + role rewards
         
         user_id = message.author.id
         guild = message.guild
         guild_id = guild.id
         current_time = time.time()
         
+        # Cooldown is kept in-memory (resets when the bot restarts).
+        # Persistent anti-spam would be implemented at the DB layer.
         # Check cooldown (60 seconds default)
         cooldown_key = f"{user_id}_{guild_id}"
         if cooldown_key in self.xp_cooldown:
@@ -112,7 +123,7 @@ class Leveling(commands.Cog):
         # Update cooldown
         self.xp_cooldown[cooldown_key] = current_time
         
-        # Get user data
+        # DB returns a dict with keys: xp, level, messages, last_message_time, ...
         user_data = await db.get_user_data(user_id, guild_id)
         
         if user_data:
@@ -130,7 +141,7 @@ class Leveling(commands.Cog):
         new_level = self.calculate_level(new_xp)
         messages += 1
         
-        # Save to database
+        # Single write that INSERTs new users or UPDATEs existing ones.
         await db.update_user_xp(user_id, guild_id, new_xp, new_level, messages, current_time)
         
         # Check for level up
