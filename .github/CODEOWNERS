@@ -1,0 +1,43 @@
+# CODEOWNERS for TheCodeVerseHub/Miku
+#
+# How to use:
+# Owners are set to GitHub org teams.
+# Team syntax: @TheCodeVerseHub/<team-slug>
+#
+# Notes:
+# - Order matters: the last matching pattern wins.
+# - This file is only enforced if you enable branch protection:
+#   Settings → Branches → Branch protection rules → “Require review from Code Owners”.
+
+# -----------------------------------------------------------------------------
+# DEFAULT OWNERS (set this first)
+# -----------------------------------------------------------------------------
+* @TheCodeVerseHub/miku-maintainers
+
+# -----------------------------------------------------------------------------
+# REPO METADATA / SECURITY
+# -----------------------------------------------------------------------------
+/.github/ @TheCodeVerseHub/miku-maintainers
+/SECURITY.md @TheCodeVerseHub/security
+/CHANGELOG.md @TheCodeVerseHub/miku-maintainers
+/CONTRIBUTING.md @TheCodeVerseHub/miku-maintainers
+
+# -----------------------------------------------------------------------------
+# BOT RUNTIME (current rewrite entrypoints)
+# -----------------------------------------------------------------------------
+/main.py @TheCodeVerseHub/miku-maintainers
+/pyproject.toml @TheCodeVerseHub/miku-maintainers
+/requirements.txt @TheCodeVerseHub/miku-maintainers
+
+# -----------------------------------------------------------------------------
+# APPLICATION CODE
+# -----------------------------------------------------------------------------
+/src/ @TheCodeVerseHub/miku-contributors
+/src/cogs/ @TheCodeVerseHub/miku-contributors
+/src/utils/ @TheCodeVerseHub/miku-maintainers
+
+# Legacy/extension-style code
+/bot/ @TheCodeVerseHub/miku-maintainers
+
+# Documentation
+/docs/ @TheCodeVerseHub/documentation
