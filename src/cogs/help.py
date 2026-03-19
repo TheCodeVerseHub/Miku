@@ -20,19 +20,19 @@ EMBED_COLOR = discord.Color.from_rgb(88, 101, 242)  # Discord blurple
 def create_main_help_embed(bot: commands.Bot) -> discord.Embed:
     """Create the main help menu embed"""
     embed = discord.Embed(
-        title="🌸 Miku - Help",
+        title=" Miku - Help",
         description="A feature-rich Discord leveling bot with XP tracking and customizable rewards",
         color=EMBED_COLOR
     )
     
     embed.add_field(
-        name="📝 Command Prefix",
+        name=" Command Prefix",
         value="**Text:** `&` (e.g., `&help`)\n**Slash:** `/` (e.g., `/help`)",
         inline=False
     )
     
     embed.add_field(
-        name="📚 Available Categories",
+        name=" Available Categories",
         value=(
             "**Leveling** - XP tracking, ranks, and leaderboards\n"
             "**Admin** - Server management and configuration commands\n\n"
@@ -42,19 +42,19 @@ def create_main_help_embed(bot: commands.Bot) -> discord.Embed:
     )
     
     embed.add_field(
-        name="🔗 Support",
+        name=" Support",
         value="Need help? Found a bug? Contact the bot owner!",
         inline=False
     )
     
-    embed.set_footer(text=f"Connected to {len(bot.guilds)} servers | Made with ❤️")
+    embed.set_footer(text=f"Connected to {len(bot.guilds)} servers | Made with ")
     
     return embed
 
 def create_leveling_help_embed() -> discord.Embed:
     """Create leveling category help embed"""
     embed = discord.Embed(
-        title="📊 Leveling Commands",
+        title=" Leveling Commands",
         description="Commands for checking ranks, XP, leaderboards, and progression",
         color=EMBED_COLOR
     )
@@ -94,14 +94,14 @@ def create_leveling_help_embed() -> discord.Embed:
             inline=False
         )
     
-    embed.set_footer(text="💡 Tip: Both prefix (&) and slash (/) commands work!")
+    embed.set_footer(text=" Tip: Both prefix (&) and slash (/) commands work!")
     
     return embed
 
 def create_admin_help_embed() -> discord.Embed:
     """Create admin category help embed"""
     embed = discord.Embed(
-        title="⚙️ Admin Commands",
+        title=" Admin Commands",
         description="Server administration commands (requires Administrator permission)",
         color=EMBED_COLOR
     )
@@ -125,7 +125,7 @@ def create_admin_help_embed() -> discord.Embed:
         {
             "name": "resetalllevels",
             "usage": "&resetalllevels CONFIRM",
-            "description": "⚠️ Reset ALL server level data (requires typing CONFIRM)"
+            "description": " Reset ALL server level data (requires typing CONFIRM)"
         },
         {
             "name": "setlevelchannel",
@@ -151,7 +151,7 @@ def create_admin_help_embed() -> discord.Embed:
             inline=False
         )
     
-    embed.set_footer(text="🔒 All admin commands require Administrator permission")
+    embed.set_footer(text=" All admin commands require Administrator permission")
     
     return embed
 
@@ -169,19 +169,16 @@ class CategorySelect(discord.ui.Select):
             discord.SelectOption(
                 label="Home",
                 description="Return to main help menu",
-                emoji="🏠",
                 value="home"
             ),
             discord.SelectOption(
                 label="Leveling",
                 description="XP tracking and rank commands",
-                emoji="📊",
                 value="leveling"
             ),
             discord.SelectOption(
                 label="Admin",
                 description="Server administration commands",
-                emoji="⚙️",
                 value="admin"
             )
         ]
@@ -231,7 +228,8 @@ class HelpView(discord.ui.View):
         """Called when the view times out"""
         # Disable all components
         for item in self.children:
-            item.disabled = True
+            if hasattr(item, "disabled"):
+                setattr(item, "disabled", True)
 
 # ============================================================================
 # Help Cog
@@ -254,6 +252,12 @@ class Help(commands.Cog):
     @app_commands.describe(command='Get help for a specific command')
     async def help_command(self, ctx: commands.Context, command: Optional[str] = None):
         """Display interactive help menu or help for a specific command"""
+
+        async def send(*args, **kwargs):
+            # `ephemeral` is only valid for interaction responses.
+            if getattr(ctx, "interaction", None) is None:
+                kwargs.pop("ephemeral", None)
+            return await ctx.send(*args, **kwargs)
         
         if command:
             # Show help for specific command
@@ -261,11 +265,11 @@ class Help(commands.Cog):
             
             if not cmd:
                 embed = discord.Embed(
-                    title="❌ Command Not Found",
+                    title=" Command Not Found",
                     description=f"Command `{command}` doesn't exist.\nUse `/help` to see all commands.",
                     color=discord.Color.red()
                 )
-                await ctx.send(embed=embed, ephemeral=True)
+                await send(embed=embed, ephemeral=True)
                 return
             
             # Build specific command help
@@ -303,13 +307,13 @@ class Help(commands.Cog):
                         inline=False
                     )
             
-            await ctx.send(embed=embed)
+            await send(embed=embed)
         
         else:
             # Show interactive help menu
             embed = create_main_help_embed(self.bot)
             view = HelpView(self.bot, ctx.author.id)
-            await ctx.send(embed=embed, view=view)
+            await send(embed=embed, view=view)
 
 async def setup(bot: commands.Bot):
     """Setup function to add cog to bot"""

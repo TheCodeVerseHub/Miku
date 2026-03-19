@@ -32,7 +32,9 @@ async def get_pool() -> asyncpg.Pool:
             database_url,
             min_size=2,
             max_size=10,
-            command_timeout=60
+            command_timeout=60,
+            # Prevent InvalidCachedStatementError after DDL/migrations.
+            statement_cache_size=0,
         )
         logger.info("Database connection pool created")
     return _pool
@@ -67,6 +69,18 @@ async def init_db():
                 PRIMARY KEY (user_id, guild_id)
             )
         ''')
+
+        # Lightweight migrations for older schemas
+        # (Neon/hosted DB might already contain tables created by a previous version)
+        await conn.execute(
+            "ALTER TABLE user_levels ADD COLUMN IF NOT EXISTS last_message_time DOUBLE PRECISION DEFAULT 0"
+        )
+        await conn.execute(
+            "ALTER TABLE user_levels ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()"
+        )
+        await conn.execute(
+            "ALTER TABLE user_levels ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()"
+        )
         
         # Create index for leaderboard queries
         await conn.execute('''
@@ -87,6 +101,10 @@ async def init_db():
                 updated_at TIMESTAMP DEFAULT NOW()
             )
         ''')
+
+        await conn.execute(
+            "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()"
+        )
         
         # Role rewards table
         await conn.execute('''
@@ -104,6 +122,14 @@ async def init_db():
             CREATE INDEX IF NOT EXISTS idx_role_rewards_guild 
             ON role_rewards(guild_id)
         ''')
+
+        # DDL above can invalidate asyncpg's cached statement plans on this connection.
+        # Refresh schema state before returning it to the pool.
+        try:
+            await conn.reload_schema_state()
+        except Exception:
+            # Not fatal; worst case asyncpg will raise and the caller can retry.
+            logger.exception("Failed to reload schema state")
         
         logger.info("Database tables initialized")
 
