@@ -135,9 +135,15 @@ class MikuBot(commands.Bot):
 async def main():
     """Main entry point"""
     bot = MikuBot()
+
+    token = BotConfig.TOKEN
+    if not token:
+        raise RuntimeError(
+            "DISCORD_BOT_TOKEN is not set. Add it to your environment or a `.env` file."
+        )
     
     try:
-        await bot.start(BotConfig.TOKEN)
+        await bot.start(token)
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt")
     except Exception as e:
