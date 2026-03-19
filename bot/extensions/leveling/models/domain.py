@@ -1,3 +1,9 @@
+"""Pure-python domain models for the legacy leveling extension.
+
+These are small, typed containers used to move data between services/cogs.
+They are *not* database models.
+"""
+
 from dataclasses import dataclass
 
 @dataclass

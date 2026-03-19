@@ -1,3 +1,11 @@
+"""Repository layer for the legacy leveling system.
+
+If you're new to the "repo/service" split:
+- Repositories are thin wrappers around the ORM/session.
+- They do *no* business logic; they just load/save/delete models.
+- Services (see `services/`) build higher-level behavior on top.
+"""
+
 from datetime import timezone
 from sqlalchemy.ext.asyncio.session import AsyncSession
 

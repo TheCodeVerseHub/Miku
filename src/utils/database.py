@@ -72,7 +72,7 @@ async def close_pool():
 # Database Initialization
 # ============================================================================
 
-async def init_db():
+async def init_db() -> None:
     """Initialize database tables"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -175,7 +175,7 @@ async def update_user_xp(
     level: int, 
     messages: int, 
     last_message_time: float
-):
+) -> None:
     """Update or insert user XP data"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -191,7 +191,7 @@ async def update_user_xp(
                 updated_at = NOW()
         ''', user_id, guild_id, xp, level, messages, last_message_time)
 
-async def set_user_level(user_id: int, guild_id: int, level: int, xp: int):
+async def set_user_level(user_id: int, guild_id: int, level: int, xp: int) -> None:
     """Set user's level and XP (admin command)"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -242,7 +242,7 @@ async def get_total_users(guild_id: int) -> int:
         )
         return row['count'] if row else 0
 
-async def reset_user_data(user_id: int, guild_id: int):
+async def reset_user_data(user_id: int, guild_id: int) -> None:
     """Reset a user's level data"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -251,7 +251,7 @@ async def reset_user_data(user_id: int, guild_id: int):
             user_id, guild_id
         )
 
-async def reset_guild_data(guild_id: int):
+async def reset_guild_data(guild_id: int) -> None:
     """Reset all level data for a guild"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -274,7 +274,7 @@ async def get_guild_settings(guild_id: int) -> Optional[Dict[str, Any]]:
         )
         return dict(row) if row else None
 
-async def set_levelup_channel(guild_id: int, channel_id: Optional[int]):
+async def set_levelup_channel(guild_id: int, channel_id: Optional[int]) -> None:
     """Set or remove the level-up announcement channel"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -286,7 +286,7 @@ async def set_levelup_channel(guild_id: int, channel_id: Optional[int]):
                 updated_at = NOW()
         ''', guild_id, channel_id)
 
-async def toggle_xp_system(guild_id: int, enabled: bool):
+async def toggle_xp_system(guild_id: int, enabled: bool) -> None:
     """Enable or disable XP system for a guild"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -312,7 +312,7 @@ async def get_role_rewards(guild_id: int) -> List[Dict[str, Any]]:
         )
         return [dict(row) for row in rows]
 
-async def add_role_reward(guild_id: int, level: int, role_id: int):
+async def add_role_reward(guild_id: int, level: int, role_id: int) -> None:
     """Add or update a role reward for a level"""
     pool = await get_pool()
     async with pool.acquire() as conn:

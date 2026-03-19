@@ -1,3 +1,10 @@
+"""SQLAlchemy models for the legacy leveling extension.
+
+These are the database tables used by the `bot/extensions/leveling` feature.
+The `LevelingProfile` table stores per-guild/per-user XP, level, and the last
+message timestamp used for cooldown checks.
+"""
+
 from datetime import datetime, timezone
 from typing import Any
 from sqlalchemy import BigInteger, DateTime, Double

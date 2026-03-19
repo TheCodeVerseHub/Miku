@@ -1,3 +1,18 @@
+"""Legacy bot package (extension-driven architecture).
+
+This `bot/` package contains an older/alternative implementation of Miku that is
+structured around discord.py "extensions" and SQLAlchemy.
+
+If you're new:
+- `MikuBot` is the main `commands.Bot` subclass.
+- `setup_hook()` discovers and loads extensions from `bot/extensions/`.
+- `bot/config.py` reads `.env` settings and configures logging.
+- `bot/database.py` manages the SQLAlchemy async engine/session.
+
+Note: The repository also contains a newer `src/` implementation; depending on
+how you start the project, you may be using either architecture.
+"""
+
 import importlib
 import logging
 import pathlib

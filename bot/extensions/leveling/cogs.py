@@ -1,3 +1,13 @@
+"""Legacy leveling cog (queue + workers).
+
+High-level idea:
+- `on_message` enqueues messages quickly.
+- Background worker tasks pull from the queue and do the heavier work:
+    evaluating XP/level changes, persisting to DB, and sending level-up messages.
+
+This architecture avoids spawning unbounded tasks during high message volume.
+"""
+
 from io import BytesIO
 import asyncio
 import logging
