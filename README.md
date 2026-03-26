@@ -96,13 +96,13 @@ Miku comes with a modern web dashboard built with **Next.js 14** and **React** f
 
 ### Dashboard Features
 
-- 🔐 **Discord OAuth2 Login** - Secure authentication
-- 📊 **Live Statistics** - Real-time server stats and analytics
-- 🏆 **Interactive Leaderboards** - View top members with pagination
-- ⚙️ **Leveling Configuration** - Set level-up channels and role rewards
-- 🎮 **Multi-Server Management** - Manage all servers from one place
-- 📱 **Responsive Design** - Works on desktop, tablet, and mobile
-- 🎨 **Beautiful UI** - Discord-themed design with Tailwind CSS
+- **Discord OAuth2 Login** - Secure authentication
+- **Live Statistics** - Real-time server stats and analytics
+- **Interactive Leaderboards** - View top members with pagination
+- **Leveling Configuration** - Set level-up channels and role rewards
+- **Multi-Server Management** - Manage all servers from one place
+- **Responsive Design** - Works on desktop, tablet, and mobile
+- **Beautiful UI** - Discord-themed design with Tailwind CSS
 
 ### Quick Start (Local Development)
 
