@@ -14,7 +14,7 @@ body:
     attributes:
       label: Problem statement
       description: What problem are you trying to solve?
-      placeholder: "I’m frustrated when..."
+      placeholder: "I'm frustrated when..."
     validations:
       required: true
 
