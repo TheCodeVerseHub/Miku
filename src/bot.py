@@ -83,6 +83,7 @@ class MikuBot(commands.Bot):
         cogs = [
             'cogs.leveling',
             'cogs.help',
+            'cogs.github',
         ]
         
         for cog in cogs:
