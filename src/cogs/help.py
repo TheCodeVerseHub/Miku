@@ -50,7 +50,8 @@ def create_main_help_embed(bot: commands.Bot) -> discord.Embed:
         name=" Available Categories",
         value=(
             "**Leveling** - XP tracking, ranks, and leaderboards\n"
-            "**Admin** - Server management and configuration commands\n\n"
+            "**Admin** - Server management and configuration commands\n"
+            "**GitHub** - Repository and user lookup\n\n"
             "Use the dropdown menu below to explore categories!"
         ),
         inline=False
@@ -167,7 +168,54 @@ def create_admin_help_embed() -> discord.Embed:
         )
     
     embed.set_footer(text=" All admin commands require Administrator permission")
-    
+
+    return embed
+
+def create_github_help_embed() -> discord.Embed:
+    """Create GitHub category help embed"""
+    embed = discord.Embed(
+        title="GitHub Commands",
+        description="Commands for looking up GitHub repositories, users, and searching GitHub",
+        color=EMBED_COLOR
+    )
+
+    commands = [
+        {
+            "name": "github repo",
+            "aliases": "",
+            "usage": "&github repo <owner/repo>",
+            "description": "View repository info (stars, forks, language, license, topics, and more)"
+        },
+        {
+            "name": "github user",
+            "aliases": "",
+            "usage": "&github user <username>",
+            "description": "View a GitHub user or organisation profile"
+        },
+        {
+            "name": "github search-repos",
+            "aliases": "sr",
+            "usage": "&github search-repos <query>",
+            "description": "Search GitHub repositories and show the top results"
+        },
+        {
+            "name": "github search-users",
+            "aliases": "su",
+            "usage": "&github search-users <query>",
+            "description": "Search GitHub users and show the top results"
+        }
+    ]
+
+    for cmd in commands:
+        alias_text = f"\n**Aliases:** {cmd['aliases']}" if cmd['aliases'] else ""
+        embed.add_field(
+            name=f"&{cmd['name']}",
+            value=f"**Usage:** `{cmd['usage']}`{alias_text}\n{cmd['description']}",
+            inline=False
+        )
+
+    embed.set_footer(text=" Tip: Use &gh as a shorthand for &github")
+
     return embed
 
 # ============================================================================
@@ -195,6 +243,11 @@ class CategorySelect(discord.ui.Select):
                 label="Admin",
                 description="Server administration commands",
                 value="admin"
+            ),
+            discord.SelectOption(
+                label="GitHub",
+                description="Repository and user lookup",
+                value="github"
             )
         ]
         
@@ -215,6 +268,8 @@ class CategorySelect(discord.ui.Select):
             embed = create_leveling_help_embed()
         elif category == "admin":
             embed = create_admin_help_embed()
+        elif category == "github":
+            embed = create_github_help_embed()
         else:
             embed = create_main_help_embed(self.bot)
         
