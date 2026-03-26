@@ -45,15 +45,49 @@ class Leveling(commands.Cog):
             logger.exception("Failed to close RankCardGenerator")
 
     async def _send(self, ctx: commands.Context, *args, **kwargs):
-        """Send helper that avoids passing interaction-only kwargs in prefix mode."""
-        if getattr(ctx, "interaction", None) is None:
-            kwargs.pop("ephemeral", None)
-        return await ctx.send(*args, **kwargs)
+        """Send helper that works for both prefix and interaction invocations.
 
-    async def _maybe_defer(self, ctx: commands.Context):
-        """Defer only when invoked as a slash command."""
-        if getattr(ctx, "interaction", None) is not None:
-            await ctx.defer()
+        For interactions, responses must be sent within ~3s unless deferred.
+        If an interaction has expired (error 10062), we fall back to a normal
+        channel message as a last resort.
+        """
+        interaction = getattr(ctx, "interaction", None)
+
+        if interaction is None:
+            kwargs.pop("ephemeral", None)
+
+        try:
+            return await ctx.send(*args, **kwargs)
+        except discord.NotFound as e:
+            # Slash interaction expired/invalid (common if not deferred quickly).
+            # Fall back to a plain channel send (cannot be ephemeral).
+            if interaction is not None and getattr(e, "code", None) == 10062 and getattr(ctx, "channel", None) is not None:
+                kwargs.pop("ephemeral", None)
+                return await ctx.channel.send(*args, **kwargs)  # type: ignore[union-attr]
+            raise
+        except discord.InteractionResponded:
+            # If something already responded via interaction, use follow-up.
+            if interaction is not None:
+                return await interaction.followup.send(*args, **kwargs)
+            raise
+
+    async def _maybe_defer(self, ctx: commands.Context, *, ephemeral: bool = False):
+        """Defer only when invoked as a slash command and not already acknowledged."""
+        interaction = getattr(ctx, "interaction", None)
+        if interaction is None:
+            return
+
+        # Avoid double-acknowledging the interaction.
+        if interaction.response.is_done():
+            return
+
+        try:
+            await ctx.defer(ephemeral=ephemeral)
+        except discord.NotFound:
+            # Interaction already expired; caller should rely on _send() fallback.
+            return
+        except discord.HTTPException:
+            return
     
     # ========================================================================
     # Leveling Formula
@@ -307,6 +341,8 @@ class Leveling(commands.Cog):
         if ctx.guild is None:
             return
 
+        await self._maybe_defer(ctx)
+
         if page < 1:
             page = 1
         
@@ -364,6 +400,8 @@ class Leveling(commands.Cog):
         if target.bot:
             await self._send(ctx, "Bots don't have XP!", ephemeral=True)
             return
+
+        await self._maybe_defer(ctx)
         
         user_data = await db.get_user_data(target.id, ctx.guild.id)
         
@@ -414,6 +452,8 @@ class Leveling(commands.Cog):
         if ctx.guild is None:
             return
 
+        await self._maybe_defer(ctx)
+
         if level < 0:
             await self._send(ctx, " Level must be 0 or higher!", ephemeral=True)
             return
@@ -444,6 +484,8 @@ class Leveling(commands.Cog):
         """Add XP to a user"""
         if ctx.guild is None:
             return
+
+        await self._maybe_defer(ctx)
 
         user_data = await db.get_user_data(user.id, ctx.guild.id)
         
@@ -476,6 +518,8 @@ class Leveling(commands.Cog):
         if ctx.guild is None:
             return
 
+        await self._maybe_defer(ctx)
+
         await db.reset_user_data(user.id, ctx.guild.id)
         
         embed = discord.Embed(
@@ -496,6 +540,8 @@ class Leveling(commands.Cog):
         """Reset all level data in the server"""
         if ctx.guild is None:
             return
+
+        await self._maybe_defer(ctx)
 
         if confirm != "CONFIRM":
             embed = discord.Embed(
@@ -532,6 +578,8 @@ class Leveling(commands.Cog):
         if ctx.guild is None:
             return
 
+        await self._maybe_defer(ctx)
+
         if channel:
             await db.set_levelup_channel(ctx.guild.id, channel.id)
             embed = discord.Embed(
@@ -560,6 +608,8 @@ class Leveling(commands.Cog):
         """Add a role reward for reaching a level"""
         if ctx.guild is None:
             return
+
+        await self._maybe_defer(ctx)
 
         if level < 1:
             await self._send(ctx, " Level must be 1 or higher!", ephemeral=True)
@@ -596,6 +646,8 @@ class Leveling(commands.Cog):
         if ctx.guild is None:
             return
 
+        await self._maybe_defer(ctx)
+
         result = await db.remove_role_reward(ctx.guild.id, level)
         
         if result:
@@ -623,6 +675,8 @@ class Leveling(commands.Cog):
         """List all configured role rewards"""
         if ctx.guild is None:
             return
+
+        await self._maybe_defer(ctx)
 
         role_rewards = await db.get_role_rewards(ctx.guild.id)
         
