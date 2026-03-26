@@ -76,6 +76,57 @@ async def init_db() -> None:
     """Initialize database tables"""
     pool = await get_pool()
     async with pool.acquire() as conn:
+        async def _migrate_epoch_column_to_timestamp(table: str, column: str) -> None:
+            """Convert legacy epoch columns (DOUBLE PRECISION) to TIMESTAMP.
+
+            Older versions stored timestamps as epoch seconds (float). This migration
+            makes the column consistent with the current schema (TIMESTAMP + NOW()).
+            """
+
+            row = await conn.fetchrow(
+                """
+                SELECT data_type
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = $1
+                  AND column_name = $2
+                """,
+                table,
+                column,
+            )
+
+            if not row:
+                return
+
+            data_type = row["data_type"]
+
+            # Expected types are timestamp without/with time zone. `NOW()` is
+            # timestamptz but is implicitly castable to timestamp.
+            if data_type in {"timestamp without time zone", "timestamp with time zone"}:
+                return
+
+            if data_type != "double precision":
+                logger.warning(
+                    "Unexpected type for %s.%s: %s (skipping migration)",
+                    table,
+                    column,
+                    data_type,
+                )
+                return
+
+            logger.info("Migrating %s.%s from DOUBLE PRECISION to TIMESTAMP", table, column)
+            try:
+                # Drop default first (often `0`) to avoid cast errors.
+                await conn.execute(f'ALTER TABLE {table} ALTER COLUMN {column} DROP DEFAULT')
+            except Exception:
+                # Default might not exist; continue.
+                pass
+
+            await conn.execute(
+                f"ALTER TABLE {table} ALTER COLUMN {column} TYPE TIMESTAMP USING to_timestamp({column})"
+            )
+            await conn.execute(f'ALTER TABLE {table} ALTER COLUMN {column} SET DEFAULT NOW()')
+
         # User levels table
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS user_levels (
@@ -102,6 +153,10 @@ async def init_db() -> None:
         await conn.execute(
             "ALTER TABLE user_levels ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()"
         )
+
+        # Migrate legacy epoch timestamp columns if present.
+        await _migrate_epoch_column_to_timestamp("user_levels", "created_at")
+        await _migrate_epoch_column_to_timestamp("user_levels", "updated_at")
         
         # Create index for leaderboard queries
         await conn.execute('''
@@ -126,6 +181,9 @@ async def init_db() -> None:
         await conn.execute(
             "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()"
         )
+
+        await _migrate_epoch_column_to_timestamp("guild_settings", "created_at")
+        await _migrate_epoch_column_to_timestamp("guild_settings", "updated_at")
         
         # Role rewards table
         await conn.execute('''

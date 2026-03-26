@@ -167,21 +167,29 @@ class Leveling(commands.Cog):
         # Get custom levelup channel or use current channel
         guild_settings = await db.get_guild_settings(guild.id)
         target_channel: discord.abc.Messageable = message.channel
+        used_custom_channel = False
         
         if guild_settings and guild_settings.get('levelup_channel_id'):
             custom_channel = guild.get_channel(guild_settings['levelup_channel_id'])
             # Only accept channels that can actually send messages
             if custom_channel is not None and hasattr(custom_channel, "send"):
                 target_channel = custom_channel  # type: ignore[assignment]
+                used_custom_channel = True
         
         # Send level up message
         try:
-            await target_channel.send(embed=embed, delete_after=30)
-        except:
+            if used_custom_channel:
+                # If a dedicated level-up channel is configured, keep the message.
+                await target_channel.send(embed=embed)
+            else:
+                # If no dedicated channel is set, announce in the same channel
+                # but auto-delete shortly to avoid clutter.
+                await target_channel.send(embed=embed, delete_after=random.uniform(3, 5))
+        except Exception:
             if target_channel != message.channel:
                 try:
-                    await message.channel.send(embed=embed, delete_after=30)
-                except:
+                    await message.channel.send(embed=embed, delete_after=random.uniform(3, 5))
+                except Exception:
                     pass
         
         # Assign role rewards

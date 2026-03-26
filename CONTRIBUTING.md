@@ -44,12 +44,12 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 We welcome various types of contributions:
 
-- 🐛 **Bug fixes** - Fix issues or bugs in the code
-- ✨ **New features** - Add new commands or functionality
-- 📝 **Documentation** - Improve or expand documentation
-- 🎨 **UI/UX improvements** - Enhance rank cards or embed designs
-- ⚡ **Performance** - Optimize code efficiency
-- 🧪 **Tests** - Add or improve test coverage
+- **Bug fixes** - Fix issues or bugs in the code
+- **New features** - Add new commands or functionality
+- **Documentation** - Improve or expand documentation
+- **UI/UX improvements** - Enhance rank cards or embed designs
+- **Performance** - Optimize code efficiency
+- **Tests** - Add or improve test coverage
 
 ## Development Setup
 
@@ -240,4 +240,4 @@ By contributing to Miku, you agree that your contributions will be licensed unde
 
 ---
 
-Thank you for contributing to Miku! 🎉
+Thank you for contributing to Miku!
