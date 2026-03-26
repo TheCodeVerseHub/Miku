@@ -1,6 +1,16 @@
 """
 Miku - Discord Leveling Bot
 Clean rewrite with PostgreSQL only
+
+Contributing quick map (start here):
+- Bot entrypoint: `Miku/main.py` imports `src/bot.py` and runs `main()`.
+- Cogs (features/commands/events): `src/cogs/` (e.g. `leveling.py`, `help.py`).
+- Database layer: `src/utils/database.py` (asyncpg, tables, queries).
+
+Typical flow:
+1) Bot starts -> `setup_hook()` initializes DB and loads cogs.
+2) Cogs register listeners/commands.
+3) For XP: `Leveling.on_message` -> read/update DB -> optionally announce level-up.
 """
 
 import discord
@@ -49,6 +59,11 @@ class MikuBot(commands.Bot):
         
     async def setup_hook(self):
         """Setup hook called when bot starts"""
+        # Startup order matters:
+        # 1) Ensure DB schema exists (tables/indexes)
+        # 2) Load cogs (they may query the DB)
+        # 3) Sync slash commands (so /commands appear in Discord)
+
         # Initialize database
         await database.init_db()
         logger.info("Database initialized")
@@ -120,9 +135,15 @@ class MikuBot(commands.Bot):
 async def main():
     """Main entry point"""
     bot = MikuBot()
+
+    token = BotConfig.TOKEN
+    if not token:
+        raise RuntimeError(
+            "DISCORD_BOT_TOKEN is not set. Add it to your environment or a `.env` file."
+        )
     
     try:
-        await bot.start(BotConfig.TOKEN)
+        await bot.start(token)
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt")
     except Exception as e:

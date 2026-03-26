@@ -1,6 +1,23 @@
 """
 PostgreSQL Database Module for Miku Bot
 Handles all database operations using asyncpg
+
+Beginner notes:
+- Required env var: `DATABASE_URL` (see `.env.example`).
+- This file owns:
+    - connection pool creation (`get_pool()`)
+    - schema creation/migrations (`init_db()`)
+    - all queries used by cogs (`get_user_data`, `update_user_xp`, ...)
+
+Tables:
+- `user_levels`: per-user XP/level/messages per guild
+- `guild_settings`: per-guild configuration (level-up channel, cooldown, etc.)
+- `role_rewards`: which role to award at which level
+
+When adding a new feature that needs data:
+1) Add columns/tables in `init_db()` (use IF NOT EXISTS / migrations)
+2) Add a small helper function here (single responsibility)
+3) Call that helper from your cog/service
 """
 
 import asyncpg
@@ -28,11 +45,17 @@ async def get_pool() -> asyncpg.Pool:
         if not database_url:
             raise ValueError("DATABASE_URL environment variable not set")
         
+        # NOTE: `statement_cache_size=0` is intentional.
+        # asyncpg caches prepared statements by default; after DDL (ALTER TABLE)
+        # some servers can raise InvalidCachedStatementError. Disabling the cache
+        # keeps behavior predictable for contributors.
         _pool = await asyncpg.create_pool(
             database_url,
             min_size=2,
             max_size=10,
-            command_timeout=60
+            command_timeout=60,
+            # Prevent InvalidCachedStatementError after DDL/migrations.
+            statement_cache_size=0,
         )
         logger.info("Database connection pool created")
     return _pool
@@ -49,7 +72,7 @@ async def close_pool():
 # Database Initialization
 # ============================================================================
 
-async def init_db():
+async def init_db() -> None:
     """Initialize database tables"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -67,6 +90,18 @@ async def init_db():
                 PRIMARY KEY (user_id, guild_id)
             )
         ''')
+
+        # Lightweight migrations for older schemas.
+        # Hosted DBs might already contain tables created by a previous version.
+        await conn.execute(
+            "ALTER TABLE user_levels ADD COLUMN IF NOT EXISTS last_message_time DOUBLE PRECISION DEFAULT 0"
+        )
+        await conn.execute(
+            "ALTER TABLE user_levels ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()"
+        )
+        await conn.execute(
+            "ALTER TABLE user_levels ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()"
+        )
         
         # Create index for leaderboard queries
         await conn.execute('''
@@ -87,6 +122,10 @@ async def init_db():
                 updated_at TIMESTAMP DEFAULT NOW()
             )
         ''')
+
+        await conn.execute(
+            "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()"
+        )
         
         # Role rewards table
         await conn.execute('''
@@ -104,6 +143,14 @@ async def init_db():
             CREATE INDEX IF NOT EXISTS idx_role_rewards_guild 
             ON role_rewards(guild_id)
         ''')
+
+        # DDL above can invalidate asyncpg's cached statement plans on this connection.
+        # Refresh schema state before returning it to the pool.
+        try:
+            await conn.reload_schema_state()
+        except Exception:
+            # Not fatal; worst case asyncpg will raise and the caller can retry.
+            logger.exception("Failed to reload schema state")
         
         logger.info("Database tables initialized")
 
@@ -128,7 +175,7 @@ async def update_user_xp(
     level: int, 
     messages: int, 
     last_message_time: float
-):
+) -> None:
     """Update or insert user XP data"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -144,7 +191,7 @@ async def update_user_xp(
                 updated_at = NOW()
         ''', user_id, guild_id, xp, level, messages, last_message_time)
 
-async def set_user_level(user_id: int, guild_id: int, level: int, xp: int):
+async def set_user_level(user_id: int, guild_id: int, level: int, xp: int) -> None:
     """Set user's level and XP (admin command)"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -195,7 +242,7 @@ async def get_total_users(guild_id: int) -> int:
         )
         return row['count'] if row else 0
 
-async def reset_user_data(user_id: int, guild_id: int):
+async def reset_user_data(user_id: int, guild_id: int) -> None:
     """Reset a user's level data"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -204,7 +251,7 @@ async def reset_user_data(user_id: int, guild_id: int):
             user_id, guild_id
         )
 
-async def reset_guild_data(guild_id: int):
+async def reset_guild_data(guild_id: int) -> None:
     """Reset all level data for a guild"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -227,7 +274,7 @@ async def get_guild_settings(guild_id: int) -> Optional[Dict[str, Any]]:
         )
         return dict(row) if row else None
 
-async def set_levelup_channel(guild_id: int, channel_id: Optional[int]):
+async def set_levelup_channel(guild_id: int, channel_id: Optional[int]) -> None:
     """Set or remove the level-up announcement channel"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -239,7 +286,7 @@ async def set_levelup_channel(guild_id: int, channel_id: Optional[int]):
                 updated_at = NOW()
         ''', guild_id, channel_id)
 
-async def toggle_xp_system(guild_id: int, enabled: bool):
+async def toggle_xp_system(guild_id: int, enabled: bool) -> None:
     """Enable or disable XP system for a guild"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -265,7 +312,7 @@ async def get_role_rewards(guild_id: int) -> List[Dict[str, Any]]:
         )
         return [dict(row) for row in rows]
 
-async def add_role_reward(guild_id: int, level: int, role_id: int):
+async def add_role_reward(guild_id: int, level: int, role_id: int) -> None:
     """Add or update a role reward for a level"""
     pool = await get_pool()
     async with pool.acquire() as conn:

@@ -5,7 +5,7 @@
 
 Welcome to the Miku Bot documentation! This directory contains all project documentation.
 
-## 📚 Table of Contents
+## Table of Contents
 
 ### Getting Started
 
@@ -13,11 +13,11 @@ Welcome to the Miku Bot documentation! This directory contains all project docum
 - [Quickstart](./QUICKSTART.md) - Get up and running quickly
 - [Contributing](../CONTRIBUTING.md) - Contribution guidelines
 
-## 🤝 Contributing
+## Contributing
 
 Want to contribute? Read our [Contributing Guidelines](../CONTRIBUTING.md) and [Security Policy](../SECURITY.md).
 
-## 📞 Support
+## Support
 
 - **Documentation**: You're here!
 - **Issues**: [GitHub Issues](https://github.com/TheCodeVerseHub/Miku/issues)

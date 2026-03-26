@@ -1,3 +1,12 @@
+"""Configuration and logging setup for the legacy `bot/` implementation.
+
+This module:
+- Defines `Settings` (Pydantic) which loads values from `.env`.
+- Configures logging to both console and a rotating `latest.log` file.
+
+Most code imports `settings` from here rather than reading env vars directly.
+"""
+
 import logging
 import sys
 from logging.handlers import RotatingFileHandler

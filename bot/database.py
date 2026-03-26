@@ -1,3 +1,14 @@
+"""Database setup for the legacy `bot/` implementation (SQLAlchemy async).
+
+This file owns:
+- the async SQLAlchemy `engine`
+- an `AsyncSessionFactory`
+- a `get_session()` context manager used by extensions/services
+
+Keeping DB wiring centralized makes it easier to manage connections and cleanly
+shut everything down when the bot exits.
+"""
+
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 

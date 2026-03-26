@@ -1,3 +1,12 @@
+"""Business logic for the legacy leveling system.
+
+This module intentionally separates responsibilities:
+- `MessageEvaluationService` decides whether a message grants XP, calculates
+    XP gain, and turns XP into a level (the leveling formula lives here).
+- `LevelingProfileService` handles loading/creating/saving DB profiles.
+- `MessageService` is a small orchestrator: evaluate + persist changes.
+"""
+
 import datetime
 import random
 import logging

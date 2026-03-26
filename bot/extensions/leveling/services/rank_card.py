@@ -1,3 +1,13 @@
+"""Rank card image generation for the legacy leveling system.
+
+This generator fetches user avatars over HTTP (aiohttp), then uses Pillow to
+render a simple "rank card" PNG. It also uses in-memory caches to reduce
+repeated work.
+
+Important: call `await RankCardGenerator.close()` during shutdown to close the
+aiohttp session.
+"""
+
 import asyncio
 import io
 import logging
