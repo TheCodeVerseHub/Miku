@@ -1,0 +1,53 @@
+name: "Enhancement"
+description: "Improve an existing feature (performance, UX, refactor, docs, etc.)"
+title: "[Enhancement]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for improvements to existing behavior (not brand-new features).
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current behavior
+      description: What does the bot do today?
+      placeholder: "Currently..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: improvement
+    attributes:
+      label: Proposed improvement
+      description: What should change?
+      placeholder: "Change it so that..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact / motivation
+      description: Why is this valuable? Who benefits, and how?
+      placeholder: "This helps because..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other ways to approach this, if any.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Links, screenshots, code pointers, etc.
+    validations:
+      required: false
