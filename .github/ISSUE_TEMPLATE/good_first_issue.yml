@@ -1,0 +1,90 @@
+name: "Good first issue"
+description: "Create a beginner-friendly task for new contributors"
+title: "[Good First Issue]: "
+labels:
+  - good first issue
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to propose a small, well-scoped task that a new contributor can pick up.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Briefly describe what needs to be done.
+      placeholder: "Implement/adjust..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why is this needed? Link related issues/PRs, docs, or code areas.
+      placeholder: "Related to #..., see ..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope (what's in / out)
+      description: Keep this specific so it stays beginner-friendly.
+      placeholder: |
+        In:
+        - ...
+
+        Out:
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Bullet list of what "done" means.
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: hints
+    attributes:
+      label: Suggested approach / hints
+      description: Provide pointers (files, functions, commands) without over-prescribing.
+      placeholder: |
+        - Look at ...
+        - Update ...
+        - Run ...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: difficulty
+    attributes:
+      label: Estimated difficulty
+      options:
+        - "XS (≤ 1 hour)"
+        - "S (1–3 hours)"
+        - "M (half day)"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Maintainer checklist
+      options:
+        - label: Task is well-scoped and actionable
+          required: true
+        - label: Has clear acceptance criteria
+          required: true
+        - label: Includes pointers to relevant code/docs
+          required: false
+        - label: Does not require private credentials/tokens
+          required: false

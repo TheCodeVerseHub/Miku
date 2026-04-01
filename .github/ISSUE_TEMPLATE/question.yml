@@ -1,0 +1,46 @@
+name: "Question"
+description: "Ask a question about setup, usage, or how something works"
+title: "[Question]: "
+labels:
+  - question
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please share enough context so maintainers/contributors can help efficiently.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What are you trying to understand or do?
+      placeholder: "How do I..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you've tried
+      description: Commands, configs, or docs you already checked.
+      placeholder: "I tried..."
+    validations:
+      required: false
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS + Python version (and anything else relevant).
+      placeholder: "Ubuntu 22.04, Python 3.12"
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / output
+      description: Paste relevant output (redact tokens/secrets).
+      render: shell
+    validations:
+      required: false
