@@ -13,6 +13,11 @@ Welcome to the Miku Bot documentation! This directory contains all project docum
 - [Quickstart](./QUICKSTART.md) - Get up and running quickly
 - [Contributing](../CONTRIBUTING.md) - Contribution guidelines
 
+### Policies
+
+- [Terms of Service](./TERMS_OF_SERVICE.md)
+- [Privacy Policy](./PRIVACY_POLICY.md)
+
 ## Contributing
 
 Want to contribute? Read our [Contributing Guidelines](../CONTRIBUTING.md) and [Security Policy](../SECURITY.md).
