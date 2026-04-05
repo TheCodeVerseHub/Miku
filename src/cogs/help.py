@@ -51,6 +51,7 @@ def create_main_help_embed(bot: commands.Bot) -> discord.Embed:
         value=(
             "**Leveling** - XP tracking, ranks, and leaderboards\n"
             "**Admin** - Server management and configuration commands\n"
+            "**Utility** - Helpful general commands\n"
             "**GitHub** - Repository and user lookup\n\n"
             "Use the dropdown menu below to explore categories!"
         ),
@@ -65,6 +66,62 @@ def create_main_help_embed(bot: commands.Bot) -> discord.Embed:
     
     embed.set_footer(text=f"Connected to {len(bot.guilds)} servers | Made with ")
     
+    return embed
+
+def create_utility_help_embed() -> discord.Embed:
+    """Create utility category help embed"""
+    embed = discord.Embed(
+        title=" Utility Commands",
+        description="Helpful commands that work in any server (no moderation)",
+        color=EMBED_COLOR,
+    )
+
+    commands_list = [
+        {
+            "name": "ping",
+            "usage": "&ping",
+            "description": "Check if the bot is responsive and view latency",
+        },
+        {
+            "name": "uptime",
+            "usage": "&uptime",
+            "description": "Show how long the bot has been online",
+        },
+        {
+            "name": "about",
+            "usage": "&about",
+            "description": "Bot information and basic stats",
+        },
+        {
+            "name": "invite",
+            "usage": "&invite",
+            "description": "Get an invite link for the bot",
+        },
+        {
+            "name": "avatar",
+            "usage": "&avatar [user]",
+            "description": "Show a user's avatar",
+        },
+        {
+            "name": "userinfo",
+            "usage": "&userinfo [user]",
+            "description": "Show information about a member",
+        },
+        {
+            "name": "serverinfo",
+            "usage": "&serverinfo",
+            "description": "Show information about the current server",
+        },
+    ]
+
+    for cmd in commands_list:
+        embed.add_field(
+            name=f"&{cmd['name']}",
+            value=f"**Usage:** `{cmd['usage']}`\n{cmd['description']}",
+            inline=False,
+        )
+
+    embed.set_footer(text=" Tip: Both prefix (&) and slash (/) commands work!")
     return embed
 
 def create_leveling_help_embed() -> discord.Embed:
@@ -245,6 +302,11 @@ class CategorySelect(discord.ui.Select):
                 value="admin"
             ),
             discord.SelectOption(
+                label="Utility",
+                description="General helpful commands",
+                value="utility"
+            ),
+            discord.SelectOption(
                 label="GitHub",
                 description="Repository and user lookup",
                 value="github"
@@ -268,6 +330,8 @@ class CategorySelect(discord.ui.Select):
             embed = create_leveling_help_embed()
         elif category == "admin":
             embed = create_admin_help_embed()
+        elif category == "utility":
+            embed = create_utility_help_embed()
         elif category == "github":
             embed = create_github_help_embed()
         else:
