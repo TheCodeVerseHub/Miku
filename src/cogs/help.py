@@ -52,6 +52,8 @@ def create_main_help_embed(bot: commands.Bot) -> discord.Embed:
             "**Leveling** - XP tracking, ranks, and leaderboards\n"
             "**Admin** - Server management and configuration commands\n"
             "**Utility** - Helpful general commands\n"
+            "**Fun** - Games and random commands\n"
+            "**Info** - Role/channel/server info\n"
             "**GitHub** - Repository and user lookup\n\n"
             "Use the dropdown menu below to explore categories!"
         ),
@@ -112,6 +114,58 @@ def create_utility_help_embed() -> discord.Embed:
             "usage": "&serverinfo",
             "description": "Show information about the current server",
         },
+    ]
+
+    for cmd in commands_list:
+        embed.add_field(
+            name=f"&{cmd['name']}",
+            value=f"**Usage:** `{cmd['usage']}`\n{cmd['description']}",
+            inline=False,
+        )
+
+    embed.set_footer(text=" Tip: Both prefix (&) and slash (/) commands work!")
+    return embed
+
+
+def create_fun_help_embed() -> discord.Embed:
+    """Create fun category help embed"""
+    embed = discord.Embed(
+        title=" Fun Commands",
+        description="Light games and random utilities (no moderation)",
+        color=EMBED_COLOR,
+    )
+
+    commands_list = [
+        {"name": "8ball", "usage": "&8ball <question>", "description": "Ask the magic 8-ball"},
+        {"name": "coinflip", "usage": "&coinflip", "description": "Flip a coin"},
+        {"name": "roll", "usage": "&roll [sides]", "description": "Roll a dice (default d6)"},
+        {"name": "choose", "usage": "&choose <a, b, c>", "description": "Pick one option from a list"},
+        {"name": "rps", "usage": "&rps <rock|paper|scissors>", "description": "Play rock-paper-scissors"},
+    ]
+
+    for cmd in commands_list:
+        embed.add_field(
+            name=f"&{cmd['name']}",
+            value=f"**Usage:** `{cmd['usage']}`\n{cmd['description']}",
+            inline=False,
+        )
+
+    embed.set_footer(text=" Tip: Both prefix (&) and slash (/) commands work!")
+    return embed
+
+
+def create_info_help_embed() -> discord.Embed:
+    """Create info category help embed"""
+    embed = discord.Embed(
+        title=" Info Commands",
+        description="Server and role/channel info commands (no moderation)",
+        color=EMBED_COLOR,
+    )
+
+    commands_list = [
+        {"name": "membercount", "usage": "&membercount", "description": "Show server member count"},
+        {"name": "roleinfo", "usage": "&roleinfo <role>", "description": "Show role details"},
+        {"name": "channelinfo", "usage": "&channelinfo [channel]", "description": "Show channel details"},
     ]
 
     for cmd in commands_list:
@@ -307,6 +361,16 @@ class CategorySelect(discord.ui.Select):
                 value="utility"
             ),
             discord.SelectOption(
+                label="Fun",
+                description="Games and random commands",
+                value="fun"
+            ),
+            discord.SelectOption(
+                label="Info",
+                description="Role/channel/server info",
+                value="info"
+            ),
+            discord.SelectOption(
                 label="GitHub",
                 description="Repository and user lookup",
                 value="github"
@@ -332,6 +396,10 @@ class CategorySelect(discord.ui.Select):
             embed = create_admin_help_embed()
         elif category == "utility":
             embed = create_utility_help_embed()
+        elif category == "fun":
+            embed = create_fun_help_embed()
+        elif category == "info":
+            embed = create_info_help_embed()
         elif category == "github":
             embed = create_github_help_embed()
         else:
