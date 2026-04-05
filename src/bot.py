@@ -18,6 +18,7 @@ from discord.ext import commands
 import os
 import asyncio
 import logging
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 from utils import database
 
@@ -56,6 +57,8 @@ class MikuBot(commands.Bot):
             strip_after_prefix=True
         )
         self.config = BotConfig
+        # Used by the Utility cog for `uptime`.
+        self.start_time = datetime.now(timezone.utc)
         
     async def setup_hook(self):
         """Setup hook called when bot starts"""
@@ -84,6 +87,7 @@ class MikuBot(commands.Bot):
             'cogs.leveling',
             'cogs.help',
             'cogs.github',
+            'cogs.utilities',
         ]
         
         for cog in cogs:
