@@ -88,6 +88,8 @@ class MikuBot(commands.Bot):
             'cogs.help',
             'cogs.github',
             'cogs.utilities',
+            'cogs.fun',
+            'cogs.info',
         ]
         
         for cog in cogs:
