@@ -110,6 +110,23 @@ class MikuBot(commands.Bot):
                 name=f"{len(self.guilds)} servers | {BotConfig.PREFIX}help"
             )
         )
+
+    async def on_command_error(self, ctx: commands.Context, error: commands.CommandError) -> None:
+        """Global command error handler.
+
+        We intentionally ignore unknown commands so random messages like
+        `&rewards` don't spam the console.
+        """
+        # Ignore unknown commands completely.
+        if isinstance(error, commands.CommandNotFound):
+            return
+
+        # If a command defines its own error handler, don't double-handle.
+        if ctx.command is not None and ctx.command.has_error_handler():
+            return
+
+        # For everything else, fall back to default logging/behavior.
+        raise error
     
     async def on_guild_join(self, guild):
         """Called when bot joins a guild"""
