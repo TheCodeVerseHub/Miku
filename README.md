@@ -8,14 +8,15 @@ A feature-rich Discord leveling bot inspired by Arcane, with support for both **
 - **Rank Cards** - Beautiful embeds showing user rank, level, and progress
 - **Leaderboards** - View top members by XP with pagination
 - **Hybrid Commands** - Works with both `/` slash commands and `&` prefix
-- **SQLite Database** - Persistent data storage with async operations
+- **PostgreSQL Database** - Persistent data storage via `asyncpg`
 - **Rich Embeds** - Clean, visually appealing messages
 - **Admin Tools** - Manage user levels and XP
-- **Web Dashboard** - Modern Next.js dashboard with real-time statistics and management
+- **GitHub Integration** - Look up repos/users and search GitHub
+- **Utility / Fun / Info Commands** - General helpful commands and light games (no moderation)
 
 ## Commands
 
-### User Commands
+### Leveling Commands
 
 | Command | Slash | Prefix | Description |
 |---------|-------|--------|-------------|
@@ -24,6 +25,47 @@ A feature-rich Discord leveling bot inspired by Arcane, with support for both **
 | **leaderboard** | `/leaderboard [page]` | `&leaderboard [page]` | View the server leaderboard (top 50) |
 | **lb** | `/lb [page]` | `&lb [page]` | Alias for leaderboard |
 | **xp** | `/xp [user]` | `&xp [user]` | Check detailed XP information |
+
+### Utility Commands
+
+| Command | Slash | Prefix | Description |
+|---------|-------|--------|-------------|
+| **ping** | `/ping` | `&ping` | Check if the bot is responsive and view latency |
+| **uptime** | `/uptime` | `&uptime` | Show how long the bot has been online |
+| **about** | `/about` | `&about` | Bot information and basic stats |
+| **invite** | `/invite` | `&invite` | Get a bot invite link |
+| **avatar** | `/avatar [user]` | `&avatar [user]` | Show a user's avatar |
+| **userinfo** | `/userinfo [user]` | `&userinfo [user]` | Show information about a server member |
+| **serverinfo** | `/serverinfo` | `&serverinfo` | Show information about the current server |
+
+### Fun Commands
+
+| Command | Slash | Prefix | Description |
+|---------|-------|--------|-------------|
+| **8ball** | `/8ball <question>` | `&8ball <question>` | Ask the magic 8-ball |
+| **coinflip** | `/coinflip` | `&coinflip` | Flip a coin |
+| **roll** | `/roll [sides]` | `&roll [sides]` | Roll a dice (default d6) |
+| **choose** | `/choose <a, b, c>` | `&choose <a, b, c>` | Choose one option from a comma-separated list |
+| **rps** | `/rps <choice>` | `&rps <choice>` | Play rock-paper-scissors |
+
+### Info Commands
+
+| Command | Slash | Prefix | Description |
+|---------|-------|--------|-------------|
+| **membercount** | `/membercount` | `&membercount` | Show the server member count |
+| **roleinfo** | `/roleinfo <role>` | `&roleinfo <role>` | Show information about a role |
+| **channelinfo** | `/channelinfo [channel]` | `&channelinfo [channel]` | Show information about a channel |
+
+### GitHub Commands
+
+All GitHub commands are under the `github` / `gh` group:
+
+| Command | Slash | Prefix | Description |
+|---------|-------|--------|-------------|
+| **github repo** | `/github repo <owner/repo>` | `&github repo <owner/repo>` | View repository information |
+| **github user** | `/github user <username>` | `&github user <username>` | View a user/organisation profile |
+| **github search-repos** | `/github search-repos <query>` | `&github search-repos <query>` | Search repositories |
+| **github search-users** | `/github search-users <query>` | `&github search-users <query>` | Search users |
 
 ### Admin Commands (Requires Administrator Permission)
 
@@ -44,6 +86,7 @@ A feature-rich Discord leveling bot inspired by Arcane, with support for both **
 
 - Python 3.14+
 - Discord Bot Token
+- A PostgreSQL database URL (`DATABASE_URL`)
 - Required intents: Message Content, Server Members, Guilds
 
 ### Installation
@@ -64,6 +107,7 @@ uv pip install -e .
 Create a `.env` file or export the environment variable:
 ```bash
 export DISCORD_BOT_TOKEN='your_bot_token_here'
+export DATABASE_URL='postgresql+asyncpg://user:password@host:5432/database'
 ```
 
 4. **Run the bot**
@@ -90,62 +134,6 @@ python main.py
    - Use Slash Commands
 9. Use the generated URL to invite your bot
 
-## Web Dashboard
-
-Miku comes with a modern web dashboard built with **Next.js 14** and **React** for managing your bot and viewing statistics.
-
-### Dashboard Features
-
-- **Discord OAuth2 Login** - Secure authentication
-- **Live Statistics** - Real-time server stats and analytics
-- **Interactive Leaderboards** - View top members with pagination
-- **Leveling Configuration** - Set level-up channels and role rewards
-- **Multi-Server Management** - Manage all servers from one place
-- **Responsive Design** - Works on desktop, tablet, and mobile
-- **Beautiful UI** - Discord-themed design with Tailwind CSS
-
-### Quick Start (Local Development)
-
-```bash
-cd dash
-npm install
-cp .env.example .env.local
-# Edit .env.local with your Discord OAuth2 credentials
-npm run dev
-```
-
-Dashboard will be available at [http://localhost:3000](http://localhost:3000)
-
-### Production Deployment (FREE!)
-
-The dashboard can be deployed for **completely free** on Vercel while your bot runs on WispByte or any other hosting service.
-
-**Quick Deploy:**
-1. Bot runs on WispByte (includes API server)
-2. Dashboard deploys to Vercel
-3. They communicate via REST API
-
-See complete deployment guide: **[DEPLOYMENT.md](DEPLOYMENT.md)**
-
-For detailed setup instructions, see:
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Complete deployment guide
-- [dash/QUICK_DEPLOY.md](dash/QUICK_DEPLOY.md) - Quick reference
-- [dash/SETUP.md](dash/SETUP.md) - Local development setup
-
-## Running Bot with Dashboard Support
-
-To enable dashboard connectivity, run both the bot and API server:
-
-```bash
-python start_all.py
-```
-
-This starts:
-- Discord bot (handles messages, commands)
-- REST API server (serves data to dashboard)
-
-For production deployment guide, see [DEPLOYMENT.md](DEPLOYMENT.md)
-
 ## Leveling Formula
 
 The bot uses a formula similar to Arcane/MEE6:
@@ -171,39 +159,23 @@ XP Required = 5 × (level²) + (50 × level) + 100
 ## Project Structure
 
 ```
-start_all.py           # Run bot + API server (for deployment)
-├── pyproject.toml         # Dependencies
-├── requirements.txt       # Python dependencies
-├── README.md              # Documentation
-├── DEPLOYMENT.md          # Production deployment guide
-├── LEVELING_CONFIG.md     # Leveling configuration guide
-├── data/                  # Database files (auto-created)
-│   └── leveling.db
-├── src/
-│   ├── bot.py            # Bot setup and initialization
-│   ├── api_server.py     # FastAPI server for dashboard
-│   ├── cogs/
-│   │   ├── __init__.py
-│   │   ├── leveling.py   # Leveling system cog
-│   │   └── help.py       # Help command
-│   └── utils/
-│       ├── __init__.py
-│       ├── database.py   # Database operations
-│       └── rank_card.py  # Rank card generator
-└── dash/                 # Next.js Dashboard
-    ├── src/
-    │   ├── pages/        # Next.js pages
-    │   ├── components/   # React components
-    │   ├── lib/          # Utility functions
-    │   └── types/        # TypeScript types
-    ├── public/           # Static files
-    ├── vercel.json       # Vercel deployment config
-    ├── QUICK_DEPLOY.md   # Quick deployment guide
-    └── package.json      # Node dependencie
-    │   └── leveling.py   # Leveling system cog
-    └── utils/
-        ├── __init__.py
-        └── database.py   # Database operations
+main.py                 # Entrypoint (adds src/ to path and runs the bot)
+├── pyproject.toml       # Dependencies
+├── requirements.txt     # Python dependencies (optional)
+├── README.md            # Documentation
+└── src/
+   ├── bot.py            # Bot setup, DB init, cog loading
+   ├── cogs/
+   │   ├── leveling.py    # XP/levels/leaderboards
+   │   ├── help.py        # Interactive help menu
+   │   ├── github.py      # GitHub lookup/search
+   │   ├── utilities.py   # Utility commands
+   │   ├── fun.py         # Fun commands
+   │   └── info.py        # Info commands
+   └── utils/
+      ├── database.py     # PostgreSQL (asyncpg) DB layer
+      ├── github_client.py # GitHub API client
+      └── rank_card.py     # Rank card generator
 ```
 
 ## Features Breakdown
@@ -229,7 +201,7 @@ Shows:
 - Displays level, XP, and message count
 
 ### Database
-- Async SQLite operations
+- Async PostgreSQL operations (asyncpg)
 - Tracks: user_id, guild_id, xp, level, messages, last_message_time
 - Auto-creates tables on first run
 - Data persists across restarts
@@ -270,8 +242,8 @@ Edit the `calculate_level` and `calculate_xp_for_level` methods in `src/cogs/lev
 - Check bot has `applications.commands` scope
 
 ### Database errors
-- Ensure the `data/` directory is writable
-- Check file permissions for `leveling.db`
+- Verify `DATABASE_URL` points to a reachable PostgreSQL instance
+- Confirm the database user can create tables (first run)
 
 ## License
 
