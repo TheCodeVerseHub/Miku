@@ -145,7 +145,7 @@ class GitHub(commands.Cog):
         name="github",
         aliases=["gh"],
         description="Look up GitHub repositories and users",
-        invoke_without_command=True,
+        fallback="help",
     )
     async def github(self, ctx: commands.Context) -> None:
         """Show a short usage overview when invoked without a subcommand."""

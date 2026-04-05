@@ -34,7 +34,7 @@ load_dotenv()
 
 # Bot configuration
 class BotConfig:
-    TOKEN = os.getenv('DISCORD_BOT_TOKEN')
+    TOKEN = os.getenv('DISCORD_BOT_TOKEN') or os.getenv('DISCORD_TOKEN')
     PREFIX = '&'
     EMBED_COLOR = discord.Color.from_rgb(88, 101, 242)  # Discord blurple
 
