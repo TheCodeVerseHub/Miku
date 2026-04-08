@@ -17,6 +17,121 @@ from utils.rank_card import RankCardGenerator
 
 logger = logging.getLogger('miku.leveling')
 
+
+class _LeaderboardView(discord.ui.View):
+    def __init__(
+        self,
+        *,
+        cog: "Leveling",
+        author_id: int,
+        guild_id: int,
+        page: int,
+        per_page: int,
+        timeout: float = 120,
+    ):
+        super().__init__(timeout=timeout)
+        self._cog = cog
+        self._author_id = author_id
+        self._guild_id = guild_id
+        self._per_page = per_page
+        self.page = max(1, page)
+        self.total_pages = 1
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user is None:
+            return False
+
+        if interaction.user.id != self._author_id:
+            try:
+                await interaction.response.send_message(
+                    "Only the user who ran the command can use these buttons.",
+                    ephemeral=True,
+                )
+            except discord.InteractionResponded:
+                try:
+                    await interaction.followup.send(
+                        "Only the user who ran the command can use these buttons.",
+                        ephemeral=True,
+                    )
+                except Exception:
+                    pass
+            return False
+
+        if interaction.guild is None or interaction.guild.id != self._guild_id:
+            return False
+
+        return True
+
+    def _sync_button_state(self) -> None:
+        prev_button = getattr(self, "prev_page", None)
+        next_button = getattr(self, "next_page", None)
+
+        if prev_button is not None:
+            prev_button.disabled = self.page <= 1
+        if next_button is not None:
+            next_button.disabled = self.page >= self.total_pages
+
+    async def _refresh(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            return
+
+        embed, page, total_pages, has_data = await self._cog._build_leaderboard_embed(
+            interaction.guild,
+            page=self.page,
+            per_page=self._per_page,
+        )
+
+        if not has_data:
+            self.stop()
+            for item in self.children:
+                item.disabled = True
+            try:
+                await interaction.response.edit_message(
+                    content="No one has earned any XP yet! Start chatting to level up!",
+                    embed=None,
+                    view=self,
+                )
+            except discord.InteractionResponded:
+                if interaction.message is not None:
+                    await interaction.message.edit(
+                        content="No one has earned any XP yet! Start chatting to level up!",
+                        embed=None,
+                        view=self,
+                    )
+            return
+
+        self.page = page
+        self.total_pages = total_pages
+        self._sync_button_state()
+
+        try:
+            await interaction.response.edit_message(embed=embed, view=self)
+        except discord.InteractionResponded:
+            if interaction.message is not None:
+                await interaction.message.edit(embed=embed, view=self)
+
+    async def on_timeout(self) -> None:
+        for item in self.children:
+            item.disabled = True
+
+        try:
+            # View.message is set by discord.py after sending.
+            message = getattr(self, "message", None)
+            if message is not None:
+                await message.edit(view=self)
+        except Exception:
+            pass
+
+    @discord.ui.button(label="◀ Prev", style=discord.ButtonStyle.secondary)
+    async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = max(1, self.page - 1)
+        await self._refresh(interaction)
+
+    @discord.ui.button(label="Next ▶", style=discord.ButtonStyle.secondary)
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = min(self.total_pages, self.page + 1)
+        await self._refresh(interaction)
+
 class Leveling(commands.Cog):
     """XP and leveling system for Discord servers"""
     
@@ -180,9 +295,9 @@ class Leveling(commands.Cog):
         
         # Check for level up
         if new_level > current_level:
-            await self.handle_level_up(message, new_level)
+            await self.handle_level_up(message, old_level=current_level, new_level=new_level)
     
-    async def handle_level_up(self, message: discord.Message, new_level: int):
+    async def handle_level_up(self, message: discord.Message, *, old_level: int, new_level: int):
         """Handle level up event"""
         if message.guild is None:
             return
@@ -228,7 +343,10 @@ class Leveling(commands.Cog):
         
         # Assign role rewards
         if isinstance(user, discord.Member):
-            await self.assign_role_reward(guild, user, new_level)
+            # If someone jumps multiple levels in one update (e.g., admin XP set),
+            # grant rewards for each level reached.
+            for reached_level in range(old_level + 1, new_level + 1):
+                await self.assign_role_reward(guild, user, reached_level)
     
     async def assign_role_reward(self, guild: discord.Guild, user: discord.Member, level: int):
         """Assign role reward for reaching a level"""
@@ -236,12 +354,137 @@ class Leveling(commands.Cog):
         
         if role_id:
             role = guild.get_role(role_id)
-            if role and role < guild.me.top_role:
+            if role is None:
+                logger.warning(
+                    "Role reward target role not found (guild=%s level=%s role_id=%s)",
+                    guild.id,
+                    level,
+                    role_id,
+                )
+                return
+
+            if role.managed:
+                logger.warning(
+                    "Role reward role is managed and cannot be assigned (guild=%s level=%s role=%s)",
+                    guild.id,
+                    level,
+                    role.id,
+                )
+                return
+
+            if role in user.roles:
+                return
+
+            bot_member: Optional[discord.Member] = guild.me
+            if bot_member is None and self.bot.user is not None:
+                bot_member = guild.get_member(self.bot.user.id)
+
+            if bot_member is None and self.bot.user is not None:
                 try:
-                    await user.add_roles(role, reason=f"Level {level} reward")
-                    logger.info(f"Assigned role {role.name} to {user} for reaching level {level}")
-                except Exception as e:
-                    logger.error(f"Failed to assign role reward: {e}")
+                    bot_member = await guild.fetch_member(self.bot.user.id)
+                except discord.HTTPException:
+                    bot_member = None
+
+            if bot_member is None:
+                logger.warning(
+                    "Cannot resolve bot member for role reward checks (guild=%s)",
+                    guild.id,
+                )
+                return
+
+            if not bot_member.guild_permissions.manage_roles:
+                logger.warning(
+                    "Missing Manage Roles permission (guild=%s)",
+                    guild.id,
+                )
+                return
+
+            # Bot must be above the role in hierarchy.
+            if bot_member.top_role <= role:
+                logger.warning(
+                    "Bot role is not high enough to assign role (guild=%s level=%s role=%s bot_top=%s)",
+                    guild.id,
+                    level,
+                    role.id,
+                    bot_member.top_role.id,
+                )
+                return
+
+            try:
+                await user.add_roles(role, reason=f"Level {level} reward")
+                logger.info(
+                    "Assigned role reward (guild=%s user=%s level=%s role=%s)",
+                    guild.id,
+                    user.id,
+                    level,
+                    role.id,
+                )
+            except discord.Forbidden:
+                logger.warning(
+                    "Forbidden while assigning role reward (guild=%s user=%s level=%s role=%s)",
+                    guild.id,
+                    user.id,
+                    level,
+                    role.id,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to assign role reward (guild=%s user=%s level=%s role=%s)",
+                    guild.id,
+                    user.id,
+                    level,
+                    role.id,
+                )
+
+    async def _build_leaderboard_embed(
+        self,
+        guild: discord.Guild,
+        *,
+        page: int,
+        per_page: int,
+    ) -> tuple[discord.Embed, int, int, bool]:
+        """Build the leaderboard embed for a given page.
+
+        Returns: (embed, clamped_page, total_pages, has_data)
+        """
+
+        total_users = await db.get_total_users(guild.id)
+        if total_users <= 0:
+            embed = discord.Embed(
+                title=f" {guild.name} Leaderboard",
+                description="No one has earned any XP yet! Start chatting to level up!",
+                color=self.EMBED_COLOR,
+            )
+            embed.set_footer(text="Page 1/1 • 0 total users")
+            return embed, 1, 1, False
+
+        total_pages = max(1, (total_users + per_page - 1) // per_page)
+        page = max(1, min(page, total_pages))
+        offset = (page - 1) * per_page
+
+        lb_data = await db.get_leaderboard(guild.id, limit=per_page, offset=offset)
+
+        embed = discord.Embed(
+            title=f" {guild.name} Leaderboard",
+            color=self.EMBED_COLOR,
+        )
+
+        leaderboard_lines: list[str] = []
+        for idx, entry in enumerate(lb_data, start=offset + 1):
+            member = guild.get_member(entry["user_id"])
+            display = member.display_name if member is not None else f"<@{entry['user_id']}>"
+
+            medals = ["🥇", "🥈", "🥉"]
+            medal = medals[idx - 1] if idx <= 3 else f"`#{idx}`"
+
+            leaderboard_lines.append(
+                f"{medal} **{display}**\n"
+                f"     Level {entry['level']} • {entry['xp']:,} XP • {entry['messages']:,} messages"
+            )
+
+        embed.description = "\n\n".join(leaderboard_lines) if leaderboard_lines else "No user data available"
+        embed.set_footer(text=f"Page {page}/{total_pages} • {total_users} total users")
+        return embed, page, total_pages, True
     
     # ========================================================================
     # User Commands
@@ -343,46 +586,28 @@ class Leveling(commands.Cog):
 
         await self._maybe_defer(ctx)
 
-        if page < 1:
-            page = 1
-        
         per_page = 10
-        offset = (page - 1) * per_page
-        
-        # Get leaderboard data
-        lb_data = await db.get_leaderboard(ctx.guild.id, limit=per_page, offset=offset)
-        
-        if not lb_data:
+        embed, page, total_pages, has_data = await self._build_leaderboard_embed(
+            ctx.guild,
+            page=page,
+            per_page=per_page,
+        )
+
+        if not has_data:
             await self._send(ctx, "No one has earned any XP yet! Start chatting to level up!", ephemeral=True)
             return
-        
-        # Get total users for page count
-        total_users = await db.get_total_users(ctx.guild.id)
-        total_pages = max(1, (total_users + per_page - 1) // per_page)
-        page = min(page, total_pages)
-        
-        # Build leaderboard embed
-        embed = discord.Embed(
-            title=f" {ctx.guild.name} Leaderboard",
-            color=self.EMBED_COLOR
+
+        view = _LeaderboardView(
+            cog=self,
+            author_id=ctx.author.id,
+            guild_id=ctx.guild.id,
+            page=page,
+            per_page=per_page,
         )
-        
-        leaderboard_text = ""
-        for idx, entry in enumerate(lb_data, start=offset + 1):
-            user = ctx.guild.get_member(entry['user_id'])
-            if user:
-                medals = ["🥇", "🥈", "🥉"]
-                medal = medals[idx - 1] if idx <= 3 else f"`#{idx}`"
-                leaderboard_text += f"{medal} **{user.display_name}**\n"
-                leaderboard_text += f"     Level {entry['level']} • {entry['xp']:,} XP • {entry['messages']:,} messages\n\n"
-        
-        if not leaderboard_text:
-            leaderboard_text = "No user data available"
-        
-        embed.description = leaderboard_text
-        embed.set_footer(text=f"Page {page}/{total_pages} • {total_users} total users")
-        
-        await self._send(ctx, embed=embed)
+        view.total_pages = total_pages
+        view._sync_button_state()
+
+        await self._send(ctx, embed=embed, view=view)
     
     @commands.hybrid_command(
         name='xp',
