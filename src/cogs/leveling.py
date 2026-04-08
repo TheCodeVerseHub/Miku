@@ -180,9 +180,9 @@ class Leveling(commands.Cog):
         
         # Check for level up
         if new_level > current_level:
-            await self.handle_level_up(message, new_level)
+            await self.handle_level_up(message, old_level=current_level, new_level=new_level)
     
-    async def handle_level_up(self, message: discord.Message, new_level: int):
+    async def handle_level_up(self, message: discord.Message, *, old_level: int, new_level: int):
         """Handle level up event"""
         if message.guild is None:
             return
@@ -228,7 +228,10 @@ class Leveling(commands.Cog):
         
         # Assign role rewards
         if isinstance(user, discord.Member):
-            await self.assign_role_reward(guild, user, new_level)
+            # If someone jumps multiple levels in one update (e.g., admin XP set),
+            # grant rewards for each level reached.
+            for reached_level in range(old_level + 1, new_level + 1):
+                await self.assign_role_reward(guild, user, reached_level)
     
     async def assign_role_reward(self, guild: discord.Guild, user: discord.Member, level: int):
         """Assign role reward for reaching a level"""
@@ -236,12 +239,87 @@ class Leveling(commands.Cog):
         
         if role_id:
             role = guild.get_role(role_id)
-            if role and role < guild.me.top_role:
+            if role is None:
+                logger.warning(
+                    "Role reward target role not found (guild=%s level=%s role_id=%s)",
+                    guild.id,
+                    level,
+                    role_id,
+                )
+                return
+
+            if role.managed:
+                logger.warning(
+                    "Role reward role is managed and cannot be assigned (guild=%s level=%s role=%s)",
+                    guild.id,
+                    level,
+                    role.id,
+                )
+                return
+
+            if role in user.roles:
+                return
+
+            bot_member: Optional[discord.Member] = guild.me
+            if bot_member is None and self.bot.user is not None:
+                bot_member = guild.get_member(self.bot.user.id)
+
+            if bot_member is None and self.bot.user is not None:
                 try:
-                    await user.add_roles(role, reason=f"Level {level} reward")
-                    logger.info(f"Assigned role {role.name} to {user} for reaching level {level}")
-                except Exception as e:
-                    logger.error(f"Failed to assign role reward: {e}")
+                    bot_member = await guild.fetch_member(self.bot.user.id)
+                except discord.HTTPException:
+                    bot_member = None
+
+            if bot_member is None:
+                logger.warning(
+                    "Cannot resolve bot member for role reward checks (guild=%s)",
+                    guild.id,
+                )
+                return
+
+            if not bot_member.guild_permissions.manage_roles:
+                logger.warning(
+                    "Missing Manage Roles permission (guild=%s)",
+                    guild.id,
+                )
+                return
+
+            # Bot must be above the role in hierarchy.
+            if bot_member.top_role <= role:
+                logger.warning(
+                    "Bot role is not high enough to assign role (guild=%s level=%s role=%s bot_top=%s)",
+                    guild.id,
+                    level,
+                    role.id,
+                    bot_member.top_role.id,
+                )
+                return
+
+            try:
+                await user.add_roles(role, reason=f"Level {level} reward")
+                logger.info(
+                    "Assigned role reward (guild=%s user=%s level=%s role=%s)",
+                    guild.id,
+                    user.id,
+                    level,
+                    role.id,
+                )
+            except discord.Forbidden:
+                logger.warning(
+                    "Forbidden while assigning role reward (guild=%s user=%s level=%s role=%s)",
+                    guild.id,
+                    user.id,
+                    level,
+                    role.id,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to assign role reward (guild=%s user=%s level=%s role=%s)",
+                    guild.id,
+                    user.id,
+                    level,
+                    role.id,
+                )
     
     # ========================================================================
     # User Commands
