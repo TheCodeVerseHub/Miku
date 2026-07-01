@@ -75,7 +75,7 @@
 <script>
 function userData() {
     return {
-        userId: {{ user_id }},
+        userId: '{{ user_id }}',
         profile: { xp: 0, level: 0, messages: 0, rank: 0 },
         setLevelVal: 0,
         addXpVal: 0,
@@ -87,7 +87,7 @@ function userData() {
             await this.load();
         },
         async load() {
-            const data = await API.getUserProfile({{ guild_id }}, {{ user_id }});
+            const data = await API.getUserProfile('{{ guild_id }}', '{{ user_id }}');
             if (data) {
                 this.profile = data;
                 this.setLevelVal = data.level;
@@ -110,7 +110,7 @@ function userData() {
             return total;
         },
         async doSetLevel() {
-            const result = await API.setLevel({{ guild_id }}, {{ user_id }}, this.setLevelVal);
+            const result = await API.setLevel('{{ guild_id }}', '{{ user_id }}', this.setLevelVal);
             if (result && result.ok) {
                 showToast(`Level set to ${result.level}`, 'success');
                 await this.load();
@@ -118,7 +118,7 @@ function userData() {
         },
         async doAddXp() {
             if (!this.addXpVal) return;
-            const result = await API.addXp({{ guild_id }}, {{ user_id }}, this.addXpVal);
+            const result = await API.addXp('{{ guild_id }}', '{{ user_id }}', this.addXpVal);
             if (result && result.ok) {
                 showToast(`Added ${this.addXpVal} XP`, 'success');
                 this.addXpVal = 0;
@@ -127,7 +127,7 @@ function userData() {
         },
         async doReset() {
             if (!confirm('Reset this user\'s level data?')) return;
-            const result = await API.resetUser({{ guild_id }}, {{ user_id }});
+            const result = await API.resetUser('{{ guild_id }}', '{{ user_id }}');
             if (result && result.ok) {
                 showToast('User reset', 'success');
                 this.profile = { xp: 0, level: 0, messages: 0, rank: 0 };

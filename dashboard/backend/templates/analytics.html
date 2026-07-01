@@ -64,7 +64,7 @@ function analyticsData() {
         data: { total_users: 0, total_xp: 0, total_messages: 0, level_distribution: [], top_users: [] },
         chart: null,
         async init() {
-            this.data = await API.getAnalytics({{ guild_id }}) || this.data;
+            this.data = await API.getAnalytics('{{ guild_id }}') || this.data;
             this.$nextTick(() => this.renderChart());
         },
         renderChart() {

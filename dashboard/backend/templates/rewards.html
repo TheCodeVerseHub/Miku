@@ -68,28 +68,28 @@ function rewardsData() {
         newLevel: 1,
         newRoleId: null,
         async init() {
-            this.rewards = await API.getRewards({{ guild_id }}) || [];
+            this.rewards = await API.getRewards('{{ guild_id }}') || [];
         },
         async add() {
             if (!this.newLevel || !this.newRoleId) {
                 showToast('Please fill in all fields', 'error');
                 return;
             }
-            const result = await API.addReward({{ guild_id }}, this.newLevel, this.newRoleId);
+            const result = await API.addReward('{{ guild_id }}', this.newLevel, this.newRoleId);
             if (result && result.ok) {
                 showToast('Role reward added', 'success');
                 this.showAdd = false;
-                this.rewards = await API.getRewards({{ guild_id }}) || [];
+                this.rewards = await API.getRewards('{{ guild_id }}') || [];
                 this.newLevel = 1;
                 this.newRoleId = null;
             } else showToast('Failed to add reward', 'error');
         },
         async remove(level) {
             if (!confirm(`Remove reward for Level ${level}?`)) return;
-            const result = await API.removeReward({{ guild_id }}, level);
+            const result = await API.removeReward('{{ guild_id }}', level);
             if (result && result.ok) {
                 showToast('Reward removed', 'success');
-                this.rewards = await API.getRewards({{ guild_id }}) || [];
+                this.rewards = await API.getRewards('{{ guild_id }}') || [];
             } else showToast('Failed to remove reward', 'error');
         }
     };

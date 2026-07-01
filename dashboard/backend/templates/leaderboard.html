@@ -70,7 +70,7 @@ function leaderboardData() {
         get offset() { return (this.page - 1) * this.perPage; },
         async init() { await this.load(); },
         async load() {
-            const data = await API.getLeaderboard({{ guild_id }}, this.perPage, this.offset, this.search);
+            const data = await API.getLeaderboard('{{ guild_id }}', this.perPage, this.offset, this.search);
             if (data) {
                 this.users = data.users;
                 this.total = data.total;

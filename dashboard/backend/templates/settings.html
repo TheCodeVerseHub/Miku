@@ -48,11 +48,11 @@ function settingsData() {
     return {
         settings: { levelup_channel_id: null, xp_enabled: true, min_xp: 15, max_xp: 25, cooldown_seconds: 60 },
         async init() {
-            const s = await API.getSettings({{ guild_id }});
+            const s = await API.getSettings('{{ guild_id }}');
             if (s) this.settings = s;
         },
         async save() {
-            const result = await API.updateSettings({{ guild_id }}, this.settings);
+            const result = await API.updateSettings('{{ guild_id }}', this.settings);
             if (result && result.ok) showToast('Settings saved', 'success');
             else showToast('Failed to save', 'error');
         }

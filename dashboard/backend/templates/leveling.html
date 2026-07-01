@@ -95,8 +95,8 @@ function levelingData() {
         avgXp: '0',
         async init() {
             const [s, a] = await Promise.all([
-                API.getSettings({{ guild_id }}),
-                API.getAnalytics({{ guild_id }})
+                API.getSettings('{{ guild_id }}'),
+                API.getAnalytics('{{ guild_id }}')
             ]);
             if (s) this.settings = s;
             if (a) {
@@ -105,7 +105,7 @@ function levelingData() {
             }
         },
         async save() {
-            const result = await API.updateSettings({{ guild_id }}, this.settings);
+            const result = await API.updateSettings('{{ guild_id }}', this.settings);
             if (result && result.ok) showToast('Settings saved', 'success');
             else showToast('Failed to save settings', 'error');
         },
@@ -125,7 +125,7 @@ function levelingData() {
         async resetAll() {
             if (!confirm('This will DELETE ALL level data for this server. Are you sure?')) return;
             if (!confirm('Really? This cannot be undone!')) return;
-            const result = await API.resetAll({{ guild_id }});
+            const result = await API.resetAll('{{ guild_id }}');
             if (result && result.ok) {
                 showToast('All levels reset', 'success');
                 this.stats = { total_users: 0, total_xp: 0, total_messages: 0, top_users: [] };

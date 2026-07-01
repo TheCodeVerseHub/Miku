@@ -61,7 +61,7 @@ function overviewData() {
     return {
         stats: { total_users: 0, total_xp: 0, total_messages: 0, top_users: [] },
         async init() {
-            this.stats = await API.getAnalytics({{ guild_id }}) || this.stats;
+            this.stats = await API.getAnalytics('{{ guild_id }}') || this.stats;
         },
         fmtNum
     };
