@@ -21,15 +21,39 @@ BOT_SRC = str((Path(__file__).parent.parent.parent / "src").resolve())
 if BOT_SRC not in sys.path:
     sys.path.insert(0, BOT_SRC)
 
+from cachetools import TTLCache
+
 from .config import config
 from .auth import (
     exchange_code,
-    get_current_user,
-    get_user_guilds,
+    get_current_user as _get_current_user,
+    get_user_guilds as _get_user_guilds,
     get_oauth_url,
 )
 
 logger = logging.getLogger("dashboard")
+
+# Cache Discord API responses to avoid rate limits
+_user_cache: TTLCache = TTLCache(maxsize=256, ttl=60)
+_guild_cache: TTLCache = TTLCache(maxsize=256, ttl=30)
+
+
+async def get_current_user(access_token: str) -> dict | None:
+    if access_token in _user_cache:
+        return _user_cache[access_token]
+    user = await _get_current_user(access_token)
+    if user:
+        _user_cache[access_token] = user
+    return user
+
+
+async def get_user_guilds(access_token: str) -> list[dict]:
+    if access_token in _guild_cache:
+        return _guild_cache[access_token]
+    guilds = await _get_user_guilds(access_token)
+    if guilds is not None:
+        _guild_cache[access_token] = guilds
+    return guilds or []
 
 # ---------------------------------------------------------------------------
 # FastAPI app
@@ -567,7 +591,8 @@ async def guild_overview(request: Request, guild_id: int):
         await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
-    return render("dashboard.html", request=request, page="overview", guild_id=guild_id)
+    gid = str(guild_id)
+    return render("dashboard.html", request=request, page="overview", guild_id=gid)
 
 
 @app.get("/guilds/{guild_id}/leveling", response_class=HTMLResponse)
@@ -576,7 +601,8 @@ async def guild_leveling(request: Request, guild_id: int):
         await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
-    return render("leveling.html", request=request, page="leveling", guild_id=guild_id)
+    gid = str(guild_id)
+    return render("leveling.html", request=request, page="leveling", guild_id=gid)
 
 
 @app.get("/guilds/{guild_id}/rewards", response_class=HTMLResponse)
@@ -585,7 +611,8 @@ async def guild_rewards(request: Request, guild_id: int):
         await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
-    return render("rewards.html", request=request, page="rewards", guild_id=guild_id)
+    gid = str(guild_id)
+    return render("rewards.html", request=request, page="rewards", guild_id=gid)
 
 
 @app.get("/guilds/{guild_id}/leaderboard", response_class=HTMLResponse)
@@ -594,7 +621,8 @@ async def guild_leaderboard(request: Request, guild_id: int):
         await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
-    return render("leaderboard.html", request=request, page="leaderboard", guild_id=guild_id)
+    gid = str(guild_id)
+    return render("leaderboard.html", request=request, page="leaderboard", guild_id=gid)
 
 
 @app.get("/guilds/{guild_id}/users/{user_id}", response_class=HTMLResponse)
@@ -603,7 +631,8 @@ async def guild_user(request: Request, guild_id: int, user_id: int):
         await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
-    return render("users.html", request=request, page="users", guild_id=guild_id, user_id=user_id)
+    gid = str(guild_id)
+    return render("users.html", request=request, page="users", guild_id=gid, user_id=user_id)
 
 
 @app.get("/guilds/{guild_id}/analytics", response_class=HTMLResponse)
@@ -612,7 +641,8 @@ async def guild_analytics(request: Request, guild_id: int):
         await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
-    return render("analytics.html", request=request, page="analytics", guild_id=guild_id)
+    gid = str(guild_id)
+    return render("analytics.html", request=request, page="analytics", guild_id=gid)
 
 
 @app.get("/guilds/{guild_id}/settings", response_class=HTMLResponse)
@@ -621,7 +651,8 @@ async def guild_settings_page(request: Request, guild_id: int):
         await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
-    return render("settings.html", request=request, page="settings", guild_id=guild_id)
+    gid = str(guild_id)
+    return render("settings.html", request=request, page="settings", guild_id=gid)
 
 
 # ---------------------------------------------------------------------------
