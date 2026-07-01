@@ -12,8 +12,8 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from itsdangerous import URLSafeTimedSerializer
+from jinja2 import Environment, FileSystemLoader
 import asyncpg
 
 # Add bot src/ to path so we can reuse the bot's database module
@@ -37,10 +37,15 @@ logger = logging.getLogger("dashboard")
 
 app = FastAPI(title="Miku Dashboard")
 
-# Templates (parent dir since templates/ is inside backend/)
-templates = Jinja2Templates(
-    directory=str(Path(__file__).parent / "templates")
-)
+# Templates (using raw Jinja2 to avoid Starlette 1.x compat issues)
+_templates_dir = str(Path(__file__).parent / "templates")
+_jinja_env = Environment(loader=FileSystemLoader(_templates_dir))
+
+
+def render(name: str, **context) -> HTMLResponse:
+    template = _jinja_env.get_template(name)
+    html = template.render(**context)
+    return HTMLResponse(html)
 
 # Static files
 static_dir = str(Path(__file__).parent.parent / "static")
@@ -544,9 +549,7 @@ async def index(request: Request):
         data = read_session(token)
         if data:
             user = await get_current_user(data.get("access_token", ""))
-    return templates.TemplateResponse(
-        "login.html", {"request": request, "user": user}
-    )
+    return render("login.html", request=request, user=user)
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -555,9 +558,7 @@ async def dashboard_page(request: Request):
         await require_auth(request)
     except HTTPException:
         return RedirectResponse(url="/auth/login")
-    return templates.TemplateResponse(
-        "dashboard.html", {"request": request, "page": "dashboard"}
-    )
+    return render("dashboard.html", request=request, page="dashboard")
 
 
 @app.get("/guilds/{guild_id}", response_class=HTMLResponse)
@@ -566,10 +567,7 @@ async def guild_overview(request: Request, guild_id: int):
         await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
-    return templates.TemplateResponse(
-        "dashboard.html",
-        {"request": request, "page": "overview", "guild_id": guild_id},
-    )
+    return render("dashboard.html", request=request, page="overview", guild_id=guild_id)
 
 
 @app.get("/guilds/{guild_id}/leveling", response_class=HTMLResponse)
@@ -578,10 +576,7 @@ async def guild_leveling(request: Request, guild_id: int):
         await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
-    return templates.TemplateResponse(
-        "leveling.html",
-        {"request": request, "page": "leveling", "guild_id": guild_id},
-    )
+    return render("leveling.html", request=request, page="leveling", guild_id=guild_id)
 
 
 @app.get("/guilds/{guild_id}/rewards", response_class=HTMLResponse)
@@ -590,10 +585,7 @@ async def guild_rewards(request: Request, guild_id: int):
         await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
-    return templates.TemplateResponse(
-        "rewards.html",
-        {"request": request, "page": "rewards", "guild_id": guild_id},
-    )
+    return render("rewards.html", request=request, page="rewards", guild_id=guild_id)
 
 
 @app.get("/guilds/{guild_id}/leaderboard", response_class=HTMLResponse)
@@ -602,10 +594,7 @@ async def guild_leaderboard(request: Request, guild_id: int):
         await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
-    return templates.TemplateResponse(
-        "leaderboard.html",
-        {"request": request, "page": "leaderboard", "guild_id": guild_id},
-    )
+    return render("leaderboard.html", request=request, page="leaderboard", guild_id=guild_id)
 
 
 @app.get("/guilds/{guild_id}/users/{user_id}", response_class=HTMLResponse)
@@ -614,15 +603,7 @@ async def guild_user(request: Request, guild_id: int, user_id: int):
         await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
-    return templates.TemplateResponse(
-        "users.html",
-        {
-            "request": request,
-            "page": "users",
-            "guild_id": guild_id,
-            "user_id": user_id,
-        },
-    )
+    return render("users.html", request=request, page="users", guild_id=guild_id, user_id=user_id)
 
 
 @app.get("/guilds/{guild_id}/analytics", response_class=HTMLResponse)
@@ -631,10 +612,7 @@ async def guild_analytics(request: Request, guild_id: int):
         await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
-    return templates.TemplateResponse(
-        "analytics.html",
-        {"request": request, "page": "analytics", "guild_id": guild_id},
-    )
+    return render("analytics.html", request=request, page="analytics", guild_id=guild_id)
 
 
 @app.get("/guilds/{guild_id}/settings", response_class=HTMLResponse)
@@ -643,10 +621,7 @@ async def guild_settings_page(request: Request, guild_id: int):
         await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
-    return templates.TemplateResponse(
-        "settings.html",
-        {"request": request, "page": "settings", "guild_id": guild_id},
-    )
+    return render("settings.html", request=request, page="settings", guild_id=guild_id)
 
 
 # ---------------------------------------------------------------------------
