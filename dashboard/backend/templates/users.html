@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}User Profile{% endblock %}
+{% block content %}
+
+<div x-data="userData()" x-init="init()">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div>
+            <h2 style="margin-bottom: 6px;">User Profile</h2>
+            <p style="color: var(--text-secondary);" x-text="'User ID: ' + userId">--</p>
+        </div>
+        <a :href="`/guilds/{{ guild_id }}/leaderboard`" class="btn btn-ghost btn-sm">&larr; Back to Leaderboard</a>
+    </div>
+
+    <div class="grid grid-2">
+        <div class="card">
+            <h3 style="margin-bottom: 16px;">Level & XP</h3>
+            <div style="display: flex; gap: 24px; margin-bottom: 16px; flex-wrap: wrap;">
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Level</div>
+                    <div style="font-size: 36px; font-weight: 700;" x-text="profile.level">--</div>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Server Rank</div>
+                    <div style="font-size: 36px; font-weight: 700;" x-text="'#' + profile.rank">--</div>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Total XP</div>
+                    <div style="font-size: 36px; font-weight: 700;" x-text="fmtNum(profile.xp)">--</div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">XP Progress</label>
+                <div x-text="`${fmtNum(xpProgress)} / ${fmtNum(xpRequired)} (${xpPercent}%)`" style="font-size: 14px; margin-bottom: 4px;"></div>
+                <div class="progress-bar">
+                    <div class="progress-fill" :style="'width: ' + Math.min(100, xpPercent) + '%'"></div>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div style="padding: 8px; background: var(--bg-input); border-radius: 4px;">
+                    <div style="font-size: 11px; color: var(--text-muted);">Messages</div>
+                    <div style="font-weight: 600;" x-text="fmtNum(profile.messages)">--</div>
+                </div>
+                <div style="padding: 8px; background: var(--bg-input); border-radius: 4px;">
+                    <div style="font-size: 11px; color: var(--text-muted);">Avg XP/Message</div>
+                    <div style="font-weight: 600;" x-text="avgXp">--</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 style="margin-bottom: 16px;">Admin Actions</h3>
+            <div class="form-group">
+                <label class="form-label">Set Level</label>
+                <div style="display: flex; gap: 8px;">
+                    <input class="form-input" type="number" x-model.number="setLevelVal" min="0" placeholder="Level">
+                    <button class="btn btn-primary btn-sm" @click="doSetLevel()">Set</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Add XP</label>
+                <div style="display: flex; gap: 8px;">
+                    <input class="form-input" type="number" x-model.number="addXpVal" placeholder="XP amount">
+                    <button class="btn btn-success btn-sm" @click="doAddXp()">Add</button>
+                </div>
+            </div>
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+                <button class="btn btn-danger btn-sm" @click="doReset()">Reset User</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function userData() {
+    return {
+        userId: {{ user_id }},
+        profile: { xp: 0, level: 0, messages: 0, rank: 0 },
+        setLevelVal: 0,
+        addXpVal: 0,
+        xpProgress: 0,
+        xpRequired: 1,
+        xpPercent: 0,
+        avgXp: '0',
+        async init() {
+            await this.load();
+        },
+        async load() {
+            const data = await API.getUserProfile({{ guild_id }}, {{ user_id }});
+            if (data) {
+                this.profile = data;
+                this.setLevelVal = data.level;
+                this.calcXp();
+            }
+        },
+        calcXp() {
+            const xp = this.profile.xp || 0;
+            const lvl = this.profile.level || 0;
+            const totalForCurrent = this.xpForLevel(lvl);
+            const totalForNext = this.xpForLevel(lvl + 1);
+            this.xpProgress = xp - totalForCurrent;
+            this.xpRequired = totalForNext - totalForCurrent;
+            this.xpPercent = this.xpRequired > 0 ? ((this.xpProgress / this.xpRequired) * 100).toFixed(1) : 0;
+            this.avgXp = this.profile.messages > 0 ? fmtNum(Math.round(xp / this.profile.messages)) : '0';
+        },
+        xpForLevel(lvl) {
+            let total = 0;
+            for (let i = 1; i <= lvl; i++) total += 5 * (i ** 2) + (50 * i) + 100;
+            return total;
+        },
+        async doSetLevel() {
+            const result = await API.setLevel({{ guild_id }}, {{ user_id }}, this.setLevelVal);
+            if (result && result.ok) {
+                showToast(`Level set to ${result.level}`, 'success');
+                await this.load();
+            } else showToast('Failed to set level', 'error');
+        },
+        async doAddXp() {
+            if (!this.addXpVal) return;
+            const result = await API.addXp({{ guild_id }}, {{ user_id }}, this.addXpVal);
+            if (result && result.ok) {
+                showToast(`Added ${this.addXpVal} XP`, 'success');
+                this.addXpVal = 0;
+                await this.load();
+            } else showToast('Failed to add XP', 'error');
+        },
+        async doReset() {
+            if (!confirm('Reset this user\'s level data?')) return;
+            const result = await API.resetUser({{ guild_id }}, {{ user_id }});
+            if (result && result.ok) {
+                showToast('User reset', 'success');
+                this.profile = { xp: 0, level: 0, messages: 0, rank: 0 };
+                this.calcXp();
+            } else showToast('Failed to reset', 'error');
+        },
+        fmtNum
+    };
+}
+</script>
+
+{% endblock %}

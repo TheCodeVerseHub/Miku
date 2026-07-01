@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Miku Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/api.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.x.x/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="app-layout">
+        <nav class="sidebar">
+            <div class="sidebar-brand">
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                    <circle cx="14" cy="14" r="12" fill="#5865f2"/>
+                    <text x="14" y="19" text-anchor="middle" fill="white" font-size="14" font-weight="bold">M</text>
+                </svg>
+                <div>
+                    <h1>Miku</h1>
+                    <span class="badge">Dashboard</span>
+                </div>
+            </div>
+            <div class="sidebar-nav">
+                <div class="nav-section">General</div>
+                <a class="nav-item {{ 'active' if page == 'dashboard' }}" href="/dashboard">
+                    <span class="icon">&#9679;</span> Dashboard
+                </a>
+                {% if guild_id %}
+                <div class="nav-section" style="margin-top: 12px;">{{ guild_name or 'Server' }}</div>
+                <a class="nav-item {{ 'active' if page == 'overview' }}" href="/guilds/{{ guild_id }}">
+                    <span class="icon">&#9632;</span> Overview
+                </a>
+                <a class="nav-item {{ 'active' if page == 'leveling' }}" href="/guilds/{{ guild_id }}/leveling">
+                    <span class="icon">&#9733;</span> Leveling
+                </a>
+                <a class="nav-item {{ 'active' if page == 'rewards' }}" href="/guilds/{{ guild_id }}/rewards">
+                    <span class="icon">&#9829;</span> Role Rewards
+                </a>
+                <a class="nav-item {{ 'active' if page == 'leaderboard' }}" href="/guilds/{{ guild_id }}/leaderboard">
+                    <span class="icon">&#9733;</span> Leaderboard
+                </a>
+                <a class="nav-item {{ 'active' if page == 'analytics' }}" href="/guilds/{{ guild_id }}/analytics">
+                    <span class="icon">&#9636;</span> Analytics
+                </a>
+                <a class="nav-item {{ 'active' if page == 'settings' }}" href="/guilds/{{ guild_id }}/settings">
+                    <span class="icon">&#9881;</span> Settings
+                </a>
+                {% endif %}
+            </div>
+        </nav>
+        <div class="main-content">
+            <header class="topbar">
+                <div class="topbar-left">
+                    <span class="topbar-title">
+                        {% block title %}Miku Dashboard{% endblock %}
+                    </span>
+                </div>
+                <div class="topbar-right">
+                    <a href="/dashboard" class="btn btn-ghost btn-sm">Servers</a>
+                    <a href="/auth/logout" class="btn btn-ghost btn-sm">Logout</a>
+                </div>
+            </header>
+            <div class="content-area">
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

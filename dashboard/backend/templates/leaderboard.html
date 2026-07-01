@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Leaderboard{% endblock %}
+{% block content %}
+
+<div x-data="leaderboardData()" x-init="init()">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h2 style="margin-bottom: 6px;">Leaderboard</h2>
+            <p style="color: var(--text-secondary);" x-text="`${total} total users tracked`">--</p>
+        </div>
+        <div class="search-box">
+            <input class="form-input" type="text" x-model="search" placeholder="Search by user ID..." @input.debounce="load()">
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>User ID</th>
+                        <th>Level</th>
+                        <th>XP</th>
+                        <th>Messages</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="(u, i) in users" :key="u.user_id">
+                        <tr>
+                            <td>
+                                <span class="badge" :class="'badge-rank-' + Math.min(offset + i + 1, 3)" x-text="'#' + (offset + i + 1)"></span>
+                            </td>
+                            <td>
+                                <a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" x-text="u.user_id"></a>
+                            </td>
+                            <td><span class="badge badge-level" x-text="'Level ' + u.level"></span></td>
+                            <td x-text="fmtNum(u.xp)"></td>
+                            <td x-text="fmtNum(u.messages)"></td>
+                            <td>
+                                <a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" class="btn btn-ghost btn-sm">View</a>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-if="users.length === 0">
+                        <tr><td colspan="6" class="empty-state">No users found.</td></tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination">
+            <button class="btn btn-ghost btn-sm" @click="prevPage()" :disabled="page <= 1">Prev</button>
+            <span class="pagination-info" x-text="`Page ${page} of ${totalPages}`"></span>
+            <button class="btn btn-ghost btn-sm" @click="nextPage()" :disabled="page >= totalPages">Next</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function leaderboardData() {
+    return {
+        users: [],
+        total: 0,
+        page: 1,
+        perPage: 10,
+        search: '',
+        get totalPages() { return Math.max(1, Math.ceil(this.total / this.perPage)); },
+        get offset() { return (this.page - 1) * this.perPage; },
+        async init() { await this.load(); },
+        async load() {
+            const data = await API.getLeaderboard({{ guild_id }}, this.perPage, this.offset, this.search);
+            if (data) {
+                this.users = data.users;
+                this.total = data.total;
+            }
+        },
+        prevPage() { if (this.page > 1) { this.page--; this.load(); } },
+        nextPage() { if (this.page < this.totalPages) { this.page++; this.load(); } },
+        fmtNum
+    };
+}
+</script>
+
+{% endblock %}

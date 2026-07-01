@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Server Dashboard{% endblock %}
+{% block content %}
+
+{% if guild_id %}
+
+<div x-data="overviewData()" x-init="init()">
+    <div class="grid grid-3" style="margin-bottom: 24px;">
+        <div class="card">
+            <div class="card-title">Total Users</div>
+            <div class="card-value" x-text="fmtNum(stats.total_users)">--</div>
+        </div>
+        <div class="card">
+            <div class="card-title">Total XP</div>
+            <div class="card-value" x-text="fmtNum(stats.total_xp)">--</div>
+        </div>
+        <div class="card">
+            <div class="card-title">Total Messages</div>
+            <div class="card-value" x-text="fmtNum(stats.total_messages)">--</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Top Members</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>User ID</th>
+                        <th>Level</th>
+                        <th>XP</th>
+                        <th>Messages</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="(u, i) in stats.top_users" :key="u.user_id">
+                        <tr>
+                            <td>
+                                <span class="badge" :class="'badge-rank-' + (i+1)" x-text="'#' + (i+1)"></span>
+                            </td>
+                            <td>
+                                <a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" x-text="u.user_id"></a>
+                            </td>
+                            <td><span class="badge badge-level" x-text="'Level ' + u.level"></span></td>
+                            <td x-text="fmtNum(u.xp)"></td>
+                            <td x-text="fmtNum(u.messages)"></td>
+                        </tr>
+                    </template>
+                    <template x-if="!stats.top_users || stats.top_users.length === 0">
+                        <tr><td colspan="5" class="empty-state">No data yet</td></tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function overviewData() {
+    return {
+        stats: { total_users: 0, total_xp: 0, total_messages: 0, top_users: [] },
+        async init() {
+            this.stats = await API.getAnalytics({{ guild_id }}) || this.stats;
+        },
+        fmtNum
+    };
+}
+</script>
+
+{% else %}
+
+<div x-data="guildData()" x-init="init()">
+    <h2 style="margin-bottom: 20px;">Your Servers</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 20px;">Select a server to manage its leveling configuration.</p>
+    <div class="guild-grid">
+        <template x-for="guild in guilds" :key="guild.id">
+            <a class="guild-card" :href="`/guilds/${guild.id}`" style="text-decoration: none; color: inherit;">
+                <img class="guild-icon" :src="guild.icon ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png` : 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 fill=%22%232a2a4a%22/><text x=%2232%22 y=%2240%22 text-anchor=%22middle%22 fill=%22%23a0a0b8%22 font-size=%2224%22 font-weight=%22bold%22>' + guild.name.charAt(0).toUpperCase() + '</text></svg>'" alt="">
+                <div class="guild-name" x-text="guild.name"></div>
+            </a>
+        </template>
+    </div>
+    <template x-if="guilds.length === 0">
+        <div class="empty-state">
+            <div class="icon">&#9888;</div>
+            <p>No manageable servers found. You need Administrator or Manage Server permission.</p>
+        </div>
+    </template>
+</div>
+
+<script>
+function guildData() {
+    return {
+        guilds: [],
+        async init() {
+            const data = await API.me();
+            if (data && data.guilds) this.guilds = data.guilds;
+        }
+    };
+}
+</script>
+
+{% endif %}
+{% endblock %}

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Analytics{% endblock %}
+{% block content %}
+
+<div x-data="analyticsData()" x-init="init()">
+    <h2 style="margin-bottom: 20px;">Server Analytics</h2>
+
+    <div class="grid grid-3" style="margin-bottom: 24px;">
+        <div class="card">
+            <div class="card-title">Total Users</div>
+            <div class="card-value" x-text="fmtNum(data.total_users)">--</div>
+        </div>
+        <div class="card">
+            <div class="card-title">Total XP</div>
+            <div class="card-value" x-text="fmtNum(data.total_xp)">--</div>
+        </div>
+        <div class="card">
+            <div class="card-title">Total Messages</div>
+            <div class="card-value" x-text="fmtNum(data.total_messages)">--</div>
+        </div>
+    </div>
+
+    <div class="grid grid-2">
+        <div class="card">
+            <h3 style="margin-bottom: 12px;">Level Distribution</h3>
+            <canvas id="levelChart"></canvas>
+            <template x-if="(!data.level_distribution || data.level_distribution.length === 0)">
+                <p style="color: var(--text-muted); text-align: center; padding: 24px;">Not enough data yet.</p>
+            </template>
+        </div>
+        <div class="card">
+            <h3 style="margin-bottom: 12px;">Top Members</h3>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>User ID</th>
+                            <th>Level</th>
+                            <th>XP</th>
+                            <th>Messages</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="(u, i) in data.top_users" :key="u.user_id">
+                            <tr>
+                                <td><span class="badge" :class="'badge-rank-' + (i+1)" x-text="'#' + (i+1)"></span></td>
+                                <td><a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" x-text="u.user_id"></a></td>
+                                <td><span class="badge badge-level" x-text="'Lvl ' + u.level"></span></td>
+                                <td x-text="fmtNum(u.xp)"></td>
+                                <td x-text="fmtNum(u.messages)"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function analyticsData() {
+    return {
+        data: { total_users: 0, total_xp: 0, total_messages: 0, level_distribution: [], top_users: [] },
+        chart: null,
+        async init() {
+            this.data = await API.getAnalytics({{ guild_id }}) || this.data;
+            this.$nextTick(() => this.renderChart());
+        },
+        renderChart() {
+            const dist = this.data.level_distribution || [];
+            if (dist.length === 0) return;
+            if (this.chart) { this.chart.destroy(); }
+
+            const labels = dist.map(d => 'Lvl ' + d.level);
+            const counts = dist.map(d => d.count);
+
+            const ctx = document.getElementById('levelChart').getContext('2d');
+            this.chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Users',
+                        data: counts,
+                        backgroundColor: 'rgba(88, 101, 242, 0.6)',
+                        borderColor: 'rgba(88, 101, 242, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#a0a0b8' },
+                            grid: { color: '#2a2a4a' }
+                        },
+                        y: {
+                            ticks: { color: '#a0a0b8' },
+                            grid: { color: '#2a2a4a' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        },
+        fmtNum
+    };
+}
+</script>
+
+{% endblock %}
