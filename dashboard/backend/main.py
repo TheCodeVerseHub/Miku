@@ -263,7 +263,7 @@ async def get_role_rewards(request: Request, guild_id: int):
             "SELECT level, role_id FROM role_rewards WHERE guild_id = $1 ORDER BY level",
             guild_id,
         )
-        return [dict(r) for r in rows]
+        return [{"level": r["level"], "role_id": str(r["role_id"])} for r in rows]
 
 
 @app.post("/api/guilds/{guild_id}/rewards")
@@ -271,7 +271,12 @@ async def add_role_reward(request: Request, guild_id: int):
     _, _ = await require_guild_access(request, guild_id)
     body = await request.json()
     level = int(body["level"])
-    role_id = int(body["role_id"])
+    raw_role_id = body["role_id"]
+    role_id = int(raw_role_id)
+    logger.info(
+        "add_role_reward: guild_id=%s level=%s raw_role_id=%s (type=%s) role_id=%s",
+        guild_id, level, raw_role_id, type(raw_role_id).__name__, role_id,
+    )
     db = await get_db()
     async with db.acquire() as conn:
         await conn.execute(

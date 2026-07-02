@@ -917,7 +917,13 @@ class Leveling(commands.Cog):
         
         rewards_text = ""
         for reward in role_rewards:
-            role = ctx.guild.get_role(reward['role_id'])
+            role_id = reward['role_id']
+            role = ctx.guild.get_role(role_id)
+            logger.info(
+                "rolerewards: guild=%s level=%s role_id=%s (type=%s) resolved=%s",
+                ctx.guild.id, reward['level'], role_id, type(role_id).__name__,
+                role.id if role else None,
+            )
             if role:
                 rewards_text += f"**Level {reward['level']}** → {role.mention}\n"
             else:

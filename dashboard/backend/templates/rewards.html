@@ -58,7 +58,7 @@
             </div>
             <div class="form-group">
                 <label class="form-label">Role ID</label>
-                <input class="form-input" type="number" x-model.number="newRoleId" placeholder="Discord role ID">
+                <input class="form-input" type="text" x-model="newRoleId" placeholder="Discord role ID">
                 <div class="form-hint">Enable Developer Mode in Discord &gt; right-click a role &gt; Copy ID</div>
             </div>
             <div class="modal-actions">
@@ -89,7 +89,7 @@ function rewardsData() {
         openEdit(r) {
             this.editing = r;
             this.newLevel = r.level;
-            this.newRoleId = Number(r.role_id);
+            this.newRoleId = r.role_id;
             this.showModal = true;
         },
         closeModal() {
