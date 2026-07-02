@@ -19,6 +19,8 @@ BASE = "https://discord.com/api/v10"
 # Caches keyed by guild_id
 _role_cache: TTLCache = TTLCache(maxsize=64, ttl=60)
 _member_cache: TTLCache = TTLCache(maxsize=64, ttl=30)
+_bot_user_id: str | None = None
+_bot_id_cache: TTLCache = TTLCache(maxsize=1, ttl=3600)
 
 _headers: dict[str, str] | None = None
 
@@ -55,6 +57,38 @@ async def _get(path: str) -> list[Any] | dict[str, Any] | None:
 
 
 # ---------------------------------------------------------------------------
+# Bot user info
+# ---------------------------------------------------------------------------
+
+
+async def _get_bot_user_id() -> str | None:
+    """Fetch the bot's own user ID from Discord and cache it."""
+    global _bot_user_id
+    if _bot_user_id is not None:
+        return _bot_user_id
+
+    cached = _bot_id_cache.get(0)
+    if cached:
+        _bot_user_id = cached
+        return _bot_user_id
+
+    data = await _get("/users/@me")
+    if data and isinstance(data, dict):
+        _bot_user_id = data["id"]
+        _bot_id_cache[0] = _bot_user_id
+        return _bot_user_id
+    return None
+
+
+async def get_bot_member(guild_id: int) -> dict[str, Any] | None:
+    """Fetch the bot's own member object in a guild."""
+    bot_id = await _get_bot_user_id()
+    if not bot_id:
+        return None
+    return await _get(f"/guilds/{guild_id}/members/{bot_id}")
+
+
+# ---------------------------------------------------------------------------
 # Roles
 # ---------------------------------------------------------------------------
 
@@ -86,19 +120,19 @@ async def get_guild_roles(guild_id: int) -> list[dict[str, Any]]:
 
 
 async def get_assignable_roles(guild_id: int) -> list[dict[str, Any]]:
-    """Return roles the bot can assign — excludes @everyone, managed, and roles higher than the bot's top role."""
+    """Return assignable roles — excludes @everyone, managed, and roles above the bot's highest role."""
     roles = await get_guild_roles(guild_id)
 
-    # Determine the bot's top role position so we can exclude higher roles.
-    # We need the bot member object for this guild.
-    bot_member = await _get(f"/guilds/{guild_id}/members/@me")
+    # Fetch the bot's member info to determine its top role position.
     bot_top = 0
+    bot_member = await get_bot_member(guild_id)
     if bot_member and isinstance(bot_member, dict):
         bot_role_ids = bot_member.get("roles", [])
-        bot_top = max(
-            (r["position"] for r in roles if r["id"] in bot_role_ids),
-            default=0,
-        )
+        if bot_role_ids:
+            bot_top = max(
+                (r["position"] for r in roles if r["id"] in bot_role_ids),
+                default=0,
+            )
 
     return [
         r for r in roles
