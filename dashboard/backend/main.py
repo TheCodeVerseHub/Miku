@@ -681,6 +681,23 @@ async def startup():
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
+    # Ensure guild_settings table has all columns
+    try:
+        db = await get_db()
+        async with db.acquire() as conn:
+            for col_sql in [
+                "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS xp_enabled BOOLEAN DEFAULT TRUE",
+                "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS min_xp INTEGER DEFAULT 15",
+                "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS max_xp INTEGER DEFAULT 25",
+                "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS cooldown_seconds INTEGER DEFAULT 60",
+                "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()",
+            ]:
+                try:
+                    await conn.execute(col_sql)
+                except Exception:
+                    pass
+    except Exception:
+        logger.warning("Could not run guild_settings migrations (DB not ready yet)")
 
 
 @app.on_event("shutdown")

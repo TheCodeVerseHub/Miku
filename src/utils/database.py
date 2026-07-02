@@ -181,6 +181,18 @@ async def init_db() -> None:
         await conn.execute(
             "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()"
         )
+        await conn.execute(
+            "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS xp_enabled BOOLEAN DEFAULT TRUE"
+        )
+        await conn.execute(
+            "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS min_xp INTEGER DEFAULT 15"
+        )
+        await conn.execute(
+            "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS max_xp INTEGER DEFAULT 25"
+        )
+        await conn.execute(
+            "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS cooldown_seconds INTEGER DEFAULT 60"
+        )
 
         await _migrate_epoch_column_to_timestamp("guild_settings", "created_at")
         await _migrate_epoch_column_to_timestamp("guild_settings", "updated_at")
