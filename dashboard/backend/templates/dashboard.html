@@ -5,10 +5,9 @@
 {% if guild_id %}
 
 <div x-data="overviewData()" x-init="init()">
-    <div class="page-header">
+    <div class="section-bar">
         <div>
-            <h2>{{ guild_name or 'Server' }} Overview</h2>
-            <p>Server analytics and top members</p>
+            <div class="desc"><strong>{{ guild_name or 'Server' }}</strong> &mdash; overview stats and top members</div>
         </div>
     </div>
 
@@ -17,19 +16,19 @@
             <div class="stat-card-label">Total Users</div>
             <div class="stat-card-value" x-text="fmtNum(stats.total_users)">--</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card accent">
             <div class="stat-card-label">Total XP</div>
             <div class="stat-card-value" x-text="fmtNum(stats.total_xp)">--</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card success">
             <div class="stat-card-label">Total Messages</div>
             <div class="stat-card-value" x-text="fmtNum(stats.total_messages)">--</div>
         </div>
     </div>
 
     <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <h3 style="margin: 0;">Top Members</h3>
+        <div class="card-header">
+            <h3>Top Members</h3>
             <a href="/guilds/{{ guild_id }}/leaderboard" class="btn btn-ghost btn-sm">View All</a>
         </div>
         <div class="table-wrapper">
@@ -89,10 +88,9 @@ function overviewData() {
 {% else %}
 
 <div x-data="guildData()" x-init="init()">
-    <div class="page-header">
+    <div class="section-bar">
         <div>
-            <h2>Your Servers</h2>
-            <p>Select a server to manage its leveling configuration.</p>
+            <div class="desc">Select a server to manage its leveling configuration</div>
         </div>
     </div>
     <div class="guild-grid">

@@ -3,12 +3,13 @@
 {% block content %}
 
 <div x-data="rewardsData()" x-init="init()">
-    <div class="page-header">
+    <div class="section-bar">
         <div>
-            <h2>Role Rewards</h2>
-            <p>Award roles when users reach specific levels.</p>
+            <div class="desc">Award roles when users reach specific levels &mdash; <strong><span x-text="rewards.length"></span> rewards configured</strong></div>
         </div>
-        <button class="btn btn-primary" @click="showAdd = true">Add Reward</button>
+        <div class="section-actions">
+            <button class="btn btn-primary" @click="showAdd = true">Add Reward</button>
+        </div>
     </div>
 
     <div class="card" style="padding: 0;">
@@ -16,8 +17,8 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Level</th>
-                        <th>Role ID</th>
+                        <th style="width: 80px;">Level</th>
+                        <th>Role</th>
                         <th style="width: 100px;">Actions</th>
                     </tr>
                 </thead>
@@ -25,7 +26,12 @@
                     <template x-for="r in rewards" :key="r.level">
                         <tr>
                             <td><span class="badge badge-level" x-text="'Level ' + r.level"></span></td>
-                            <td style="font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 13px;" x-text="r.role_id"></td>
+                            <td>
+                                <div class="role-cell">
+                                    <span class="role-dot" :style="'background: ' + getAvatarColor(r.role_id)"></span>
+                                    <span style="font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 13px;" x-text="r.role_id"></span>
+                                </div>
+                            </td>
                             <td>
                                 <button class="btn btn-danger btn-xs" @click="remove(r.level)">Remove</button>
                             </td>

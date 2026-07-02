@@ -3,10 +3,9 @@
 {% block content %}
 
 <div x-data="levelingData()" x-init="init()">
-    <div class="page-header">
+    <div class="section-bar">
         <div>
-            <h2>Leveling Settings</h2>
-            <p>Configure how XP and leveling work in this server.</p>
+            <div class="desc">Configure how XP and leveling work in <strong>{{ guild_name or 'Server' }}</strong></div>
         </div>
     </div>
 

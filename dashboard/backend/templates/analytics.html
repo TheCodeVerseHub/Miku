@@ -3,39 +3,48 @@
 {% block content %}
 
 <div x-data="analyticsData()" x-init="init()">
-    <div class="page-header">
+    <div class="section-bar">
         <div>
-            <h2>Server Analytics</h2>
-            <p>View server statistics and level distribution</p>
+            <div class="desc">Server statistics and level distribution for <strong>{{ guild_name or 'Server' }}</strong></div>
         </div>
     </div>
 
-    <div class="grid grid-3" style="margin-bottom: 18px;">
+    <div class="grid grid-4" style="margin-bottom: 18px;">
         <div class="stat-card">
             <div class="stat-card-label">Total Users</div>
             <div class="stat-card-value" x-text="fmtNum(data.total_users)">--</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card accent">
             <div class="stat-card-label">Total XP</div>
             <div class="stat-card-value" x-text="fmtNum(data.total_xp)">--</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card success">
             <div class="stat-card-label">Total Messages</div>
             <div class="stat-card-value" x-text="fmtNum(data.total_messages)">--</div>
+        </div>
+        <div class="stat-card warning">
+            <div class="stat-card-label">Level Range</div>
+            <div class="stat-card-value" x-text="levelRange">--</div>
         </div>
     </div>
 
     <div class="grid grid-2">
         <div class="card">
-            <h3>Level Distribution</h3>
-            <canvas id="levelChart" style="max-height: 280px;"></canvas>
+            <div class="card-header">
+                <h3>Level Distribution</h3>
+            </div>
+            <template x-if="data.level_distribution && data.level_distribution.length > 0">
+                <div style="position: relative;">
+                    <canvas id="levelChart" style="max-height: 280px;"></canvas>
+                </div>
+            </template>
             <template x-if="(!data.level_distribution || data.level_distribution.length === 0)">
-                <p style="color: var(--text-muted); text-align: center; padding: 32px 24px; font-size: 14px;">Not enough data yet.</p>
+                <p style="color: var(--text-muted); text-align: center; padding: 48px 24px; font-size: 14px;">Not enough data yet to show distribution.</p>
             </template>
         </div>
         <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <h3 style="margin: 0;">Top Members</h3>
+            <div class="card-header">
+                <h3>Top Members</h3>
                 <a href="/guilds/{{ guild_id }}/leaderboard" class="btn btn-ghost btn-sm">View All</a>
             </div>
             <div class="table-wrapper">
@@ -81,6 +90,12 @@ function analyticsData() {
     return {
         data: { total_users: 0, total_xp: 0, total_messages: 0, level_distribution: [], top_users: [] },
         chart: null,
+        get levelRange() {
+            const dist = this.data.level_distribution || [];
+            if (dist.length === 0) return '--';
+            const levels = dist.map(d => d.level);
+            return `${Math.min(...levels)} - ${Math.max(...levels)}`;
+        },
         async init() {
             this.data = await API.getAnalytics('{{ guild_id }}') || this.data;
             this.$nextTick(() => this.renderChart());

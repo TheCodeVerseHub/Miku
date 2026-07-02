@@ -3,27 +3,31 @@
 {% block content %}
 
 <div x-data="userData()" x-init="init()">
-    <div class="page-header">
-        <div style="display: flex; align-items: center; gap: 16px;">
-            <div class="user-avatar user-avatar-lg" :style="'background: ' + getAvatarColor(userId)">
+    <div class="section-bar">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="user-avatar" :style="'background: ' + getAvatarColor(userId)">
                 <span x-text="String(userId).charAt(0)"></span>
             </div>
             <div>
-                <h2 style="margin-bottom: 2px;" x-text="'User ' + String(userId).slice(0, 8) + '...'">User Profile</h2>
-                <p style="color: var(--text-secondary); font-size: 13px;" x-text="'ID: ' + userId">--</p>
+                <div style="font-weight: 600;" x-text="'User ' + String(userId).slice(0, 8) + '...'">User Profile</div>
+                <div class="desc" x-text="'ID: ' + userId">--</div>
             </div>
         </div>
-        <a :href="`/guilds/{{ guild_id }}/leaderboard`" class="btn btn-ghost btn-sm">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
-            </svg>
-            Back to Leaderboard
-        </a>
+        <div class="section-actions">
+            <a :href="`/guilds/{{ guild_id }}/leaderboard`" class="btn btn-ghost btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                Back to Leaderboard
+            </a>
+        </div>
     </div>
 
     <div class="grid grid-2">
         <div class="card">
-            <h3>Level & XP</h3>
+            <div class="card-header">
+                <h3>Level & XP</h3>
+            </div>
             <div style="display: flex; gap: 28px; margin-bottom: 18px; flex-wrap: wrap;">
                 <div>
                     <div class="info-stat-label">Level</div>
@@ -60,7 +64,9 @@
         </div>
 
         <div class="card">
-            <h3>Admin Actions</h3>
+            <div class="card-header">
+                <h3>Admin Actions</h3>
+            </div>
             <div class="form-group">
                 <label class="form-label">Set Level</label>
                 <div style="display: flex; gap: 8px;">
