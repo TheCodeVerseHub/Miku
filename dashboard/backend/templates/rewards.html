@@ -2,7 +2,7 @@
 {% block title %}Role Rewards{% endblock %}
 {% block content %}
 
-<div x-data="rewardsData()" x-init="init()">
+<div x-data="rewardsData()" x-init="await init()">
     <div class="section-bar">
         <div>
             <div class="desc">Award roles when users reach specific levels &mdash; <strong><span x-text="rewards.length"></span> rewards configured</strong></div>
@@ -28,8 +28,11 @@
                             <td style="font-size: 16px; font-weight: 700; color: var(--accent);" x-text="r.level + '.'"></td>
                             <td>
                                 <div class="role-cell">
-                                    <span class="role-dot" :style="'background: ' + getAvatarColor(r.role_id)"></span>
-                                    <span style="font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 13px;" x-text="r.role_id"></span>
+                                    <span class="role-dot" :style="'background: ' + roleColor(r.role_id)"></span>
+                                    <div>
+                                        <div class="user-name" x-text="roleName(r.role_id) || 'Unknown Role'"></div>
+                                        <div class="user-id" x-text="r.role_id"></div>
+                                    </div>
                                 </div>
                             </td>
                             <td>
@@ -57,9 +60,37 @@
                 <input class="form-input" type="number" x-model.number="newLevel" min="1" placeholder="e.g. 5">
             </div>
             <div class="form-group">
-                <label class="form-label">Role ID</label>
-                <input class="form-input" type="text" x-model="newRoleId" placeholder="Discord role ID">
-                <div class="form-hint">Enable Developer Mode in Discord &gt; right-click a role &gt; Copy ID</div>
+                <label class="form-label">Role</label>
+                <div class="role-picker" @click.outside="pickerOpen = false">
+                    <template x-if="!selectedRole">
+                        <div class="role-picker-trigger" @click="pickerOpen = !pickerOpen">
+                            <span class="placeholder">Search for a role...</span>
+                        </div>
+                    </template>
+                    <template x-if="selectedRole">
+                        <div class="role-picker-trigger" @click="pickerOpen = !pickerOpen">
+                            <span class="role-dot" :style="'background: ' + hexColor(selectedRole.color)"></span>
+                            <span x-text="selectedRole.name"></span>
+                            <button class="clear-btn" @click.stop="clearRole()">&times;</button>
+                        </div>
+                    </template>
+                    <div class="role-picker-dropdown" x-show="pickerOpen" x-cloak>
+                        <div class="role-picker-search">
+                            <input type="text" x-model="roleSearch" placeholder="Filter roles..." @input="filterRoles()">
+                        </div>
+                        <div class="role-picker-list">
+                            <template x-for="role in filteredRoles" :key="role.id">
+                                <div class="role-picker-option" @click="selectRole(role)">
+                                    <span class="role-dot" :style="'background: ' + hexColor(role.color)"></span>
+                                    <span class="role-name" x-text="role.name"></span>
+                                </div>
+                            </template>
+                            <template x-if="filteredRoles.length === 0">
+                                <div class="role-picker-no-results">No roles match your search</div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-ghost" @click="closeModal()">Cancel</button>
@@ -76,44 +107,93 @@ function rewardsData() {
         showModal: false,
         editing: null,
         newLevel: 1,
-        newRoleId: null,
+        selectedRole: null,
+        roles: [],
+        pickerOpen: false,
+        roleSearch: '',
+        filteredRoles: [],
+
         async init() {
-            this.rewards = await API.getRewards('{{ guild_id }}') || [];
+            const [r, roles] = await Promise.all([
+                API.getRewards('{{ guild_id }}'),
+                API.getRoles('{{ guild_id }}'),
+            ]);
+            this.rewards = r || [];
+            this.roles = roles || [];
+            this.filteredRoles = this.roles;
         },
+
+        roleName(roleId) {
+            const r = this.roles.find(r => r.id === roleId);
+            return r ? r.name : null;
+        },
+
+        roleColor(roleId) {
+            const r = this.roles.find(r => r.id === roleId);
+            return r ? this.hexColor(r.color) : getAvatarColor(roleId);
+        },
+
+        hexColor(color) {
+            if (!color || color === 0) return '#99aab5';
+            return '#' + color.toString(16).padStart(6, '0');
+        },
+
+        filterRoles() {
+            const q = this.roleSearch.toLowerCase();
+            this.filteredRoles = this.roles.filter(r =>
+                r.name.toLowerCase().includes(q) || r.id.includes(q)
+            );
+        },
+
+        selectRole(role) {
+            this.selectedRole = role;
+            this.pickerOpen = false;
+            this.roleSearch = '';
+        },
+
+        clearRole() {
+            this.selectedRole = null;
+        },
+
         openAdd() {
             this.editing = null;
             this.newLevel = 1;
-            this.newRoleId = null;
+            this.selectedRole = null;
             this.showModal = true;
         },
+
         openEdit(r) {
             this.editing = r;
             this.newLevel = r.level;
-            this.newRoleId = r.role_id;
+            this.selectedRole = this.roles.find(role => role.id === r.role_id) || null;
             this.showModal = true;
         },
+
         closeModal() {
             this.showModal = false;
             this.editing = null;
+            this.selectedRole = null;
         },
+
         async save() {
-            if (!this.newLevel || !this.newRoleId) {
+            if (!this.newLevel || !this.selectedRole) {
                 showToast('Please fill in all fields', 'error');
                 return;
             }
             if (this.editing) {
                 await API.removeReward('{{ guild_id }}', this.editing.level);
             }
-            const result = await API.addReward('{{ guild_id }}', this.newLevel, this.newRoleId);
+            const result = await API.addReward('{{ guild_id }}', this.newLevel, this.selectedRole.id);
             if (result && result.ok) {
                 showToast(this.editing ? 'Reward updated' : 'Role reward added', 'success');
                 this.showModal = false;
                 this.editing = null;
+                this.selectedRole = null;
                 this.rewards = await API.getRewards('{{ guild_id }}') || [];
                 this.newLevel = 1;
-                this.newRoleId = null;
             } else showToast('Failed to save reward', 'error');
         },
+
         async remove(level) {
             if (!confirm(`Remove reward for Level ${level}?`)) return;
             const result = await API.removeReward('{{ guild_id }}', level);

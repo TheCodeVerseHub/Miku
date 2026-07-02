@@ -63,6 +63,10 @@ const API = {
         return this.fetch(`/api/guilds/${guildId}/analytics`);
     },
 
+    getRoles(guildId) {
+        return this.fetch(`/api/guilds/${guildId}/roles`);
+    },
+
     getBotStats() {
         return this.fetch('/api/bot/stats');
     },
@@ -134,4 +138,13 @@ function getAvatarColor(id) {
 function fmtDate(ts) {
     if (!ts) return 'N/A';
     return new Date(ts).toLocaleDateString();
+}
+
+/* Fallback for avatar load errors — show colored initial */
+function onAvatarError(event, userId) {
+    const el = event.target;
+    const parent = el.parentElement;
+    const initial = String(userId).charAt(0).toUpperCase();
+    parent.innerHTML = `<span style="color:white;font-weight:700;font-size:14px;">${initial}</span>`;
+    parent.style.background = getAvatarColor(userId);
 }

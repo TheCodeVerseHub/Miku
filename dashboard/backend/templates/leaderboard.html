@@ -29,17 +29,22 @@
                 </thead>
                 <tbody>
                     <template x-for="(u, i) in users" :key="u.user_id">
-                        <tr :class="'row-' + ['gold','silver','bronze'][i] || ''" x-if="i < 3">
+                        <tr :class="i < 3 ? 'row-' + ['gold','silver','bronze'][i] : ''">
                             <td>
-                                <div class="lb-rank" :class="'lb-rank-' + (offset + i + 1)" x-text="offset + i + 1"></div>
+                                <template x-if="i < 3">
+                                    <div class="lb-rank" :class="'lb-rank-' + (offset + i + 1)" x-text="offset + i + 1"></div>
+                                </template>
+                                <template x-if="i >= 3">
+                                    <div class="lb-rank lb-rank-default" x-text="offset + i + 1"></div>
+                                </template>
                             </td>
                             <td>
                                 <a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" class="user-cell" style="text-decoration: none; color: inherit;">
-                                    <div class="user-avatar" :style="'background: ' + getAvatarColor(u.user_id)">
-                                        <span x-text="String(u.user_id).charAt(0)"></span>
+                                    <div class="user-avatar">
+                                        <img :src="u.avatar_url" :alt="u.username" @error="onAvatarError($event, u.user_id)">
                                     </div>
                                     <div class="user-info">
-                                        <div class="user-name" x-text="'User ' + String(u.user_id).slice(0, 6) + '...'"></div>
+                                        <div class="user-name" x-text="u.display_name || u.username"></div>
                                         <div class="user-id" x-text="u.user_id"></div>
                                     </div>
                                 </a>
@@ -48,36 +53,7 @@
                             <td>
                                 <div class="xp-bar-wrap">
                                     <div class="xp-bar">
-                                        <div class="xp-bar-fill" :class="['gold','silver','bronze'][i]" :style="'width: ' + xpPct(u) + '%'"></div>
-                                    </div>
-                                    <span class="xp-bar-text" x-text="fmtNum(u.xp)"></span>
-                                </div>
-                            </td>
-                            <td x-text="fmtNum(u.messages)"></td>
-                            <td>
-                                <a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" class="btn btn-ghost btn-xs">View</a>
-                            </td>
-                        </tr>
-                        <tr :class="offset + i + 1 > 3 ? '' : ''" x-if="i >= 3">
-                            <td>
-                                <div class="lb-rank lb-rank-default" x-text="offset + i + 1"></div>
-                            </td>
-                            <td>
-                                <a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" class="user-cell" style="text-decoration: none; color: inherit;">
-                                    <div class="user-avatar" :style="'background: ' + getAvatarColor(u.user_id)">
-                                        <span x-text="String(u.user_id).charAt(0)"></span>
-                                    </div>
-                                    <div class="user-info">
-                                        <div class="user-name" x-text="'User ' + String(u.user_id).slice(0, 6) + '...'"></div>
-                                        <div class="user-id" x-text="u.user_id"></div>
-                                    </div>
-                                </a>
-                            </td>
-                            <td><span class="badge badge-level" x-text="'Level ' + u.level"></span></td>
-                            <td>
-                                <div class="xp-bar-wrap">
-                                    <div class="xp-bar">
-                                        <div class="xp-bar-fill" :style="'width: ' + xpPct(u) + '%'"></div>
+                                        <div class="xp-bar-fill" :class="i < 3 ? ['gold','silver','bronze'][i] : ''" :style="'width: ' + xpPct(u) + '%'"></div>
                                     </div>
                                     <span class="xp-bar-text" x-text="fmtNum(u.xp)"></span>
                                 </div>

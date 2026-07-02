@@ -5,11 +5,11 @@
 <div x-data="userData()" x-init="init()">
     <div class="section-bar">
         <div style="display: flex; align-items: center; gap: 12px;">
-            <div class="user-avatar" :style="'background: ' + getAvatarColor(userId)">
-                <span x-text="String(userId).charAt(0)"></span>
+            <div class="user-avatar">
+                <img :src="profile.avatar_url" :alt="profile.username" @error="onAvatarError($event, userId)">
             </div>
             <div>
-                <div style="font-weight: 600;" x-text="'User ' + String(userId).slice(0, 8) + '...'">User Profile</div>
+                <div style="font-weight: 600;" x-text="profile.display_name || profile.username || 'User ' + String(userId).slice(0, 8) + '...'">User Profile</div>
                 <div class="desc" x-text="'ID: ' + userId">--</div>
             </div>
         </div>

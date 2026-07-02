@@ -64,11 +64,11 @@
                                 <td><span class="badge" :class="'badge-rank-' + (i+1)" x-text="'#' + (i+1)"></span></td>
                                 <td>
                                     <a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" class="user-cell" style="text-decoration: none; color: inherit;">
-                                        <div class="user-avatar" :style="'background: ' + getAvatarColor(u.user_id)">
-                                            <span x-text="String(u.user_id).charAt(0)"></span>
+                                        <div class="user-avatar">
+                                            <img :src="u.avatar_url" :alt="u.username" @error="onAvatarError($event, u.user_id)">
                                         </div>
                                         <div class="user-info">
-                                            <div class="user-name" x-text="'User ' + String(u.user_id).slice(0, 6) + '...'"></div>
+                                            <div class="user-name" x-text="u.display_name || u.username"></div>
                                             <div class="user-id" x-text="u.user_id"></div>
                                         </div>
                                     </a>

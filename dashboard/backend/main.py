@@ -24,6 +24,7 @@ if BOT_SRC not in sys.path:
 from cachetools import TTLCache
 
 from .config import config
+from .discord_api import enrich_leaderboard, get_assignable_roles, get_guild_members, default_user
 from .auth import (
     exchange_code,
     get_current_user as _get_current_user,
@@ -352,10 +353,19 @@ async def get_leaderboard(
                 "SELECT COUNT(*) as c FROM user_levels WHERE guild_id = $1",
                 guild_id,
             )
+        raw_users = [dict(r) for r in rows]
+        users = await enrich_leaderboard(guild_id, raw_users)
         return {
-            "users": [dict(r) for r in rows],
+            "users": users,
             "total": count_row["c"] if count_row else 0,
         }
+
+
+@app.get("/api/guilds/{guild_id}/roles")
+async def list_guild_roles(request: Request, guild_id: int):
+    _, _ = await require_guild_access(request, guild_id)
+    roles = await get_assignable_roles(guild_id)
+    return roles
 
 
 @app.get("/api/guilds/{guild_id}/users/{user_id}")
@@ -381,6 +391,12 @@ async def get_user_profile(request: Request, guild_id: int, user_id: int):
         )
         data = dict(row)
         data["rank"] = rank_row["rank"] if rank_row else 0
+        members = await get_guild_members(guild_id)
+        member = members.get(str(user_id)) or default_user(user_id)
+        data["username"] = member["username"]
+        data["display_name"] = member["display_name"]
+        data["avatar_url"] = member["avatar_url"]
+        data["discriminator"] = member["discriminator"]
         return data
 
 
@@ -420,12 +436,14 @@ async def get_analytics(request: Request, guild_id: int):
             """,
             guild_id,
         )
+        raw_users = [dict(r) for r in top_users]
+        enriched_users = await enrich_leaderboard(guild_id, raw_users)
         return {
             "total_users": total_users or 0,
             "total_xp": total_xp or 0,
             "total_messages": total_messages or 0,
             "level_distribution": [dict(r) for r in level_dist],
-            "top_users": [dict(r) for r in top_users],
+            "top_users": enriched_users,
         }
 
 
