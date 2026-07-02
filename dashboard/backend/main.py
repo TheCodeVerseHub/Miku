@@ -126,7 +126,7 @@ async def require_auth(request: Request) -> dict:
     return data
 
 
-async def require_guild_access(request: Request, guild_id: int) -> dict:
+async def require_guild_access(request: Request, guild_id: int) -> tuple[dict, dict]:
     session_data = await require_auth(request)
     guilds = await get_user_guilds(session_data["access_token"])
     guild = next((g for g in guilds if g["id"] == str(guild_id)), None)
@@ -135,7 +135,7 @@ async def require_guild_access(request: Request, guild_id: int) -> dict:
     perms = int(guild.get("permissions", 0))
     if not (perms & 0x8 or perms & 0x20):  # ADMINISTRATOR or MANAGE_GUILD
         raise HTTPException(403, "Missing permissions")
-    return session_data
+    return session_data, guild
 
 
 # ---------------------------------------------------------------------------
@@ -207,7 +207,8 @@ async def api_me(request: Request):
 
 @app.get("/api/guilds/{guild_id}/settings")
 async def get_guild_settings(request: Request, guild_id: int):
-    await require_guild_access(request, guild_id)
+    _, _ = await require_guild_access(request, guild_id)
+
     db = await get_db()
     async with db.acquire() as conn:
         row = await conn.fetchrow(
@@ -227,7 +228,7 @@ async def get_guild_settings(request: Request, guild_id: int):
 
 @app.post("/api/guilds/{guild_id}/settings")
 async def update_guild_settings(request: Request, guild_id: int):
-    await require_guild_access(request, guild_id)
+    _, _ = await require_guild_access(request, guild_id)
     body = await request.json()
     db = await get_db()
     async with db.acquire() as conn:
@@ -255,7 +256,7 @@ async def update_guild_settings(request: Request, guild_id: int):
 
 @app.get("/api/guilds/{guild_id}/rewards")
 async def get_role_rewards(request: Request, guild_id: int):
-    await require_guild_access(request, guild_id)
+    _, _ = await require_guild_access(request, guild_id)
     db = await get_db()
     async with db.acquire() as conn:
         rows = await conn.fetch(
@@ -267,7 +268,7 @@ async def get_role_rewards(request: Request, guild_id: int):
 
 @app.post("/api/guilds/{guild_id}/rewards")
 async def add_role_reward(request: Request, guild_id: int):
-    await require_guild_access(request, guild_id)
+    _, _ = await require_guild_access(request, guild_id)
     body = await request.json()
     level = int(body["level"])
     role_id = int(body["role_id"])
@@ -288,7 +289,7 @@ async def add_role_reward(request: Request, guild_id: int):
 
 @app.delete("/api/guilds/{guild_id}/rewards/{level}")
 async def remove_role_reward(request: Request, guild_id: int, level: int):
-    await require_guild_access(request, guild_id)
+    _, _ = await require_guild_access(request, guild_id)
     db = await get_db()
     async with db.acquire() as conn:
         result = await conn.execute(
@@ -307,7 +308,7 @@ async def get_leaderboard(
     offset: int = 0,
     search: str = "",
 ):
-    await require_guild_access(request, guild_id)
+    _, _ = await require_guild_access(request, guild_id)
     db = await get_db()
     async with db.acquire() as conn:
         if search:
@@ -354,7 +355,7 @@ async def get_leaderboard(
 
 @app.get("/api/guilds/{guild_id}/users/{user_id}")
 async def get_user_profile(request: Request, guild_id: int, user_id: int):
-    await require_guild_access(request, guild_id)
+    _, _ = await require_guild_access(request, guild_id)
     db = await get_db()
     async with db.acquire() as conn:
         row = await conn.fetchrow(
@@ -380,7 +381,7 @@ async def get_user_profile(request: Request, guild_id: int, user_id: int):
 
 @app.get("/api/guilds/{guild_id}/analytics")
 async def get_analytics(request: Request, guild_id: int):
-    await require_guild_access(request, guild_id)
+    _, _ = await require_guild_access(request, guild_id)
     db = await get_db()
     async with db.acquire() as conn:
         total_users = await conn.fetchval(
@@ -452,7 +453,7 @@ async def bot_stats():
 
 @app.post("/api/guilds/{guild_id}/users/{user_id}/setlevel")
 async def api_set_level(request: Request, guild_id: int, user_id: int):
-    await require_guild_access(request, guild_id)
+    _, _ = await require_guild_access(request, guild_id)
     body = await request.json()
     level = int(body["level"])
     db = await get_db()
@@ -482,7 +483,7 @@ async def api_set_level(request: Request, guild_id: int, user_id: int):
 
 @app.post("/api/guilds/{guild_id}/users/{user_id}/addxp")
 async def api_add_xp(request: Request, guild_id: int, user_id: int):
-    await require_guild_access(request, guild_id)
+    _, _ = await require_guild_access(request, guild_id)
     body = await request.json()
     amount = int(body["amount"])
     db = await get_db()
@@ -517,7 +518,7 @@ async def api_add_xp(request: Request, guild_id: int, user_id: int):
 
 @app.delete("/api/guilds/{guild_id}/users/{user_id}")
 async def api_reset_user(request: Request, guild_id: int, user_id: int):
-    await require_guild_access(request, guild_id)
+    _, _ = await require_guild_access(request, guild_id)
     db = await get_db()
     async with db.acquire() as conn:
         await conn.execute(
@@ -530,7 +531,7 @@ async def api_reset_user(request: Request, guild_id: int, user_id: int):
 
 @app.delete("/api/guilds/{guild_id}/levels")
 async def api_reset_all(request: Request, guild_id: int):
-    await require_guild_access(request, guild_id)
+    _, _ = await require_guild_access(request, guild_id)
     db = await get_db()
     async with db.acquire() as conn:
         await conn.execute(
@@ -588,71 +589,85 @@ async def dashboard_page(request: Request):
 @app.get("/guilds/{guild_id}", response_class=HTMLResponse)
 async def guild_overview(request: Request, guild_id: int):
     try:
-        await require_guild_access(request, guild_id)
+        _, guild = await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
     gid = str(guild_id)
-    return render("dashboard.html", request=request, page="overview", guild_id=gid)
+    guild_name = guild.get("name", "")
+    guild_icon = guild.get("icon", "")
+    return render("dashboard.html", request=request, page="overview", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
 
 
 @app.get("/guilds/{guild_id}/leveling", response_class=HTMLResponse)
 async def guild_leveling(request: Request, guild_id: int):
     try:
-        await require_guild_access(request, guild_id)
+        _, guild = await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
     gid = str(guild_id)
-    return render("leveling.html", request=request, page="leveling", guild_id=gid)
+    guild_name = guild.get("name", "")
+    guild_icon = guild.get("icon", "")
+    return render("leveling.html", request=request, page="leveling", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
 
 
 @app.get("/guilds/{guild_id}/rewards", response_class=HTMLResponse)
 async def guild_rewards(request: Request, guild_id: int):
     try:
-        await require_guild_access(request, guild_id)
+        _, guild = await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
     gid = str(guild_id)
-    return render("rewards.html", request=request, page="rewards", guild_id=gid)
+    guild_name = guild.get("name", "")
+    guild_icon = guild.get("icon", "")
+    return render("rewards.html", request=request, page="rewards", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
 
 
 @app.get("/guilds/{guild_id}/leaderboard", response_class=HTMLResponse)
 async def guild_leaderboard(request: Request, guild_id: int):
     try:
-        await require_guild_access(request, guild_id)
+        _, guild = await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
     gid = str(guild_id)
-    return render("leaderboard.html", request=request, page="leaderboard", guild_id=gid)
+    guild_name = guild.get("name", "")
+    guild_icon = guild.get("icon", "")
+    return render("leaderboard.html", request=request, page="leaderboard", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
 
 
 @app.get("/guilds/{guild_id}/users/{user_id}", response_class=HTMLResponse)
 async def guild_user(request: Request, guild_id: int, user_id: int):
     try:
-        await require_guild_access(request, guild_id)
+        _, guild = await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
     gid = str(guild_id)
-    return render("users.html", request=request, page="users", guild_id=gid, user_id=user_id)
+    guild_name = guild.get("name", "")
+    guild_icon = guild.get("icon", "")
+    return render("users.html", request=request, page="users", guild_id=gid, user_id=user_id, guild_name=guild_name, guild_icon=guild_icon)
 
 
 @app.get("/guilds/{guild_id}/analytics", response_class=HTMLResponse)
 async def guild_analytics(request: Request, guild_id: int):
     try:
-        await require_guild_access(request, guild_id)
+        _, guild = await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
     gid = str(guild_id)
-    return render("analytics.html", request=request, page="analytics", guild_id=gid)
+    guild_name = guild.get("name", "")
+    guild_icon = guild.get("icon", "")
+    return render("analytics.html", request=request, page="analytics", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
 
 
 @app.get("/guilds/{guild_id}/settings", response_class=HTMLResponse)
 async def guild_settings_page(request: Request, guild_id: int):
     try:
-        await require_guild_access(request, guild_id)
+        _, guild = await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
     gid = str(guild_id)
-    return render("settings.html", request=request, page="settings", guild_id=gid)
+    guild_name = guild.get("name", "")
+    guild_icon = guild.get("icon", "")
+    return render("settings.html", request=request, page="settings", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
 
 
 # ---------------------------------------------------------------------------

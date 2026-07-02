@@ -3,15 +3,19 @@
 {% block content %}
 
 <div x-data="levelingData()" x-init="init()">
-    <h2 style="margin-bottom: 6px;">Leveling Settings</h2>
-    <p style="color: var(--text-secondary); margin-bottom: 20px;">Configure how XP and leveling work in this server.</p>
+    <div class="page-header">
+        <div>
+            <h2>Leveling Settings</h2>
+            <p>Configure how XP and leveling work in this server.</p>
+        </div>
+    </div>
 
     <div class="grid grid-2">
         <div class="card">
-            <h3 style="margin-bottom: 16px;">XP Configuration</h3>
+            <h3>XP Configuration</h3>
 
             <div class="form-group">
-                <label class="toggle" style="display: flex; align-items: center; gap: 12px; width: auto;">
+                <label class="toggle">
                     <input type="checkbox" x-model="settings.xp_enabled" @change="save()">
                     <span class="toggle-slider"></span>
                     <span class="form-label" style="margin: 0;">Enable XP System</span>
@@ -39,46 +43,46 @@
         </div>
 
         <div class="card">
-            <h3 style="margin-bottom: 16px;">XP Formula Preview</h3>
+            <h3>XP Formula Preview</h3>
             <div class="form-group">
                 <label class="form-label">Level</label>
                 <input class="form-input" type="number" x-model.number="previewLevel" min="1" max="100">
             </div>
-            <div style="padding: 12px; background: var(--bg-input); border-radius: 6px; margin-top: 8px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                    <span style="color: var(--text-secondary);">Total XP Needed</span>
-                    <span x-text="fmtNum(xpForLevel(previewLevel))" style="font-weight: 600;"></span>
+            <div class="xp-preview-box">
+                <div class="config-row">
+                    <span class="config-label">Total XP Needed</span>
+                    <span class="config-value" x-text="fmtNum(xpForLevel(previewLevel))"></span>
                 </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                    <span style="color: var(--text-secondary);">XP for Next Level</span>
-                    <span x-text="fmtNum(xpForNext(previewLevel))" style="font-weight: 600;"></span>
+                <div class="config-row">
+                    <span class="config-label">XP for Next Level</span>
+                    <span class="config-value" x-text="fmtNum(xpForNext(previewLevel))"></span>
                 </div>
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="color: var(--text-secondary);">Messages Needed (avg)</span>
-                    <span x-text="avgMsgs(previewLevel)" style="font-weight: 600;"></span>
+                <div class="config-row">
+                    <span class="config-label">Messages Needed (avg)</span>
+                    <span class="config-value" x-text="avgMsgs(previewLevel)"></span>
                 </div>
             </div>
 
             <h3 style="margin: 20px 0 12px;">Quick Stats</h3>
-            <div style="display: flex; gap: 16px; flex-wrap: wrap;">
-                <div style="padding: 12px; background: var(--bg-input); border-radius: 6px; flex: 1; min-width: 100px;">
-                    <div style="font-size: 12px; color: var(--text-muted);">Tracked Users</div>
-                    <div style="font-size: 20px; font-weight: 700;" x-text="fmtNum(stats.total_users)">--</div>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <div class="info-stat" style="flex: 1; min-width: 100px;">
+                    <div class="info-stat-label">Tracked Users</div>
+                    <div class="info-stat-value" style="font-size: 18px;" x-text="fmtNum(stats.total_users)">--</div>
                 </div>
-                <div style="padding: 12px; background: var(--bg-input); border-radius: 6px; flex: 1; min-width: 100px;">
-                    <div style="font-size: 12px; color: var(--text-muted);">Avg XP/User</div>
-                    <div style="font-size: 20px; font-weight: 700;" x-text="avgXp">--</div>
+                <div class="info-stat" style="flex: 1; min-width: 100px;">
+                    <div class="info-stat-label">Avg XP/User</div>
+                    <div class="info-stat-value" style="font-size: 18px;" x-text="avgXp">--</div>
                 </div>
-                <div style="padding: 12px; background: var(--bg-input); border-radius: 6px; flex: 1; min-width: 100px;">
-                    <div style="font-size: 12px; color: var(--text-muted);">Total Messages</div>
-                    <div style="font-size: 20px; font-weight: 700;" x-text="fmtNum(stats.total_messages)">--</div>
+                <div class="info-stat" style="flex: 1; min-width: 100px;">
+                    <div class="info-stat-label">Total Messages</div>
+                    <div class="info-stat-value" style="font-size: 18px;" x-text="fmtNum(stats.total_messages)">--</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="card" style="margin-top: 16px;">
-        <h3 style="margin-bottom: 12px; color: var(--danger);">Danger Zone</h3>
+    <div class="card danger-zone">
+        <h3>Danger Zone</h3>
         <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 14px;">These actions cannot be undone.</p>
         <div style="display: flex; gap: 8px;">
             <button class="btn btn-danger" @click="resetAll()">Reset All Levels</button>

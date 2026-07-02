@@ -1,33 +1,43 @@
 {% extends "base.html" %}
-{% block title %}Server Dashboard{% endblock %}
+{% block title %}{% if guild_id %}{{ guild_name or 'Server' }} Overview{% else %}Server Dashboard{% endif %}{% endblock %}
 {% block content %}
 
 {% if guild_id %}
 
 <div x-data="overviewData()" x-init="init()">
-    <div class="grid grid-3" style="margin-bottom: 24px;">
-        <div class="card">
-            <div class="card-title">Total Users</div>
-            <div class="card-value" x-text="fmtNum(stats.total_users)">--</div>
+    <div class="page-header">
+        <div>
+            <h2>{{ guild_name or 'Server' }} Overview</h2>
+            <p>Server analytics and top members</p>
         </div>
-        <div class="card">
-            <div class="card-title">Total XP</div>
-            <div class="card-value" x-text="fmtNum(stats.total_xp)">--</div>
+    </div>
+
+    <div class="grid grid-3" style="margin-bottom: 18px;">
+        <div class="stat-card">
+            <div class="stat-card-label">Total Users</div>
+            <div class="stat-card-value" x-text="fmtNum(stats.total_users)">--</div>
         </div>
-        <div class="card">
-            <div class="card-title">Total Messages</div>
-            <div class="card-value" x-text="fmtNum(stats.total_messages)">--</div>
+        <div class="stat-card">
+            <div class="stat-card-label">Total XP</div>
+            <div class="stat-card-value" x-text="fmtNum(stats.total_xp)">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-label">Total Messages</div>
+            <div class="stat-card-value" x-text="fmtNum(stats.total_messages)">--</div>
         </div>
     </div>
 
     <div class="card">
-        <div class="card-title">Top Members</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 style="margin: 0;">Top Members</h3>
+            <a href="/guilds/{{ guild_id }}/leaderboard" class="btn btn-ghost btn-sm">View All</a>
+        </div>
         <div class="table-wrapper">
             <table>
                 <thead>
                     <tr>
-                        <th>#</th>
-                        <th>User ID</th>
+                        <th style="width: 50px;">#</th>
+                        <th>Member</th>
                         <th>Level</th>
                         <th>XP</th>
                         <th>Messages</th>
@@ -40,10 +50,18 @@
                                 <span class="badge" :class="'badge-rank-' + (i+1)" x-text="'#' + (i+1)"></span>
                             </td>
                             <td>
-                                <a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" x-text="u.user_id"></a>
+                                <a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" class="user-cell" style="text-decoration: none; color: inherit;">
+                                    <div class="user-avatar" :style="'background: ' + getAvatarColor(u.user_id)">
+                                        <span x-text="String(u.user_id).charAt(0)"></span>
+                                    </div>
+                                    <div class="user-info">
+                                        <div class="user-name" x-text="'User ' + String(u.user_id).slice(0, 6) + '...'"></div>
+                                        <div class="user-id" x-text="u.user_id"></div>
+                                    </div>
+                                </a>
                             </td>
                             <td><span class="badge badge-level" x-text="'Level ' + u.level"></span></td>
-                            <td x-text="fmtNum(u.xp)"></td>
+                            <td style="font-weight: 600;" x-text="fmtNum(u.xp)"></td>
                             <td x-text="fmtNum(u.messages)"></td>
                         </tr>
                     </template>
@@ -71,19 +89,36 @@ function overviewData() {
 {% else %}
 
 <div x-data="guildData()" x-init="init()">
-    <h2 style="margin-bottom: 20px;">Your Servers</h2>
-    <p style="color: var(--text-secondary); margin-bottom: 20px;">Select a server to manage its leveling configuration.</p>
+    <div class="page-header">
+        <div>
+            <h2>Your Servers</h2>
+            <p>Select a server to manage its leveling configuration.</p>
+        </div>
+    </div>
     <div class="guild-grid">
         <template x-for="guild in guilds" :key="guild.id">
-            <a class="guild-card" :href="`/guilds/${guild.id}`" style="text-decoration: none; color: inherit;">
-                <img class="guild-icon" :src="guild.icon ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png` : 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 fill=%22%232a2a4a%22/><text x=%2232%22 y=%2240%22 text-anchor=%22middle%22 fill=%22%23a0a0b8%22 font-size=%2224%22 font-weight=%22bold%22>' + guild.name.charAt(0).toUpperCase() + '</text></svg>'" alt="">
+            <a class="guild-card" :href="`/guilds/${guild.id}`">
+                <div class="guild-icon" :style="guild.icon ? '' : 'background: ' + getAvatarColor(guild.id)">
+                    <template x-if="guild.icon">
+                        <img :src="`https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`" alt="">
+                    </template>
+                    <template x-if="!guild.icon">
+                        <span x-text="guild.name.charAt(0).toUpperCase()"></span>
+                    </template>
+                </div>
                 <div class="guild-name" x-text="guild.name"></div>
             </a>
         </template>
     </div>
     <template x-if="guilds.length === 0">
         <div class="empty-state">
-            <div class="icon">&#9888;</div>
+            <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 40px; height: 40px; margin: 0 auto;">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+            </div>
             <p>No manageable servers found. You need Administrator or Manage Server permission.</p>
         </div>
     </template>

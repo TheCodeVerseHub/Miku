@@ -3,54 +3,64 @@
 {% block content %}
 
 <div x-data="userData()" x-init="init()">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <div>
-            <h2 style="margin-bottom: 6px;">User Profile</h2>
-            <p style="color: var(--text-secondary);" x-text="'User ID: ' + userId">--</p>
+    <div class="page-header">
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <div class="user-avatar user-avatar-lg" :style="'background: ' + getAvatarColor(userId)">
+                <span x-text="String(userId).charAt(0)"></span>
+            </div>
+            <div>
+                <h2 style="margin-bottom: 2px;" x-text="'User ' + String(userId).slice(0, 8) + '...'">User Profile</h2>
+                <p style="color: var(--text-secondary); font-size: 13px;" x-text="'ID: ' + userId">--</p>
+            </div>
         </div>
-        <a :href="`/guilds/{{ guild_id }}/leaderboard`" class="btn btn-ghost btn-sm">&larr; Back to Leaderboard</a>
+        <a :href="`/guilds/{{ guild_id }}/leaderboard`" class="btn btn-ghost btn-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Back to Leaderboard
+        </a>
     </div>
 
     <div class="grid grid-2">
         <div class="card">
-            <h3 style="margin-bottom: 16px;">Level & XP</h3>
-            <div style="display: flex; gap: 24px; margin-bottom: 16px; flex-wrap: wrap;">
+            <h3>Level & XP</h3>
+            <div style="display: flex; gap: 28px; margin-bottom: 18px; flex-wrap: wrap;">
                 <div>
-                    <div style="font-size: 12px; color: var(--text-muted);">Level</div>
-                    <div style="font-size: 36px; font-weight: 700;" x-text="profile.level">--</div>
+                    <div class="info-stat-label">Level</div>
+                    <div style="font-size: 34px; font-weight: 700; line-height: 1.2; letter-spacing: -0.5px;" x-text="profile.level">--</div>
                 </div>
                 <div>
-                    <div style="font-size: 12px; color: var(--text-muted);">Server Rank</div>
-                    <div style="font-size: 36px; font-weight: 700;" x-text="'#' + profile.rank">--</div>
+                    <div class="info-stat-label">Server Rank</div>
+                    <div style="font-size: 34px; font-weight: 700; line-height: 1.2; letter-spacing: -0.5px;" x-text="'#' + profile.rank">--</div>
                 </div>
                 <div>
-                    <div style="font-size: 12px; color: var(--text-muted);">Total XP</div>
-                    <div style="font-size: 36px; font-weight: 700;" x-text="fmtNum(profile.xp)">--</div>
+                    <div class="info-stat-label">Total XP</div>
+                    <div style="font-size: 34px; font-weight: 700; line-height: 1.2; letter-spacing: -0.5px;" x-text="fmtNum(profile.xp)">--</div>
                 </div>
             </div>
 
             <div class="form-group">
                 <label class="form-label">XP Progress</label>
-                <div x-text="`${fmtNum(xpProgress)} / ${fmtNum(xpRequired)} (${xpPercent}%)`" style="font-size: 14px; margin-bottom: 4px;"></div>
+                <div x-text="`${fmtNum(xpProgress)} / ${fmtNum(xpRequired)} (${xpPercent}%)`" style="font-size: 13px; margin-bottom: 6px; color: var(--text-secondary);"></div>
                 <div class="progress-bar">
                     <div class="progress-fill" :style="'width: ' + Math.min(100, xpPercent) + '%'"></div>
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                <div style="padding: 8px; background: var(--bg-input); border-radius: 4px;">
-                    <div style="font-size: 11px; color: var(--text-muted);">Messages</div>
-                    <div style="font-weight: 600;" x-text="fmtNum(profile.messages)">--</div>
+            <div class="grid grid-2" style="gap: 8px;">
+                <div class="info-stat">
+                    <div class="info-stat-label">Messages</div>
+                    <div class="info-stat-value" x-text="fmtNum(profile.messages)">--</div>
                 </div>
-                <div style="padding: 8px; background: var(--bg-input); border-radius: 4px;">
-                    <div style="font-size: 11px; color: var(--text-muted);">Avg XP/Message</div>
-                    <div style="font-weight: 600;" x-text="avgXp">--</div>
+                <div class="info-stat">
+                    <div class="info-stat-label">Avg XP / Message</div>
+                    <div class="info-stat-value" x-text="avgXp">--</div>
                 </div>
             </div>
         </div>
 
         <div class="card">
-            <h3 style="margin-bottom: 16px;">Admin Actions</h3>
+            <h3>Admin Actions</h3>
             <div class="form-group">
                 <label class="form-label">Set Level</label>
                 <div style="display: flex; gap: 8px;">
@@ -65,7 +75,7 @@
                     <button class="btn btn-success btn-sm" @click="doAddXp()">Add</button>
                 </div>
             </div>
-            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
                 <button class="btn btn-danger btn-sm" @click="doReset()">Reset User</button>
             </div>
         </div>

@@ -3,21 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Miku Dashboard</title>
+    <title>{% block title %}Miku Dashboard{% endblock %} — Miku</title>
     <link rel="stylesheet" href="/static/style.css">
     <script src="/static/api.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.x.x/dist/chart.umd.min.js"></script>
 </head>
-<body>
+<body x-data="appState()" x-init="init()">
     <div class="app-layout">
         <nav class="sidebar">
             <div class="sidebar-brand">
-                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                    <circle cx="14" cy="14" r="12" fill="#5865f2"/>
-                    <text x="14" y="19" text-anchor="middle" fill="white" font-size="14" font-weight="bold">M</text>
-                </svg>
-                <div>
+                <div class="sidebar-brand-icon">M</div>
+                <div class="sidebar-brand-text">
                     <h1>Miku</h1>
                     <span class="badge">Dashboard</span>
                 </div>
@@ -25,30 +22,89 @@
             <div class="sidebar-nav">
                 <div class="nav-section">General</div>
                 <a class="nav-item {{ 'active' if page == 'dashboard' }}" href="/dashboard">
-                    <span class="icon">&#9679;</span> Dashboard
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                    </span>
+                    Dashboard
                 </a>
                 {% if guild_id %}
-                <div class="nav-section" style="margin-top: 12px;">{{ guild_name or 'Server' }}</div>
+                <div class="nav-section">{{ guild_name or 'Server' }}</div>
                 <a class="nav-item {{ 'active' if page == 'overview' }}" href="/guilds/{{ guild_id }}">
-                    <span class="icon">&#9632;</span> Overview
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                    </span>
+                    Overview
                 </a>
                 <a class="nav-item {{ 'active' if page == 'leveling' }}" href="/guilds/{{ guild_id }}/leveling">
-                    <span class="icon">&#9733;</span> Leveling
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                    </span>
+                    Leveling
                 </a>
                 <a class="nav-item {{ 'active' if page == 'rewards' }}" href="/guilds/{{ guild_id }}/rewards">
-                    <span class="icon">&#9829;</span> Role Rewards
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="8" r="6"/>
+                            <path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
+                        </svg>
+                    </span>
+                    Role Rewards
                 </a>
                 <a class="nav-item {{ 'active' if page == 'leaderboard' }}" href="/guilds/{{ guild_id }}/leaderboard">
-                    <span class="icon">&#9733;</span> Leaderboard
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="8" y1="6" x2="21" y2="6"/>
+                            <line x1="8" y1="12" x2="21" y2="12"/>
+                            <line x1="8" y1="18" x2="21" y2="18"/>
+                            <line x1="3" y1="6" x2="3.01" y2="6"/>
+                            <line x1="3" y1="12" x2="3.01" y2="12"/>
+                            <line x1="3" y1="18" x2="3.01" y2="18"/>
+                        </svg>
+                    </span>
+                    Leaderboard
                 </a>
                 <a class="nav-item {{ 'active' if page == 'analytics' }}" href="/guilds/{{ guild_id }}/analytics">
-                    <span class="icon">&#9636;</span> Analytics
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>
+                            <path d="M22 12A10 10 0 0 0 12 2v10z"/>
+                        </svg>
+                    </span>
+                    Analytics
                 </a>
                 <a class="nav-item {{ 'active' if page == 'settings' }}" href="/guilds/{{ guild_id }}/settings">
-                    <span class="icon">&#9881;</span> Settings
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                        </svg>
+                    </span>
+                    Settings
                 </a>
                 {% endif %}
             </div>
+            {% if guild_id %}
+            <div class="sidebar-footer">
+                <a class="nav-item" href="/dashboard">
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M19 12H5M12 19l-7-7 7-7"/>
+                        </svg>
+                    </span>
+                    Back to Servers
+                </a>
+            </div>
+            {% endif %}
         </nav>
         <div class="main-content">
             <header class="topbar">
@@ -58,7 +114,55 @@
                     </span>
                 </div>
                 <div class="topbar-right">
-                    <a href="/dashboard" class="btn btn-ghost btn-sm">Servers</a>
+                    <div class="server-selector" x-data="{ open: false }" @click.outside="open = false">
+                        <button class="server-selector-btn" @click="open = !open; if (!guilds.length) loadGuilds()" :aria-expanded="open">
+                            {% if guild_id and guild_icon %}
+                            <span class="server-icon">
+                                <img src="https://cdn.discordapp.com/icons/{{ guild_id }}/{{ guild_icon }}.png" alt="">
+                            </span>
+                            {% elif guild_id %}
+                            <span class="server-icon" x-text="'{{ guild_name[:1] or 'S' }}'" style="background: var(--accent); color: white;"></span>
+                            {% else %}
+                            <span class="server-icon" style="background: var(--bg-elevated);">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px; color: var(--text-muted);">
+                                    <rect x="3" y="3" width="7" height="7" rx="1"/>
+                                    <rect x="14" y="3" width="7" height="7" rx="1"/>
+                                    <rect x="3" y="14" width="7" height="7" rx="1"/>
+                                    <rect x="14" y="14" width="7" height="7" rx="1"/>
+                                </svg>
+                            </span>
+                            {% endif %}
+                            <span class="server-name">
+                                {% if guild_id %}{{ guild_name or 'Server' }}{% else %}Select Server{% endif %}
+                            </span>
+                            <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"/>
+                            </svg>
+                        </button>
+                        <div class="server-dropdown" x-show="open" x-cloak>
+                            <div class="server-dropdown-header">Switch Server</div>
+                            <div class="server-dropdown-list">
+                                <template x-for="g in guilds" :key="g.id">
+                                    <a class="server-dropdown-item" :class="{ active: g.id === '{{ guild_id or '' }}' }" :href="`/guilds/${g.id}`" @click="open = false">
+                                        <span class="server-icon">
+                                            <template x-if="g.icon">
+                                                <img :src="`https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png`" alt="">
+                                            </template>
+                                            <template x-if="!g.icon">
+                                                <span x-text="g.name.charAt(0).toUpperCase()" style="color: var(--text-primary);"></span>
+                                            </template>
+                                        </span>
+                                        <span class="server-name" x-text="g.name"></span>
+                                    </a>
+                                </template>
+                                <template x-if="guilds.length === 0">
+                                    <div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">
+                                        No servers available
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
                     <a href="/auth/logout" class="btn btn-ghost btn-sm">Logout</a>
                 </div>
             </header>
@@ -67,5 +171,18 @@
             </div>
         </div>
     </div>
+    <script>
+    function appState() {
+        return {
+            guilds: [],
+            init() {},
+            async loadGuilds() {
+                if (this.guilds.length) return;
+                const data = await API.me();
+                if (data && data.guilds) this.guilds = data.guilds;
+            }
+        };
+    }
+    </script>
 </body>
 </html>

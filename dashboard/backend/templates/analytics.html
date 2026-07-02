@@ -3,39 +3,47 @@
 {% block content %}
 
 <div x-data="analyticsData()" x-init="init()">
-    <h2 style="margin-bottom: 20px;">Server Analytics</h2>
+    <div class="page-header">
+        <div>
+            <h2>Server Analytics</h2>
+            <p>View server statistics and level distribution</p>
+        </div>
+    </div>
 
-    <div class="grid grid-3" style="margin-bottom: 24px;">
-        <div class="card">
-            <div class="card-title">Total Users</div>
-            <div class="card-value" x-text="fmtNum(data.total_users)">--</div>
+    <div class="grid grid-3" style="margin-bottom: 18px;">
+        <div class="stat-card">
+            <div class="stat-card-label">Total Users</div>
+            <div class="stat-card-value" x-text="fmtNum(data.total_users)">--</div>
         </div>
-        <div class="card">
-            <div class="card-title">Total XP</div>
-            <div class="card-value" x-text="fmtNum(data.total_xp)">--</div>
+        <div class="stat-card">
+            <div class="stat-card-label">Total XP</div>
+            <div class="stat-card-value" x-text="fmtNum(data.total_xp)">--</div>
         </div>
-        <div class="card">
-            <div class="card-title">Total Messages</div>
-            <div class="card-value" x-text="fmtNum(data.total_messages)">--</div>
+        <div class="stat-card">
+            <div class="stat-card-label">Total Messages</div>
+            <div class="stat-card-value" x-text="fmtNum(data.total_messages)">--</div>
         </div>
     </div>
 
     <div class="grid grid-2">
         <div class="card">
-            <h3 style="margin-bottom: 12px;">Level Distribution</h3>
-            <canvas id="levelChart"></canvas>
+            <h3>Level Distribution</h3>
+            <canvas id="levelChart" style="max-height: 280px;"></canvas>
             <template x-if="(!data.level_distribution || data.level_distribution.length === 0)">
-                <p style="color: var(--text-muted); text-align: center; padding: 24px;">Not enough data yet.</p>
+                <p style="color: var(--text-muted); text-align: center; padding: 32px 24px; font-size: 14px;">Not enough data yet.</p>
             </template>
         </div>
         <div class="card">
-            <h3 style="margin-bottom: 12px;">Top Members</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0;">Top Members</h3>
+                <a href="/guilds/{{ guild_id }}/leaderboard" class="btn btn-ghost btn-sm">View All</a>
+            </div>
             <div class="table-wrapper">
                 <table>
                     <thead>
                         <tr>
-                            <th>#</th>
-                            <th>User ID</th>
+                            <th style="width: 50px;">#</th>
+                            <th>Member</th>
                             <th>Level</th>
                             <th>XP</th>
                             <th>Messages</th>
@@ -45,9 +53,19 @@
                         <template x-for="(u, i) in data.top_users" :key="u.user_id">
                             <tr>
                                 <td><span class="badge" :class="'badge-rank-' + (i+1)" x-text="'#' + (i+1)"></span></td>
-                                <td><a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" x-text="u.user_id"></a></td>
+                                <td>
+                                    <a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" class="user-cell" style="text-decoration: none; color: inherit;">
+                                        <div class="user-avatar" :style="'background: ' + getAvatarColor(u.user_id)">
+                                            <span x-text="String(u.user_id).charAt(0)"></span>
+                                        </div>
+                                        <div class="user-info">
+                                            <div class="user-name" x-text="'User ' + String(u.user_id).slice(0, 6) + '...'"></div>
+                                            <div class="user-id" x-text="u.user_id"></div>
+                                        </div>
+                                    </a>
+                                </td>
                                 <td><span class="badge badge-level" x-text="'Lvl ' + u.level"></span></td>
-                                <td x-text="fmtNum(u.xp)"></td>
+                                <td style="font-weight: 600;" x-text="fmtNum(u.xp)"></td>
                                 <td x-text="fmtNum(u.messages)"></td>
                             </tr>
                         </template>
@@ -91,16 +109,17 @@ function analyticsData() {
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     plugins: {
                         legend: { display: false }
                     },
                     scales: {
                         x: {
-                            ticks: { color: '#a0a0b8' },
+                            ticks: { color: '#9d9db8' },
                             grid: { color: '#2a2a4a' }
                         },
                         y: {
-                            ticks: { color: '#a0a0b8' },
+                            ticks: { color: '#9d9db8' },
                             grid: { color: '#2a2a4a' },
                             beginAtZero: true
                         }

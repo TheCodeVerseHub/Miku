@@ -3,31 +3,31 @@
 {% block content %}
 
 <div x-data="rewardsData()" x-init="init()">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div class="page-header">
         <div>
-            <h2 style="margin-bottom: 6px;">Role Rewards</h2>
-            <p style="color: var(--text-secondary);">Award roles when users reach specific levels.</p>
+            <h2>Role Rewards</h2>
+            <p>Award roles when users reach specific levels.</p>
         </div>
         <button class="btn btn-primary" @click="showAdd = true">Add Reward</button>
     </div>
 
-    <div class="card">
+    <div class="card" style="padding: 0;">
         <div class="table-wrapper">
             <table>
                 <thead>
                     <tr>
                         <th>Level</th>
                         <th>Role ID</th>
-                        <th>Actions</th>
+                        <th style="width: 100px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <template x-for="r in rewards" :key="r.level">
                         <tr>
                             <td><span class="badge badge-level" x-text="'Level ' + r.level"></span></td>
-                            <td x-text="r.role_id"></td>
+                            <td style="font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 13px;" x-text="r.role_id"></td>
                             <td>
-                                <button class="btn btn-danger btn-sm" @click="remove(r.level)">Remove</button>
+                                <button class="btn btn-danger btn-xs" @click="remove(r.level)">Remove</button>
                             </td>
                         </tr>
                     </template>

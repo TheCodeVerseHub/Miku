@@ -115,6 +115,22 @@ function fmtNum(n) {
     return Number(n).toLocaleString();
 }
 
+/* Generate a consistent color from a user/guild ID */
+function getAvatarColor(id) {
+    let hash = 0;
+    const str = String(id);
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const colors = [
+        '#5865f2', '#ed4245', '#3ecf8e', '#fee75c',
+        '#eb459e', '#00b0f4', '#95e57a', '#ff73fa',
+        '#43b581', '#faa61a', '#9b59b6', '#1abc9c',
+        '#e91e63', '#00bcd4', '#ff5722', '#607d8b',
+    ];
+    return colors[Math.abs(hash) % colors.length];
+}
+
 function fmtDate(ts) {
     if (!ts) return 'N/A';
     return new Date(ts).toLocaleDateString();

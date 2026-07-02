@@ -3,40 +3,42 @@
 {% block content %}
 
 <div x-data="settingsData()" x-init="init()">
-    <h2 style="margin-bottom: 6px;">Server Settings</h2>
-    <p style="color: var(--text-secondary); margin-bottom: 20px;">General server configuration for Miku.</p>
-
-    <div class="card">
-        <h3 style="margin-bottom: 16px;">Level-Up Announcements</h3>
-        <div class="form-group">
-            <label class="form-label">Level-Up Channel ID</label>
-            <input class="form-input" type="number" x-model.number="settings.levelup_channel_id" placeholder="Leave empty for current channel">
-            <div class="form-hint">When set, level-up messages will go to this channel. When empty, announcements appear in the same channel as the message.</div>
+    <div class="page-header">
+        <div>
+            <h2>Server Settings</h2>
+            <p>General server configuration for Miku.</p>
         </div>
-        <button class="btn btn-primary" @click="save()">Save Settings</button>
     </div>
 
-    <div class="card">
-        <h3 style="margin-bottom: 16px;">Current Configuration</h3>
-        <div class="grid grid-2">
-            <div>
-                <div style="padding: 8px 0; display: flex; justify-content: space-between; border-bottom: 1px solid var(--border);">
-                    <span style="color: var(--text-secondary);">XP System</span>
-                    <span x-text="settings.xp_enabled ? 'Enabled' : 'Disabled'" :style="'color: ' + (settings.xp_enabled ? 'var(--success)' : 'var(--danger)')"></span>
-                </div>
-                <div style="padding: 8px 0; display: flex; justify-content: space-between; border-bottom: 1px solid var(--border);">
-                    <span style="color: var(--text-secondary);">XP Range</span>
-                    <span x-text="`${settings.min_xp} - ${settings.max_xp}`"></span>
-                </div>
+    <div class="grid grid-2">
+        <div class="card">
+            <h3>Level-Up Announcements</h3>
+            <div class="form-group">
+                <label class="form-label">Level-Up Channel ID</label>
+                <input class="form-input" type="number" x-model.number="settings.levelup_channel_id" placeholder="Leave empty for current channel">
+                <div class="form-hint">When set, level-up messages will go to this channel. When empty, announcements appear in the same channel as the message.</div>
             </div>
+            <button class="btn btn-primary" @click="save()">Save Settings</button>
+        </div>
+
+        <div class="card">
+            <h3>Current Configuration</h3>
             <div>
-                <div style="padding: 8px 0; display: flex; justify-content: space-between; border-bottom: 1px solid var(--border);">
-                    <span style="color: var(--text-secondary);">Cooldown</span>
-                    <span x-text="`${settings.cooldown_seconds}s`"></span>
+                <div class="config-row">
+                    <span class="config-label">XP System</span>
+                    <span class="config-value" x-text="settings.xp_enabled ? 'Enabled' : 'Disabled'" :style="'color: ' + (settings.xp_enabled ? 'var(--success)' : 'var(--danger)')"></span>
                 </div>
-                <div style="padding: 8px 0; display: flex; justify-content: space-between; border-bottom: 1px solid var(--border);">
-                    <span style="color: var(--text-secondary);">Level-Up Channel</span>
-                    <span x-text="settings.levelup_channel_id ? settings.levelup_channel_id : 'Same channel'"></span>
+                <div class="config-row">
+                    <span class="config-label">XP Range</span>
+                    <span class="config-value" x-text="`${settings.min_xp} - ${settings.max_xp}`"></span>
+                </div>
+                <div class="config-row">
+                    <span class="config-label">Cooldown</span>
+                    <span class="config-value" x-text="`${settings.cooldown_seconds}s`"></span>
+                </div>
+                <div class="config-row">
+                    <span class="config-label">Level-Up Channel</span>
+                    <span class="config-value" x-text="settings.levelup_channel_id ? settings.levelup_channel_id : 'Same channel'"></span>
                 </div>
             </div>
         </div>
