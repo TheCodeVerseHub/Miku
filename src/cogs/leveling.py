@@ -1,24 +1,31 @@
+"""Leveling Cog — XP tracking and leveling system.
+
+Business logic is delegated to :class:`LevelService`; this cog owns only the
+Discord presentation layer (commands, listeners, embed formatting).
 """
-Leveling Cog - XP tracking and leveling system
-Complete rewrite for Miku Bot
-"""
+
+from __future__ import annotations
+
+import logging
+import random
+import time
+from io import BytesIO
+from typing import Optional
 
 import discord
-from discord.ext import commands
 from discord import app_commands
-import time
-import random
-import logging
-from typing import Optional
-from io import BytesIO
+from discord.ext import commands
 
+from services.level_service import LevelService, XpSource
 from utils import database as db
 from utils.rank_card import RankCardGenerator
 
-logger = logging.getLogger('miku.leveling')
+logger = logging.getLogger("miku.leveling")
 
 
 class _LeaderboardView(discord.ui.View):
+    """Paginated leaderboard view."""
+
     def __init__(
         self,
         *,
@@ -40,32 +47,23 @@ class _LeaderboardView(discord.ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user is None:
             return False
-
         if interaction.user.id != self._author_id:
+            msg = "Only the user who ran the command can use these buttons."
             try:
-                await interaction.response.send_message(
-                    "Only the user who ran the command can use these buttons.",
-                    ephemeral=True,
-                )
+                await interaction.response.send_message(msg, ephemeral=True)
             except discord.InteractionResponded:
                 try:
-                    await interaction.followup.send(
-                        "Only the user who ran the command can use these buttons.",
-                        ephemeral=True,
-                    )
+                    await interaction.followup.send(msg, ephemeral=True)
                 except Exception:
                     pass
             return False
-
         if interaction.guild is None or interaction.guild.id != self._guild_id:
             return False
-
         return True
 
     def _sync_button_state(self) -> None:
         prev_button = getattr(self, "prev_page", None)
         next_button = getattr(self, "next_page", None)
-
         if prev_button is not None:
             prev_button.disabled = self.page <= 1
         if next_button is not None:
@@ -74,13 +72,9 @@ class _LeaderboardView(discord.ui.View):
     async def _refresh(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
             return
-
         embed, page, total_pages, has_data = await self._cog._build_leaderboard_embed(
-            interaction.guild,
-            page=self.page,
-            per_page=self._per_page,
+            interaction.guild, page=self.page, per_page=self._per_page,
         )
-
         if not has_data:
             self.stop()
             for item in self.children:
@@ -88,22 +82,18 @@ class _LeaderboardView(discord.ui.View):
             try:
                 await interaction.response.edit_message(
                     content="No one has earned any XP yet! Start chatting to level up!",
-                    embed=None,
-                    view=self,
+                    embed=None, view=self,
                 )
             except discord.InteractionResponded:
                 if interaction.message is not None:
                     await interaction.message.edit(
                         content="No one has earned any XP yet! Start chatting to level up!",
-                        embed=None,
-                        view=self,
+                        embed=None, view=self,
                     )
             return
-
         self.page = page
         self.total_pages = total_pages
         self._sync_button_state()
-
         try:
             await interaction.response.edit_message(embed=embed, view=self)
         except discord.InteractionResponded:
@@ -113,14 +103,12 @@ class _LeaderboardView(discord.ui.View):
     async def on_timeout(self) -> None:
         for item in self.children:
             item.disabled = True
-
-        try:
-            # View.message is set by discord.py after sending.
-            message = getattr(self, "message", None)
-            if message is not None:
+        message = getattr(self, "message", None)
+        if message is not None:
+            try:
                 await message.edit(view=self)
-        except Exception:
-            pass
+            except Exception:
+                pass
 
     @discord.ui.button(label="◀ Prev", style=discord.ButtonStyle.secondary)
     async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -132,24 +120,22 @@ class _LeaderboardView(discord.ui.View):
         self.page = min(self.total_pages, self.page + 1)
         await self._refresh(interaction)
 
+
 class Leveling(commands.Cog):
-    """XP and leveling system for Discord servers"""
-    
-    EMBED_COLOR = discord.Color.from_rgb(88, 101, 242)  # Discord blurple
-    
+    """XP and leveling system for Discord servers."""
+
+    EMBED_COLOR = discord.Color.from_rgb(88, 101, 242)
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.xp_cooldown = {}  # Track cooldowns per user per guild
         self.rank_card_generator = RankCardGenerator()
-    
+        self.service = LevelService(bot)
+
     async def cog_load(self):
-        """Called when cog is loaded"""
         logger.info("Leveling cog loaded")
-    
+
     async def cog_unload(self):
-        """Called when cog is unloaded"""
         logger.info("Leveling cog unloaded")
-        # Best-effort cleanup for rank card generator HTTP session
         try:
             close = getattr(self.rank_card_generator, "close", None)
             if close:
@@ -160,374 +146,135 @@ class Leveling(commands.Cog):
             logger.exception("Failed to close RankCardGenerator")
 
     async def _send(self, ctx: commands.Context, *args, **kwargs):
-        """Send helper that works for both prefix and interaction invocations.
-
-        For interactions, responses must be sent within ~3s unless deferred.
-        If an interaction has expired (error 10062), we fall back to a normal
-        channel message as a last resort.
-        """
+        """Send helper handling both prefix and slash invocations."""
         interaction = getattr(ctx, "interaction", None)
-
         if interaction is None:
             kwargs.pop("ephemeral", None)
-
         try:
             return await ctx.send(*args, **kwargs)
         except discord.NotFound as e:
-            # Slash interaction expired/invalid (common if not deferred quickly).
-            # Fall back to a plain channel send (cannot be ephemeral).
             if interaction is not None and getattr(e, "code", None) == 10062 and getattr(ctx, "channel", None) is not None:
                 kwargs.pop("ephemeral", None)
-                return await ctx.channel.send(*args, **kwargs)  # type: ignore[union-attr]
+                return await ctx.channel.send(*args, **kwargs)
             raise
         except discord.InteractionResponded:
-            # If something already responded via interaction, use follow-up.
             if interaction is not None:
                 return await interaction.followup.send(*args, **kwargs)
             raise
 
     async def _maybe_defer(self, ctx: commands.Context, *, ephemeral: bool = False):
-        """Defer only when invoked as a slash command and not already acknowledged."""
         interaction = getattr(ctx, "interaction", None)
         if interaction is None:
             return
-
-        # Avoid double-acknowledging the interaction.
         if interaction.response.is_done():
             return
-
         try:
             await ctx.defer(ephemeral=ephemeral)
         except discord.NotFound:
-            # Interaction already expired; caller should rely on _send() fallback.
             return
         except discord.HTTPException:
             return
-    
-    # ========================================================================
-    # Leveling Formula
-    # ========================================================================
-    
-    def calculate_level(self, xp: int) -> int:
-        """Calculate level from total XP using Arcane/MEE6-style formula"""
-        # We model leveling as: every level requires some XP, and total XP is the
-        # sum of all previous level requirements.
-        # Formula per-level: xp_needed = 5*(level^2) + 50*level + 100
-        level = 0
-        xp_needed = 0
-        while xp_needed <= xp:
-            level += 1
-            xp_needed += 5 * (level ** 2) + (50 * level) + 100
-        return max(0, level - 1)
-    
-    def calculate_xp_for_level(self, level: int) -> int:
-        """Calculate total XP needed to reach a level"""
-        total_xp = 0
-        for lvl in range(1, level + 1):
-            total_xp += 5 * (lvl ** 2) + (50 * lvl) + 100
-        return total_xp
-    
-    def calculate_xp_to_next_level(self, current_xp: int, current_level: int) -> tuple:
-        """Calculate XP progress for next level
-        Returns: (xp_needed, xp_progress, xp_required_for_level)
-        """
-        xp_for_current = self.calculate_xp_for_level(current_level)
-        xp_for_next = self.calculate_xp_for_level(current_level + 1)
-        xp_needed = xp_for_next - current_xp
-        xp_progress = current_xp - xp_for_current
-        xp_required_for_level = xp_for_next - xp_for_current
-        return xp_needed, xp_progress, xp_required_for_level
-    
-    # ========================================================================
-    # XP Tracking
-    # ========================================================================
-    
+
+    # ──────────────────────────────────────────────────────────────────
+    # Formula helpers (delegated to service)
+    # ──────────────────────────────────────────────────────────────────
+
+    def calculate_level(self, xp: int, guild_id: int = 0) -> int:
+        return self.service.calculate_level(xp, guild_id)
+
+    def calculate_xp_for_level(self, level: int, guild_id: int = 0) -> int:
+        return self.service.calculate_xp_for_level(level, guild_id)
+
+    def calculate_xp_to_next_level(self, current_xp: int, current_level: int, guild_id: int = 0) -> tuple:
+        return self.service.calculate_xp_to_next_level(current_xp, current_level, guild_id)
+
+    # ──────────────────────────────────────────────────────────────────
+    # Message XP listener
+    # ──────────────────────────────────────────────────────────────────
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        """Award XP for messages"""
-        # Ignore bots and DMs
-        if message.author.bot or not message.guild:
+        result = await self.service.award_message_xp(message)
+        if result is None:
             return
+        if result["leveled_up"]:
+            await self.service.handle_level_up(
+                guild=message.guild,
+                member=message.author,
+                old_level=result["old_level"],
+                new_level=result["new_level"],
+                fallback_channel=message.channel,
+            )
 
-        # High-level flow:
-        # 1) Cooldown check (to avoid farming XP by spamming messages)
-        # 2) Read current user row from DB (or treat as new user)
-        # 3) Add random XP and recompute level
-        # 4) Upsert DB row
-        # 5) If level increased -> announce + role rewards
-        
-        user_id = message.author.id
-        guild = message.guild
-        guild_id = guild.id
-        current_time = time.time()
-        
-        # Cooldown is kept in-memory (resets when the bot restarts).
-        # Persistent anti-spam would be implemented at the DB layer.
-        # Check cooldown (60 seconds default)
-        cooldown_key = f"{user_id}_{guild_id}"
-        if cooldown_key in self.xp_cooldown:
-            if current_time - self.xp_cooldown[cooldown_key] < 60:
-                return
-        
-        # Update cooldown
-        self.xp_cooldown[cooldown_key] = current_time
-        
-        # DB returns a dict with keys: xp, level, messages, last_message_time, ...
-        user_data = await db.get_user_data(user_id, guild_id)
-        
-        if user_data:
-            current_xp = user_data['xp']
-            current_level = user_data['level']
-            messages = user_data['messages']
-        else:
-            current_xp = 0
-            current_level = 0
-            messages = 0
-        
-        # Award random XP (15-25 per message)
-        xp_gain = random.randint(15, 25)
-        new_xp = current_xp + xp_gain
-        new_level = self.calculate_level(new_xp)
-        messages += 1
-        
-        # Single write that INSERTs new users or UPDATEs existing ones.
-        await db.update_user_xp(user_id, guild_id, new_xp, new_level, messages, current_time)
-        
-        # Check for level up
-        if new_level > current_level:
-            await self.handle_level_up(message, old_level=current_level, new_level=new_level)
-    
-    async def handle_level_up(self, message: discord.Message, *, old_level: int, new_level: int):
-        """Handle level up event"""
-        if message.guild is None:
-            return
-
-        user = message.author
-        guild = message.guild
-        
-        # Create level up embed
-        embed = discord.Embed(
-            title=" Level Up!",
-            description=f"Congratulations {user.mention}! You've reached **Level {new_level}**!",
-            color=self.EMBED_COLOR
-        )
-        embed.set_thumbnail(url=user.display_avatar.url)
-        
-        # Get custom levelup channel or use current channel
-        guild_settings = await db.get_guild_settings(guild.id)
-        target_channel: discord.abc.Messageable = message.channel
-        used_custom_channel = False
-        
-        if guild_settings and guild_settings.get('levelup_channel_id'):
-            custom_channel = guild.get_channel(guild_settings['levelup_channel_id'])
-            # Only accept channels that can actually send messages
-            if custom_channel is not None and hasattr(custom_channel, "send"):
-                target_channel = custom_channel  # type: ignore[assignment]
-                used_custom_channel = True
-        
-        # Send level up message
-        try:
-            if used_custom_channel:
-                # If a dedicated level-up channel is configured, keep the message.
-                await target_channel.send(embed=embed)
-            else:
-                # If no dedicated channel is set, announce in the same channel
-                # but auto-delete shortly to avoid clutter.
-                await target_channel.send(embed=embed, delete_after=random.uniform(3, 5))
-        except Exception:
-            if target_channel != message.channel:
-                try:
-                    await message.channel.send(embed=embed, delete_after=random.uniform(3, 5))
-                except Exception:
-                    pass
-        
-        # Assign role rewards
-        if isinstance(user, discord.Member):
-            # If someone jumps multiple levels in one update (e.g., admin XP set),
-            # grant rewards for each level reached.
-            for reached_level in range(old_level + 1, new_level + 1):
-                await self.assign_role_reward(guild, user, reached_level)
-    
-    async def assign_role_reward(self, guild: discord.Guild, user: discord.Member, level: int):
-        """Assign role reward for reaching a level"""
-        role_id = await db.get_role_for_level(guild.id, level)
-        
-        if role_id:
-            role = guild.get_role(role_id)
-            if role is None:
-                logger.warning(
-                    "Role reward target role not found (guild=%s level=%s role_id=%s)",
-                    guild.id,
-                    level,
-                    role_id,
-                )
-                return
-
-            if role.managed:
-                logger.warning(
-                    "Role reward role is managed and cannot be assigned (guild=%s level=%s role=%s)",
-                    guild.id,
-                    level,
-                    role.id,
-                )
-                return
-
-            if role in user.roles:
-                return
-
-            bot_member: Optional[discord.Member] = guild.me
-            if bot_member is None and self.bot.user is not None:
-                bot_member = guild.get_member(self.bot.user.id)
-
-            if bot_member is None and self.bot.user is not None:
-                try:
-                    bot_member = await guild.fetch_member(self.bot.user.id)
-                except discord.HTTPException:
-                    bot_member = None
-
-            if bot_member is None:
-                logger.warning(
-                    "Cannot resolve bot member for role reward checks (guild=%s)",
-                    guild.id,
-                )
-                return
-
-            if not bot_member.guild_permissions.manage_roles:
-                logger.warning(
-                    "Missing Manage Roles permission (guild=%s)",
-                    guild.id,
-                )
-                return
-
-            # Bot must be above the role in hierarchy.
-            if bot_member.top_role <= role:
-                logger.warning(
-                    "Bot role is not high enough to assign role (guild=%s level=%s role=%s bot_top=%s)",
-                    guild.id,
-                    level,
-                    role.id,
-                    bot_member.top_role.id,
-                )
-                return
-
-            try:
-                await user.add_roles(role, reason=f"Level {level} reward")
-                logger.info(
-                    "Assigned role reward (guild=%s user=%s level=%s role=%s)",
-                    guild.id,
-                    user.id,
-                    level,
-                    role.id,
-                )
-            except discord.Forbidden:
-                logger.warning(
-                    "Forbidden while assigning role reward (guild=%s user=%s level=%s role=%s)",
-                    guild.id,
-                    user.id,
-                    level,
-                    role.id,
-                )
-            except Exception:
-                logger.exception(
-                    "Failed to assign role reward (guild=%s user=%s level=%s role=%s)",
-                    guild.id,
-                    user.id,
-                    level,
-                    role.id,
-                )
+    # ──────────────────────────────────────────────────────────────────
+    # Leaderboard embed builder
+    # ──────────────────────────────────────────────────────────────────
 
     async def _build_leaderboard_embed(
-        self,
-        guild: discord.Guild,
-        *,
-        page: int,
-        per_page: int,
+        self, guild: discord.Guild, *, page: int, per_page: int,
     ) -> tuple[discord.Embed, int, int, bool]:
-        """Build the leaderboard embed for a given page.
-
-        Returns: (embed, clamped_page, total_pages, has_data)
-        """
-
         total_users = await db.get_total_users(guild.id)
         if total_users <= 0:
             embed = discord.Embed(
-                title=f" {guild.name} Leaderboard",
+                title=f"\N{TROPHY} {guild.name} Leaderboard",
                 description="No one has earned any XP yet! Start chatting to level up!",
                 color=self.EMBED_COLOR,
             )
-            embed.set_footer(text="Page 1/1 • 0 total users")
+            embed.set_footer(text="Page 1/1 \u2022 0 total users")
             return embed, 1, 1, False
 
         total_pages = max(1, (total_users + per_page - 1) // per_page)
         page = max(1, min(page, total_pages))
         offset = (page - 1) * per_page
-
         lb_data = await db.get_leaderboard(guild.id, limit=per_page, offset=offset)
 
         embed = discord.Embed(
-            title=f" {guild.name} Leaderboard",
+            title=f"\N{TROPHY} {guild.name} Leaderboard",
             color=self.EMBED_COLOR,
         )
-
-        leaderboard_lines: list[str] = []
+        lines: list[str] = []
         for idx, entry in enumerate(lb_data, start=offset + 1):
             member = guild.get_member(entry["user_id"])
             display = member.display_name if member is not None else f"<@{entry['user_id']}>"
-
-            medals = ["🥇", "🥈", "🥉"]
+            medals = ["\U0001F947", "\U0001F948", "\U0001F949"]
             medal = medals[idx - 1] if idx <= 3 else f"`#{idx}`"
-
-            leaderboard_lines.append(
+            lines.append(
                 f"{medal} **{display}**\n"
-                f"     Level {entry['level']} • {entry['xp']:,} XP • {entry['messages']:,} messages"
+                f"     Level {entry['level']} \u2022 {entry['xp']:,} XP \u2022 {entry['messages']:,} messages"
             )
-
-        embed.description = "\n\n".join(leaderboard_lines) if leaderboard_lines else "No user data available"
-        embed.set_footer(text=f"Page {page}/{total_pages} • {total_users} total users")
+        embed.description = "\n\n".join(lines) if lines else "No user data available"
+        embed.set_footer(text=f"Page {page}/{total_pages} \u2022 {total_users} total users")
         return embed, page, total_pages, True
-    
-    # ========================================================================
-    # User Commands
-    # ========================================================================
-    
-    @commands.hybrid_command(
-        name='rank',
-        aliases=['level', 'lvl'],
-        description='View your or another user\'s rank card'
-    )
+
+    # ──────────────────────────────────────────────────────────────────
+    # User commands
+    # ──────────────────────────────────────────────────────────────────
+
+    @commands.hybrid_command(name="rank", aliases=["level", "lvl"], description="View your or another user's rank card")
     @commands.guild_only()
-    @app_commands.describe(user='The user to check (leave empty for yourself)')
+    @app_commands.describe(user="The user to check (leave empty for yourself)")
     async def rank(self, ctx: commands.Context, user: Optional[discord.Member] = None):
-        """Display rank card for a user"""
         if ctx.guild is None:
             return
-
         target = user or ctx.author
-        
         if target.bot:
             await self._send(ctx, "Bots don't have ranks!", ephemeral=True)
             return
-
         await self._maybe_defer(ctx)
-        
-        # Get user data
+
         user_data = await db.get_user_data(target.id, ctx.guild.id)
-        
         if not user_data:
             await self._send(ctx, f"{target.mention} hasn't earned any XP yet!")
             return
-        
-        xp = user_data['xp']
-        level = user_data['level']
-        messages = user_data['messages']
+
+        xp = user_data["xp"]
+        level = user_data["level"]
+        messages = user_data["messages"]
         rank = await db.get_user_rank(target.id, ctx.guild.id)
-        
         if rank is None:
             rank = 0
-        
-        xp_needed, xp_progress, xp_required = self.calculate_xp_to_next_level(xp, level)
-        
-        # Generate rank card
+        xp_needed, xp_progress, xp_required = self.calculate_xp_to_next_level(xp, level, ctx.guild.id)
+
         try:
             card_image = await self.rank_card_generator.generate_rank_card(
                 avatar_url=target.display_avatar.url,
@@ -538,400 +285,341 @@ class Leveling(commands.Cog):
                 required_xp=xp_required,
                 total_xp=xp,
                 messages=messages,
-                accent_color=(88, 101, 242)
+                accent_color=(88, 101, 242),
             )
-
-            # Support both implementations:
-            # - return value is bytes (preferred)
-            # - return value is PIL Image, requiring save_to_bytes
             if isinstance(card_image, (bytes, bytearray, memoryview)):
-                file = discord.File(fp=BytesIO(bytes(card_image)), filename='rank_card.png')
+                file = discord.File(fp=BytesIO(bytes(card_image)), filename="rank_card.png")
             else:
                 image_bytes = self.rank_card_generator.save_to_bytes(card_image)
-                file = discord.File(fp=image_bytes, filename='rank_card.png')
-
+                file = discord.File(fp=image_bytes, filename="rank_card.png")
             await self._send(ctx, file=file)
-            
         except Exception as e:
-            logger.error(f"Rank card generation failed: {e}")
-            
-            # Fallback to embed
-            embed = discord.Embed(
-                title=f" {target.display_name}'s Rank",
-                color=self.EMBED_COLOR
-            )
+            logger.error("Rank card generation failed: %s", e)
+            embed = discord.Embed(title=f"\U0001F3C6 {target.display_name}'s Rank", color=self.EMBED_COLOR)
             embed.set_thumbnail(url=target.display_avatar.url)
             embed.add_field(name="Rank", value=f"#{rank}", inline=True)
-            embed.add_field(name="Level", value=f"{level}", inline=True)
+            embed.add_field(name="Level", value=str(level), inline=True)
             embed.add_field(name="Messages", value=f"{messages:,}", inline=True)
             embed.add_field(
                 name="XP Progress",
                 value=f"{xp_progress:,} / {xp_required:,} ({xp_needed:,} to level {level + 1})",
-                inline=False
+                inline=False,
             )
             embed.set_footer(text=f"Total XP: {xp:,}")
             await self._send(ctx, embed=embed)
-    
-    @commands.hybrid_command(
-        name='leaderboard',
-        aliases=['lb', 'top'],
-        description='View the server leaderboard'
-    )
+
+    @commands.hybrid_command(name="leaderboard", aliases=["lb", "top"], description="View the server leaderboard")
     @commands.guild_only()
-    @app_commands.describe(page='Page number to view')
+    @app_commands.describe(page="Page number to view")
     async def leaderboard(self, ctx: commands.Context, page: int = 1):
-        """Display server leaderboard"""
         if ctx.guild is None:
             return
-
         await self._maybe_defer(ctx)
-
         per_page = 10
         embed, page, total_pages, has_data = await self._build_leaderboard_embed(
-            ctx.guild,
-            page=page,
-            per_page=per_page,
+            ctx.guild, page=page, per_page=per_page,
         )
-
         if not has_data:
             await self._send(ctx, "No one has earned any XP yet! Start chatting to level up!", ephemeral=True)
             return
-
         view = _LeaderboardView(
-            cog=self,
-            author_id=ctx.author.id,
-            guild_id=ctx.guild.id,
-            page=page,
-            per_page=per_page,
+            cog=self, author_id=ctx.author.id, guild_id=ctx.guild.id,
+            page=page, per_page=per_page,
         )
         view.total_pages = total_pages
         view._sync_button_state()
-
         await self._send(ctx, embed=embed, view=view)
-    
-    @commands.hybrid_command(
-        name='xp',
-        description='View detailed XP information'
-    )
+
+    @commands.hybrid_command(name="xp", description="View detailed XP information")
     @commands.guild_only()
-    @app_commands.describe(user='The user to check')
+    @app_commands.describe(user="The user to check")
     async def xp(self, ctx: commands.Context, user: Optional[discord.Member] = None):
-        """Display detailed XP information"""
         if ctx.guild is None:
             return
-
         target = user or ctx.author
-        
         if target.bot:
             await self._send(ctx, "Bots don't have XP!", ephemeral=True)
             return
-
         await self._maybe_defer(ctx)
-        
+
         user_data = await db.get_user_data(target.id, ctx.guild.id)
-        
         if not user_data:
             await self._send(ctx, f"{target.mention} hasn't earned any XP yet!", ephemeral=True)
             return
-        
-        xp = user_data['xp']
-        level = user_data['level']
-        messages = user_data['messages']
+
+        xp = user_data["xp"]
+        level = user_data["level"]
+        messages = user_data["messages"]
         rank = await db.get_user_rank(target.id, ctx.guild.id)
-        
-        xp_needed, xp_progress, xp_required = self.calculate_xp_to_next_level(xp, level)
+        if rank is None:
+            rank = 0
+        xp_needed, xp_progress, xp_required = self.calculate_xp_to_next_level(xp, level, ctx.guild.id)
         avg_xp = xp / messages if messages > 0 else 0
-        
-        embed = discord.Embed(
-            title=f" {target.display_name}'s XP Details",
-            color=self.EMBED_COLOR
-        )
+
+        embed = discord.Embed(title=f"\U0001F4CA {target.display_name}'s XP Details", color=self.EMBED_COLOR)
         embed.set_thumbnail(url=target.display_avatar.url)
         embed.add_field(name="Server Rank", value=f"#{rank}", inline=True)
-        embed.add_field(name="Level", value=f"{level}", inline=True)
+        embed.add_field(name="Level", value=str(level), inline=True)
         embed.add_field(name="Total XP", value=f"{xp:,}", inline=True)
         embed.add_field(name="Messages", value=f"{messages:,}", inline=True)
         embed.add_field(name="Avg XP/Message", value=f"{avg_xp:.1f}", inline=True)
         embed.add_field(name="XP to Level Up", value=f"{xp_needed:,}", inline=True)
         embed.add_field(
             name="Progress to Next Level",
-            value=f"{xp_progress:,} / {xp_required:,} ({(xp_progress/xp_required*100):.1f}%)",
-            inline=False
+            value=f"{xp_progress:,} / {xp_required:,} ({(xp_progress / xp_required * 100):.1f}%)",
+            inline=False,
         )
-        
         await self._send(ctx, embed=embed)
-    
-    # ========================================================================
-    # Admin Commands - Level Management
-    # ========================================================================
-    
-    @commands.hybrid_command(
-        name='setlevel',
-        description='Set a user\'s level (Admin only)'
-    )
+
+    # ──────────────────────────────────────────────────────────────────
+    # Admin commands — Level management (all delegate to LevelService)
+    # ──────────────────────────────────────────────────────────────────
+
+    @commands.hybrid_command(name="setlevel", description="Set a user's level (Admin only)")
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
-    @app_commands.describe(user='The user', level='The level to set')
+    @app_commands.describe(user="The user", level="The level to set")
     async def setlevel(self, ctx: commands.Context, user: discord.Member, level: int):
-        """Set a user's level"""
         if ctx.guild is None:
             return
-
         await self._maybe_defer(ctx)
-
-        if level < 0:
-            await self._send(ctx, " Level must be 0 or higher!", ephemeral=True)
+        try:
+            result = await self.service.set_level(
+                guild_id=ctx.guild.id,
+                user_id=user.id,
+                level=level,
+                admin_id=ctx.author.id,
+                reason=f"setlevel by {ctx.author}",
+            )
+        except ValueError as e:
+            await self._send(ctx, f"\u274c {e}", ephemeral=True)
             return
-        
-        xp = self.calculate_xp_for_level(level)
-        
-        # Preserve message count
-        user_data = await db.get_user_data(user.id, ctx.guild.id)
-        messages = user_data['messages'] if user_data else 0
-        
-        await db.update_user_xp(user.id, ctx.guild.id, xp, level, messages, time.time())
-        
+
+        await self._ensure_refresh_rewards(ctx.guild, user)
+
         embed = discord.Embed(
-            title=" Level Set",
-            description=f"Set {user.mention} to **Level {level}** ({xp:,} XP)",
-            color=self.EMBED_COLOR
+            title="\U0001F3AF Level Set",
+            description=f"Set {user.mention} to **Level {level}** ({result['xp']:,} XP)",
+            color=self.EMBED_COLOR,
         )
         await self._send(ctx, embed=embed)
-    
-    @commands.hybrid_command(
-        name='addxp',
-        description='Add XP to a user (Admin only)'
-    )
+
+    @commands.hybrid_command(name="addxp", description="Add XP to a user (Admin only)")
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
-    @app_commands.describe(user='The user', amount='Amount of XP to add')
+    @app_commands.describe(user="The user", amount="Amount of XP to add")
     async def addxp(self, ctx: commands.Context, user: discord.Member, amount: int):
-        """Add XP to a user"""
         if ctx.guild is None:
             return
-
         await self._maybe_defer(ctx)
+        result = await self.service.add_xp(
+            guild_id=ctx.guild.id,
+            user_id=user.id,
+            amount=amount,
+            admin_id=ctx.author.id,
+            reason=f"addxp by {ctx.author}",
+        )
 
-        user_data = await db.get_user_data(user.id, ctx.guild.id)
-        
-        if user_data:
-            new_xp = user_data['xp'] + amount
-            messages = user_data['messages']
-        else:
-            new_xp = max(0, amount)
-            messages = 0
-        
-        new_level = self.calculate_level(new_xp)
-        await db.update_user_xp(user.id, ctx.guild.id, new_xp, new_level, messages, time.time())
-        
+        await self._ensure_refresh_rewards(ctx.guild, user)
+
         embed = discord.Embed(
-            title=" XP Added",
-            description=f"Added {amount:,} XP to {user.mention}\nNew Level: **{new_level}** | Total XP: {new_xp:,}",
-            color=self.EMBED_COLOR
+            title="\u2795 XP Added",
+            description=f"Added {amount:,} XP to {user.mention}\nNew Level: **{result['new_level']}** | Total XP: {result['new_xp']:,}",
+            color=self.EMBED_COLOR,
         )
         await self._send(ctx, embed=embed)
-    
-    @commands.hybrid_command(
-        name='resetlevel',
-        description='Reset a user\'s level data (Admin only)'
-    )
+
+    @commands.hybrid_command(name="removexp", description="Remove XP from a user (Admin only)")
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
-    @app_commands.describe(user='The user to reset')
+    @app_commands.describe(user="The user", amount="Amount of XP to remove")
+    async def removexp(self, ctx: commands.Context, user: discord.Member, amount: int):
+        if ctx.guild is None:
+            return
+        await self._maybe_defer(ctx)
+        result = await self.service.remove_xp(
+            guild_id=ctx.guild.id,
+            user_id=user.id,
+            amount=amount,
+            admin_id=ctx.author.id,
+            reason=f"removexp by {ctx.author}",
+        )
+
+        embed = discord.Embed(
+            title="\u2796 XP Removed",
+            description=f"Removed {amount:,} XP from {user.mention}\nNew Level: **{result['new_level']}** | Total XP: {result['new_xp']:,}",
+            color=self.EMBED_COLOR,
+        )
+        await self._send(ctx, embed=embed)
+
+    @commands.hybrid_command(name="resetlevel", description="Reset a user's XP data (Admin only)")
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
+    @app_commands.describe(user="The user to reset")
     async def resetlevel(self, ctx: commands.Context, user: discord.Member):
-        """Reset a user's level data"""
         if ctx.guild is None:
             return
-
         await self._maybe_defer(ctx)
-
-        await db.reset_user_data(user.id, ctx.guild.id)
-        
+        await self.service.reset_member(
+            guild_id=ctx.guild.id,
+            user_id=user.id,
+            admin_id=ctx.author.id,
+            reason=f"resetlevel by {ctx.author}",
+        )
         embed = discord.Embed(
-            title=" Level Reset",
+            title="\U0001F504 Level Reset",
             description=f"Reset all level data for {user.mention}",
-            color=self.EMBED_COLOR
+            color=self.EMBED_COLOR,
         )
         await self._send(ctx, embed=embed)
-    
-    @commands.hybrid_command(
-        name='resetalllevels',
-        description='Reset all server level data (Admin only)'
-    )
+
+    @commands.hybrid_command(name="resetalllevels", description="Reset all server level data (Admin only)")
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
-    @app_commands.describe(confirm='Type CONFIRM to proceed')
+    @app_commands.describe(confirm="Type CONFIRM to proceed")
     async def resetalllevels(self, ctx: commands.Context, confirm: Optional[str] = None):
-        """Reset all level data in the server"""
         if ctx.guild is None:
             return
-
         await self._maybe_defer(ctx)
-
         if confirm != "CONFIRM":
             embed = discord.Embed(
-                title=" Warning",
+                title="\u26a0\ufe0f Warning",
                 description="This will **delete all level data** for this server!\n\n"
-                           f"To proceed, use: `{ctx.prefix}resetalllevels CONFIRM`",
-                color=discord.Color.red()
+                f"To proceed, use: `{ctx.prefix}resetalllevels CONFIRM`",
+                color=discord.Color.red(),
             )
             await self._send(ctx, embed=embed)
             return
-        
-        await db.reset_guild_data(ctx.guild.id)
-        
+        await self.service.reset_guild(
+            guild_id=ctx.guild.id,
+            admin_id=ctx.author.id,
+            reason=f"resetalllevels by {ctx.author}",
+        )
         embed = discord.Embed(
-            title=" All Levels Reset",
+            title="\U0001F504 All Levels Reset",
             description="All level data has been reset for this server",
-            color=self.EMBED_COLOR
+            color=self.EMBED_COLOR,
         )
         await self._send(ctx, embed=embed)
-    
-    # ========================================================================
-    # Admin Commands - Configuration
-    # ========================================================================
-    
-    @commands.hybrid_command(
-        name='setlevelchannel',
-        description='Set the level-up announcement channel (Admin only)'
-    )
+
+    # ──────────────────────────────────────────────────────────────────
+    # Admin commands — Configuration
+    # ──────────────────────────────────────────────────────────────────
+
+    @commands.hybrid_command(name="setlevelchannel", description="Set the level-up announcement channel (Admin only)")
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
-    @app_commands.describe(channel='The channel for level-up announcements')
+    @app_commands.describe(channel="The channel for level-up announcements")
     async def setlevelchannel(self, ctx: commands.Context, channel: Optional[discord.TextChannel] = None):
-        """Set or remove the level-up announcement channel"""
         if ctx.guild is None:
             return
-
         await self._maybe_defer(ctx)
-
         if channel:
             await db.set_levelup_channel(ctx.guild.id, channel.id)
             embed = discord.Embed(
-                title=" Level-Up Channel Set",
+                title="\U0001F4E2 Level-Up Channel Set",
                 description=f"Level-up announcements will be sent to {channel.mention}",
-                color=self.EMBED_COLOR
+                color=self.EMBED_COLOR,
             )
         else:
             await db.set_levelup_channel(ctx.guild.id, None)
             embed = discord.Embed(
-                title=" Level-Up Channel Removed",
+                title="\U0001F4E2 Level-Up Channel Removed",
                 description="Level-up announcements will be sent in the same channel as messages",
-                color=self.EMBED_COLOR
+                color=self.EMBED_COLOR,
             )
-        
         await self._send(ctx, embed=embed)
-    
-    @commands.hybrid_command(
-        name='addrole',
-        description='Add a role reward for a level (Admin only)'
-    )
+
+    @commands.hybrid_command(name="addrole", description="Add a role reward for a level (Admin only)")
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
-    @app_commands.describe(level='The level', role='The role to award')
+    @app_commands.describe(level="The level", role="The role to award")
     async def addrole(self, ctx: commands.Context, level: int, role: discord.Role):
-        """Add a role reward for reaching a level"""
         if ctx.guild is None:
             return
-
         await self._maybe_defer(ctx)
-
         if level < 1:
-            await self._send(ctx, " Level must be 1 or higher!", ephemeral=True)
+            await self._send(ctx, "\u274c Level must be 1 or higher!", ephemeral=True)
             return
-        
-        # Check if bot can manage this role
         me = ctx.guild.me
         if me is None or role >= me.top_role:
-            await self._send(ctx, " I cannot assign this role! It's higher than or equal to my highest role.", ephemeral=True)
+            await self._send(ctx, "\u274c I cannot assign this role! It's higher than or equal to my highest role.", ephemeral=True)
             return
-        
         if role.managed:
-            await self._send(ctx, " This role is managed by an integration and cannot be assigned!", ephemeral=True)
+            await self._send(ctx, "\u274c This role is managed by an integration and cannot be assigned!", ephemeral=True)
             return
-        
         await db.add_role_reward(ctx.guild.id, level, role.id)
-        
         embed = discord.Embed(
-            title=" Role Reward Added",
+            title="\U0001F3C6 Role Reward Added",
             description=f"Users will receive {role.mention} when they reach **Level {level}**",
-            color=self.EMBED_COLOR
+            color=self.EMBED_COLOR,
         )
         await self._send(ctx, embed=embed)
-    
-    @commands.hybrid_command(
-        name='removerole',
-        description='Remove a role reward (Admin only)'
-    )
+
+    @commands.hybrid_command(name="removerole", description="Remove a role reward (Admin only)")
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
-    @app_commands.describe(level='The level to remove the role reward from')
+    @app_commands.describe(level="The level to remove the role reward from")
     async def removerole(self, ctx: commands.Context, level: int):
-        """Remove a role reward for a level"""
         if ctx.guild is None:
             return
-
         await self._maybe_defer(ctx)
-
         result = await db.remove_role_reward(ctx.guild.id, level)
-        
         if result:
             embed = discord.Embed(
-                title=" Role Reward Removed",
+                title="\U0001F3C6 Role Reward Removed",
                 description=f"Removed role reward for **Level {level}**",
-                color=self.EMBED_COLOR
+                color=self.EMBED_COLOR,
             )
         else:
             embed = discord.Embed(
-                title=" Not Found",
+                title="Not Found",
                 description=f"No role reward found for Level {level}",
-                color=discord.Color.red()
+                color=discord.Color.red(),
             )
-        
         await self._send(ctx, embed=embed)
-    
-    @commands.hybrid_command(
-        name='rolerewards',
-        aliases=['listroles'],
-        description='View all role rewards'
-    )
+
+    @commands.hybrid_command(name="rolerewards", aliases=["listroles"], description="View all role rewards")
     @commands.guild_only()
     async def rolerewards(self, ctx: commands.Context):
-        """List all configured role rewards"""
         if ctx.guild is None:
             return
-
         await self._maybe_defer(ctx)
-
         role_rewards = await db.get_role_rewards(ctx.guild.id)
-        
         if not role_rewards:
             await self._send(ctx, "No role rewards have been configured yet!", ephemeral=True)
             return
-        
         embed = discord.Embed(
-            title=" Role Rewards",
+            title="\U0001F3C6 Role Rewards",
             description="Roles awarded for reaching specific levels",
-            color=self.EMBED_COLOR
+            color=self.EMBED_COLOR,
         )
-        
         rewards_text = ""
         for reward in role_rewards:
-            role_id = reward['role_id']
+            role_id = reward["role_id"]
             role = ctx.guild.get_role(role_id)
             logger.info(
-                "rolerewards: guild=%s level=%s role_id=%s (type=%s) resolved=%s",
-                ctx.guild.id, reward['level'], role_id, type(role_id).__name__,
-                role.id if role else None,
+                "rolerewards: guild=%s level=%s role_id=%s resolved=%s",
+                ctx.guild.id, reward["level"], role_id, role.id if role else None,
             )
             if role:
-                rewards_text += f"**Level {reward['level']}** → {role.mention}\n"
+                rewards_text += f"**Level {reward['level']}** \u2192 {role.mention}\n"
             else:
-                rewards_text += f"**Level {reward['level']}** → *Deleted Role*\n"
-        
+                rewards_text += f"**Level {reward['level']}** \u2192 *Deleted Role*\n"
         embed.description = rewards_text
         await self._send(ctx, embed=embed)
 
+    # ──────────────────────────────────────────────────────────────────
+    # Helpers
+    # ──────────────────────────────────────────────────────────────────
+
+    async def _ensure_refresh_rewards(self, guild: discord.Guild, member: discord.Member) -> None:
+        """Refresh role rewards for a member after admin XP changes."""
+        try:
+            await self.service.refresh_rewards(guild, member)
+        except Exception:
+            logger.exception("Failed to refresh rewards after admin action")
+
+
 async def setup(bot: commands.Bot):
-    """Setup function to add cog to bot"""
     await bot.add_cog(Leveling(bot))
