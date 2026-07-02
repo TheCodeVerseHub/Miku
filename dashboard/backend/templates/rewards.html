@@ -8,7 +8,7 @@
             <div class="desc">Award roles when users reach specific levels &mdash; <strong><span x-text="rewards.length"></span> rewards configured</strong></div>
         </div>
         <div class="section-actions">
-            <button class="btn btn-primary" @click="showAdd = true">Add Reward</button>
+            <button class="btn btn-primary" @click="openAdd()">Add Reward</button>
         </div>
     </div>
 
@@ -17,15 +17,15 @@
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 80px;">Level</th>
+                        <th style="width: 60px;">Level</th>
                         <th>Role</th>
-                        <th style="width: 100px;">Actions</th>
+                        <th style="width: 120px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <template x-for="r in rewards" :key="r.level">
                         <tr>
-                            <td><span class="badge badge-level" x-text="'Level ' + r.level"></span></td>
+                            <td style="font-size: 16px; font-weight: 700; color: var(--accent);" x-text="r.level + '.'"></td>
                             <td>
                                 <div class="role-cell">
                                     <span class="role-dot" :style="'background: ' + getAvatarColor(r.role_id)"></span>
@@ -33,7 +33,10 @@
                                 </div>
                             </td>
                             <td>
-                                <button class="btn btn-danger btn-xs" @click="remove(r.level)">Remove</button>
+                                <div style="display: flex; gap: 6px;">
+                                    <button class="btn btn-ghost btn-xs" @click="openEdit(r)">Edit</button>
+                                    <button class="btn btn-danger btn-xs" @click="remove(r.level)">Remove</button>
+                                </div>
                             </td>
                         </tr>
                     </template>
@@ -45,10 +48,10 @@
         </div>
     </div>
 
-    <!-- Add Modal -->
-    <div class="modal-overlay" :class="{ active: showAdd }">
+    <!-- Add/Edit Modal -->
+    <div class="modal-overlay" :class="{ active: showModal }">
         <div class="modal">
-            <h2>Add Role Reward</h2>
+            <h2 x-text="editing ? 'Edit Role Reward' : 'Add Role Reward'"></h2>
             <div class="form-group">
                 <label class="form-label">Level</label>
                 <input class="form-input" type="number" x-model.number="newLevel" min="1" placeholder="e.g. 5">
@@ -59,8 +62,8 @@
                 <div class="form-hint">Enable Developer Mode in Discord &gt; right-click a role &gt; Copy ID</div>
             </div>
             <div class="modal-actions">
-                <button class="btn btn-ghost" @click="showAdd = false">Cancel</button>
-                <button class="btn btn-primary" @click="add()">Add Reward</button>
+                <button class="btn btn-ghost" @click="closeModal()">Cancel</button>
+                <button class="btn btn-primary" @click="save()" x-text="editing ? 'Save Changes' : 'Add Reward'"></button>
             </div>
         </div>
     </div>
@@ -70,25 +73,46 @@
 function rewardsData() {
     return {
         rewards: [],
-        showAdd: false,
+        showModal: false,
+        editing: null,
         newLevel: 1,
         newRoleId: null,
         async init() {
             this.rewards = await API.getRewards('{{ guild_id }}') || [];
         },
-        async add() {
+        openAdd() {
+            this.editing = null;
+            this.newLevel = 1;
+            this.newRoleId = null;
+            this.showModal = true;
+        },
+        openEdit(r) {
+            this.editing = r;
+            this.newLevel = r.level;
+            this.newRoleId = Number(r.role_id);
+            this.showModal = true;
+        },
+        closeModal() {
+            this.showModal = false;
+            this.editing = null;
+        },
+        async save() {
             if (!this.newLevel || !this.newRoleId) {
                 showToast('Please fill in all fields', 'error');
                 return;
             }
+            if (this.editing) {
+                await API.removeReward('{{ guild_id }}', this.editing.level);
+            }
             const result = await API.addReward('{{ guild_id }}', this.newLevel, this.newRoleId);
             if (result && result.ok) {
-                showToast('Role reward added', 'success');
-                this.showAdd = false;
+                showToast(this.editing ? 'Reward updated' : 'Role reward added', 'success');
+                this.showModal = false;
+                this.editing = null;
                 this.rewards = await API.getRewards('{{ guild_id }}') || [];
                 this.newLevel = 1;
                 this.newRoleId = null;
-            } else showToast('Failed to add reward', 'error');
+            } else showToast('Failed to save reward', 'error');
         },
         async remove(level) {
             if (!confirm(`Remove reward for Level ${level}?`)) return;
