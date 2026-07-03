@@ -90,6 +90,7 @@ class MikuBot(commands.Bot):
             'cogs.utilities',
             'cogs.fun',
             'cogs.info',
+            'cogs.command_handler',  # 👈 added global cooldown handler
         ]
         
         for cog in cogs:
