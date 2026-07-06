@@ -21,6 +21,7 @@ import logging
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from utils import database
+from utils.cooldowns import GlobalCommandCooldown
 
 # Setup logging
 logging.basicConfig(
@@ -90,7 +91,7 @@ class MikuBot(commands.Bot):
             'cogs.utilities',
             'cogs.fun',
             'cogs.info',
-            'cogs.command_handler',  # 👈 added global cooldown handler
+            'cogs.command_handler',  # 👈 global cooldown handler
         ]
         
         for cog in cogs:
@@ -117,15 +118,32 @@ class MikuBot(commands.Bot):
     async def on_command_error(self, ctx: commands.Context, error: commands.CommandError) -> None:
         """Global command error handler.
 
-        We intentionally ignore unknown commands so random messages like
-        `&rewards` don't spam the console.
+        This is the single, central place cooldown (and other command)
+        errors get turned into user-facing messages. Cogs should NOT also
+        register their own on_command_error listeners for the same errors,
+        or the error gets handled twice.
         """
         # Ignore unknown commands completely.
         if isinstance(error, commands.CommandNotFound):
             return
 
-        # If a command defines its own error handler, don't double-handle.
+        # If a command defines its own local error handler, don't double-handle.
         if ctx.command is not None and ctx.command.has_error_handler():
+            return
+
+        # Our global per-command cooldown system (cogs/command_handler.py).
+        if isinstance(error, GlobalCommandCooldown):
+            await ctx.send(
+                f"⏳ Slow down! Try `{ctx.command.qualified_name}` again in {error.retry_after:.1f}s."
+            )
+            return
+
+        # discord.py's own built-in cooldown (in case any command still uses
+        # @commands.cooldown directly instead of the global system).
+        if isinstance(error, commands.CommandOnCooldown):
+            await ctx.send(
+                f"⏳ Slow down! Try `{ctx.command.qualified_name}` again in {error.retry_after:.1f}s."
+            )
             return
 
         # For everything else, fall back to default logging/behavior.

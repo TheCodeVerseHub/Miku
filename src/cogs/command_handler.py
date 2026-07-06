@@ -7,7 +7,7 @@ with their own @commands.cooldown decorator.
 
 from discord.ext import commands
 
-from utils.cooldowns import cooldown_manager, CommandOnCooldown
+from utils.cooldowns import cooldown_manager, GlobalCommandCooldown
 
 
 class CommandHandler(commands.Cog):
@@ -21,7 +21,7 @@ class CommandHandler(commands.Cog):
 
         retry_after = cooldown_manager.check(ctx.author.id, ctx.command.qualified_name)
         if retry_after > 0:
-            raise CommandOnCooldown(retry_after)
+            raise GlobalCommandCooldown(retry_after)
         return True
 
 

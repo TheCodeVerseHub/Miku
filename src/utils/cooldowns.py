@@ -3,8 +3,12 @@ import time
 from discord.ext import commands
 
 
-class CommandOnCooldown(commands.CommandError):
-    """Raised when a user tries to run a command while it's on cooldown."""
+class GlobalCommandCooldown(commands.CommandError):
+    """Raised when a user tries to run a command while it's on cooldown.
+
+    Named distinctly from discord.py's own commands.CommandOnCooldown to
+    avoid isinstance-check collisions in error handlers.
+    """
 
     def __init__(self, retry_after: float):
         self.retry_after = retry_after

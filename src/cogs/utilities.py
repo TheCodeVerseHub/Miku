@@ -90,7 +90,6 @@ class Utilities(commands.Cog):
     # =====================================================================
 
     @commands.hybrid_command(name="ping", description="Check if the bot is responsive")
-    @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
     async def ping(self, ctx: commands.Context) -> None:
         """Show bot latency."""
         latency_ms = round(getattr(self.bot, "latency", 0.0) * 1000)
@@ -300,16 +299,6 @@ class Utilities(commands.Cog):
         embed.add_field(name="Voice Channels", value=str(len(guild.voice_channels)), inline=True)
 
         await self._send(ctx, embed=embed)
-
-    @commands.Cog.listener()
-    async def on_command_error(self, ctx: commands.Context, error: commands.CommandError) -> None:
-        if isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(
-                f"⏳ Slow down! Try `{ctx.command.name}` again in {error.retry_after:.1f}s.",
-                ephemeral=True if getattr(ctx, "interaction", None) else False,
-            )
-            return
-        raise error
 
 
 async def setup(bot: commands.Bot) -> None:
