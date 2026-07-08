@@ -42,4 +42,4 @@ jobs:
         run: uv run pytest || echo "No tests found"
 
       - name: Verify imports
-        run: uv run python -c "import src.bot; print('Bot imports OK')"
+        run: cd src && uv run python -c "import bot; print('Bot imports OK')"
