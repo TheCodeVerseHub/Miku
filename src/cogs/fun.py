@@ -13,7 +13,6 @@ from discord.ext import commands
 
 from utils.discord_helpers import send
 
-
 logger = logging.getLogger("miku.fun")
 
 EMBED_COLOR = discord.Color.from_rgb(88, 101, 242)  # Discord blurple

@@ -132,9 +132,9 @@ class LevelService:
             "xp_enabled": settings.get("xp_enabled", True) if settings else True,
             "min_xp": settings.get("min_xp", 15) if settings else 15,
             "max_xp": settings.get("max_xp", 25) if settings else 25,
-            "cooldown_seconds": settings.get("cooldown_seconds", 60)
-            if settings
-            else 60,
+            "cooldown_seconds": (
+                settings.get("cooldown_seconds", 60) if settings else 60
+            ),
         }
 
     def _roll_base_xp(self, config: dict) -> int:
