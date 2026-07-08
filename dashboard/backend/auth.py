@@ -1,9 +1,8 @@
 """Discord OAuth2 authentication for the dashboard."""
 
-import json
 import logging
 from urllib.parse import urlencode
-from typing import Optional
+
 
 import httpx
 
@@ -27,7 +26,7 @@ def get_oauth_url(state: str) -> str:
     return f"{DISCORD_API}/oauth2/authorize?{urlencode(params)}"
 
 
-async def exchange_code(code: str) -> Optional[dict]:
+async def exchange_code(code: str) -> dict | None:
     data = {
         "client_id": config.discord_client_id,
         "client_secret": config.discord_client_secret,
@@ -46,7 +45,7 @@ async def exchange_code(code: str) -> Optional[dict]:
         return resp.json()
 
 
-async def refresh_token(refresh_token: str) -> Optional[dict]:
+async def refresh_token(refresh_token: str) -> dict | None:
     data = {
         "client_id": config.discord_client_id,
         "client_secret": config.discord_client_secret,
@@ -64,7 +63,7 @@ async def refresh_token(refresh_token: str) -> Optional[dict]:
         return resp.json()
 
 
-async def get_current_user(access_token: str) -> Optional[dict]:
+async def get_current_user(access_token: str) -> dict | None:
     headers = {"Authorization": f"Bearer {access_token}"}
     async with httpx.AsyncClient() as client:
         resp = await client.get(f"{DISCORD_API}/users/@me", headers=headers)

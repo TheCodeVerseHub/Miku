@@ -7,68 +7,119 @@
 <div x-data="overviewData()" x-init="init()">
     <div class="section-bar">
         <div>
-            <div class="desc"><strong>{{ guild_name or 'Server' }}</strong> &mdash; overview stats and top members</div>
+            <div class="desc">Real-time overview for <strong>{{ guild_name or 'Server' }}</strong></div>
         </div>
     </div>
 
-    <div class="grid grid-3" style="margin-bottom: 18px;">
+    <!-- Quick Stats -->
+    <div class="grid grid-4" style="margin-bottom: 18px;">
         <div class="stat-card">
             <div class="stat-card-label">Total Users</div>
             <div class="stat-card-value" x-text="fmtNum(stats.total_users)">--</div>
+            <div class="stat-card-sub" x-text="fmtNum(stats.member_count) + ' in server'"></div>
         </div>
         <div class="stat-card accent">
             <div class="stat-card-label">Total XP</div>
             <div class="stat-card-value" x-text="fmtNum(stats.total_xp)">--</div>
+            <div class="stat-card-sub">Level range: <span x-text="stats.level_range.min + ' – ' + stats.level_range.max"></span></div>
         </div>
         <div class="stat-card success">
             <div class="stat-card-label">Total Messages</div>
             <div class="stat-card-value" x-text="fmtNum(stats.total_messages)">--</div>
+            <div class="stat-card-sub" x-text="fmtNum(stats.messages_today) + ' today'"></div>
+        </div>
+        <div class="stat-card warning">
+            <div class="stat-card-label">Active Today</div>
+            <div class="stat-card-value" x-text="fmtNum(stats.active_members_today)">--</div>
+            <div class="stat-card-sub" x-text="fmtNum(stats.xp_earned_today) + ' XP earned'"></div>
         </div>
     </div>
 
-    <div class="card">
-        <div class="card-header">
-            <h3>Top Members</h3>
-            <a href="/guilds/{{ guild_id }}/leaderboard" class="btn btn-ghost btn-sm">View All</a>
-        </div>
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 50px;">#</th>
-                        <th>Member</th>
-                        <th>Level</th>
-                        <th>XP</th>
-                        <th>Messages</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <template x-for="(u, i) in stats.top_users" :key="u.user_id">
+    <div class="grid grid-2">
+        <!-- Top Members -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Top Members</h3>
+                <a href="/guilds/{{ guild_id }}/leaderboard" class="btn btn-ghost btn-sm">View All</a>
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
                         <tr>
-                            <td>
-                                <span class="badge" :class="'badge-rank-' + (i+1)" x-text="'#' + (i+1)"></span>
-                            </td>
-                            <td>
-                                <a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" class="user-cell" style="text-decoration: none; color: inherit;">
-                                    <div class="user-avatar">
-                                        <img :src="u.avatar_url" :alt="u.username" @error="onAvatarError($event, u.user_id)">
-                                    </div>
-                                    <div class="user-info">
-                                        <div class="user-name" x-text="u.display_name || u.username"></div>
-                                        <div class="user-id" x-text="u.user_id"></div>
-                                    </div>
-                                </a>
-                            </td>
-                            <td><span class="badge badge-level" x-text="'Level ' + u.level"></span></td>
-                            <td style="font-weight: 600;" x-text="fmtNum(u.xp)"></td>
-                            <td x-text="fmtNum(u.messages)"></td>
+                            <th style="width: 50px;">#</th>
+                            <th>Member</th>
+                            <th>Level</th>
+                            <th>XP</th>
                         </tr>
-                    </template>
-                    <template x-if="!stats.top_users || stats.top_users.length === 0">
-                        <tr><td colspan="5" class="empty-state">No data yet</td></tr>
-                    </template>
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        <template x-for="(u, i) in stats.top_users" :key="u.user_id">
+                            <tr>
+                                <td><span class="badge" :class="'badge-rank-' + (i+1)" x-text="'#' + (i+1)"></span></td>
+                                <td>
+                                    <a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" class="user-cell" style="text-decoration: none; color: inherit;">
+                                        <div class="user-avatar">
+                                            <img :src="u.avatar_url" :alt="u.username" @error="onAvatarError($event, u.user_id)">
+                                        </div>
+                                        <div class="user-info">
+                                            <div class="user-name" x-text="u.display_name || u.username"></div>
+                                            <div class="user-id" x-text="u.user_id"></div>
+                                        </div>
+                                    </a>
+                                </td>
+                                <td><span class="badge badge-level" x-text="'Level ' + u.level"></span></td>
+                                <td style="font-weight: 600;" x-text="fmtNum(u.xp)"></td>
+                            </tr>
+                        </template>
+                        <template x-if="!stats.top_users || stats.top_users.length === 0">
+                            <tr><td colspan="4" class="empty-state">No data yet</td></tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Quick Actions</h3>
+            </div>
+            <div class="quick-actions">
+                <a class="quick-action" :href="`/guilds/{{ guild_id }}/leaderboard`">
+                    <span class="icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+                            <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+                            <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                        </svg>
+                    </span>
+                    <span class="label">Leaderboard</span>
+                </a>
+                <a class="quick-action" :href="`/guilds/{{ guild_id }}/analytics`">
+                    <span class="icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>
+                        </svg>
+                    </span>
+                    <span class="label">Analytics</span>
+                </a>
+                <a class="quick-action" :href="`/guilds/{{ guild_id }}/rewards`">
+                    <span class="icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
+                        </svg>
+                    </span>
+                    <span class="label">Rewards</span>
+                </a>
+                <a class="quick-action" :href="`/guilds/{{ guild_id }}/settings`">
+                    <span class="icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                        </svg>
+                    </span>
+                    <span class="label">Settings</span>
+                </a>
+            </div>
         </div>
     </div>
 </div>
@@ -76,9 +127,9 @@
 <script>
 function overviewData() {
     return {
-        stats: { total_users: 0, total_xp: 0, total_messages: 0, top_users: [] },
+        stats: { total_users: 0, total_xp: 0, total_messages: 0, member_count: 0, top_users: [], xp_earned_today: 0, messages_today: 0, active_members_today: 0, level_range: { min: 0, max: 0 } },
         async init() {
-            this.stats = await API.getAnalytics('{{ guild_id }}') || this.stats;
+            this.stats = await API.getStatsOverview('{{ guild_id }}') || this.stats;
         },
         fmtNum
     };
@@ -111,13 +162,14 @@ function overviewData() {
     <template x-if="guilds.length === 0">
         <div class="empty-state">
             <div class="icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 40px; height: 40px; margin: 0 auto;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 48px; height: 48px; margin: 0 auto;">
                     <circle cx="12" cy="12" r="10"/>
                     <line x1="12" y1="8" x2="12" y2="12"/>
                     <line x1="12" y1="16" x2="12.01" y2="16"/>
                 </svg>
             </div>
-            <p>No manageable servers found. You need Administrator or Manage Server permission.</p>
+            <h3>No Servers Found</h3>
+            <p>You need Administrator or Manage Server permission to manage a server.</p>
         </div>
     </template>
 </div>

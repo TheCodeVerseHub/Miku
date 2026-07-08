@@ -1,266 +1,381 @@
-# Miku - Discord Leveling Bot
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/Miku-5865F2?style=for-the-badge&logo=discord&logoColor=white">
+    <img alt="Miku" src="https://img.shields.io/badge/Miku-5865F2?style=for-the-badge&logo=discord&logoColor=white">
+  </picture>
 
-A feature-rich Discord leveling bot inspired by Arcane, with support for both **slash commands** and **prefix commands** (prefix: `&`).
+  <p align="center">
+    <strong>A feature-rich Discord leveling bot with XP tracking, role rewards, analytics, and a modern web dashboard.</strong>
+  </p>
+
+  <p align="center">
+    <a href="#features"><strong>Features</strong></a> ·
+    <a href="#quick-start"><strong>Quick Start</strong></a> ·
+    <a href="#configuration"><strong>Configuration</strong></a> ·
+    <a href="#commands"><strong>Commands</strong></a> ·
+    <a href="#dashboard"><strong>Dashboard</strong></a> ·
+    <a href="#contributing"><strong>Contributing</strong></a>
+  </p>
+
+  <p align="center">
+    <img src="https://img.shields.io/badge/python-3.14+-blue?style=flat-square&logo=python&logoColor=white" alt="Python 3.14+">
+    <img src="https://img.shields.io/badge/discord.py-2.7+-blueviolet?style=flat-square&logo=discord&logoColor=white" alt="discord.py 2.7+">
+    <img src="https://img.shields.io/badge/postgresql-16+-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL 16+">
+    <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
+    <img src="https://img.shields.io/badge/status-active-success?style=flat-square" alt="Status">
+  </p>
+</div>
+
+---
 
 ## Features
 
-- **XP & Leveling System** - Users gain 15-25 XP per message (60-second cooldown)
-- **Rank Cards** - Beautiful embeds showing user rank, level, and progress
-- **Leaderboards** - View top members by XP with pagination
-- **Hybrid Commands** - Works with both `/` slash commands and `&` prefix
-- **PostgreSQL Database** - Persistent data storage via `asyncpg`
-- **Rich Embeds** - Clean, visually appealing messages
-- **Admin Tools** - Manage user levels and XP
-- **GitHub Integration** - Look up repos/users and search GitHub
-- **Utility / Fun / Info Commands** - General helpful commands and light games (no moderation)
+### 🎮 Leveling System
+- **XP Tracking** — Earn XP by sending messages with configurable cooldowns
+- **Rank Cards** — Beautiful generated rank cards with progress bars
+- **Leaderboards** — Server-wide rankings with pagination and search
+- **Multiple Formulas** — Quadratic, Linear, Cubic, and custom XP formulas
+- **Role Rewards** — Automatically assign roles at configurable level thresholds
 
-## Commands
+### ⚙️ Administration
+- **Per-Guild Configuration** — Independent settings for every server
+- **XP Multipliers** — Channel, role, and category-specific XP multipliers
+- **XP Restrictions** — Block or allow channels, roles, and categories
+- **Audit Logging** — Complete history of admin actions
+- **Automatic Cleanup** — Removes departed users from leaderboards
 
-### Leveling Commands
+### 📊 Web Dashboard
+- **Real-Time Analytics** — XP trends, activity patterns, and member statistics
+- **Leaderboard Browser** — Search, filter, and manage rankings
+- **User Profiles** — Detailed user stats with XP history and activity timeline
+- **Role Reward Manager** — Visual role picker with search and edit
+- **Server Settings** — Configure everything from your browser
+- **Responsive Design** — Full mobile support with dark theme
 
-| Command | Slash | Prefix | Description |
-|---------|-------|--------|-------------|
-| **rank** | `/rank [user]` | `&rank [user]` | Check your or another user's rank and level |
-| **level** | `/level [user]` | `&level [user]` | Alias for rank command |
-| **leaderboard** | `/leaderboard [page]` | `&leaderboard [page]` | View the server leaderboard (top 50) |
-| **lb** | `/lb [page]` | `&lb [page]` | Alias for leaderboard |
-| **xp** | `/xp [user]` | `&xp [user]` | Check detailed XP information |
+### 🔧 Technical
+- **PostgreSQL** — Robust and scalable database backend
+- **Async/Await** — Fully asynchronous Python with `asyncpg`
+- **Hybrid Commands** — Works with both prefix (`&`) and slash (`/`) commands
+- **Modular Architecture** — Cogs, services, and utilities separated by concern
+- **CI/CD** — GitHub Actions for linting, testing, and security
 
-### Utility Commands
+---
 
-| Command | Slash | Prefix | Description |
-|---------|-------|--------|-------------|
-| **ping** | `/ping` | `&ping` | Check if the bot is responsive and view latency |
-| **uptime** | `/uptime` | `&uptime` | Show how long the bot has been online |
-| **about** | `/about` | `&about` | Bot information and basic stats |
-| **invite** | `/invite` | `&invite` | Get a bot invite link |
-| **avatar** | `/avatar [user]` | `&avatar [user]` | Show a user's avatar |
-| **userinfo** | `/userinfo [user]` | `&userinfo [user]` | Show information about a server member |
-| **serverinfo** | `/serverinfo` | `&serverinfo` | Show information about the current server |
-
-### Fun Commands
-
-| Command | Slash | Prefix | Description |
-|---------|-------|--------|-------------|
-| **8ball** | `/8ball <question>` | `&8ball <question>` | Ask the magic 8-ball |
-| **coinflip** | `/coinflip` | `&coinflip` | Flip a coin |
-| **roll** | `/roll [sides]` | `&roll [sides]` | Roll a dice (default d6) |
-| **choose** | `/choose <a, b, c>` | `&choose <a, b, c>` | Choose one option from a comma-separated list |
-| **rps** | `/rps <choice>` | `&rps <choice>` | Play rock-paper-scissors |
-
-### Info Commands
-
-| Command | Slash | Prefix | Description |
-|---------|-------|--------|-------------|
-| **membercount** | `/membercount` | `&membercount` | Show the server member count |
-| **roleinfo** | `/roleinfo <role>` | `&roleinfo <role>` | Show information about a role |
-| **channelinfo** | `/channelinfo [channel]` | `&channelinfo [channel]` | Show information about a channel |
-
-### GitHub Commands
-
-All GitHub commands are under the `github` / `gh` group:
-
-| Command | Slash | Prefix | Description |
-|---------|-------|--------|-------------|
-| **github repo** | `/github repo <owner/repo>` | `&github repo <owner/repo>` | View repository information |
-| **github user** | `/github user <username>` | `&github user <username>` | View a user/organisation profile |
-| **github search-repos** | `/github search-repos <query>` | `&github search-repos <query>` | Search repositories |
-| **github search-users** | `/github search-users <query>` | `&github search-users <query>` | Search users |
-
-### Admin Commands (Requires Administrator Permission)
-
-| Command | Slash | Prefix | Description |
-|---------|-------|--------|-------------|
-| **setlevel** | `/setlevel <user> <level>` | `&setlevel <user> <level>` | Set a user's level |
-| **addxp** | `/addxp <user> <amount>` | `&addxp <user> <amount>` | Add XP to a user |
-| **resetlevel** | `/resetlevel <user>` | `&resetlevel <user>` | Reset a user's level data |
-| **resetalllevels** | `/resetalllevels CONFIRM` | `&resetalllevels CONFIRM` | Reset all server levels (requires CONFIRM) |
-| **setlevelchannel** | `/setlevelchannel <channel>` | `&setlevelchannel #channel` | Set channel for level-up announcements |
-| **addrole** | `/addrole <level> <role>` | `&addrole <level> @role` | Add role reward for a level |
-| **removerole** | `/removerole <level>` | `&removerole <level>` | Remove role reward for a level |
-| **rolerewards** | `/rolerewards` | `&rolerewards` | List all configured role rewards |
-
-## Setup
+## Quick Start
 
 ### Prerequisites
-
 - Python 3.14+
-- Discord Bot Token
-- A PostgreSQL database URL (`DATABASE_URL`)
-- Required intents: Message Content, Server Members, Guilds
+- PostgreSQL 16+
+- Discord Bot Token ([Discord Developer Portal](https://discord.com/developers/applications))
 
 ### Installation
 
-1. **Clone the repository**
 ```bash
-cd "Miku"
+# Clone the repository
+git clone https://github.com/yourusername/miku.git
+cd miku
+
+# Install dependencies with uv (recommended)
+uv sync
+
+# Or with pip
+pip install -r requirements.txt
+
+# Copy environment variables
+cp .env.example .env
 ```
 
-2. **Install dependencies**
-```bash
-pip install -e .
-# or
-uv pip install -e .
+### Configuration
+
+Edit `.env` with your credentials:
+
+```env
+# Required
+DISCORD_BOT_TOKEN=your_bot_token_here
+DATABASE_URL=postgresql://user:pass@localhost:5432/miku
+
+# Dashboard (optional)
+DASHBOARD_CLIENT_ID=your_oauth2_client_id
+DASHBOARD_CLIENT_SECRET=your_oauth2_client_secret
+DASHBOARD_REDIRECT_URI=http://localhost:8000/auth/callback
+DASHBOARD_SESSION_SECRET=your_session_secret_here
+DASHBOARD_HOST=0.0.0.0
+DASHBOARD_PORT=8000
 ```
 
-3. **Configure environment**
-Create a `.env` file or export the environment variable:
-```bash
-export DISCORD_BOT_TOKEN='your_bot_token_here'
-export DATABASE_URL='postgresql+asyncpg://user:password@host:5432/database'
-```
+### Running
 
-4. **Run the bot**
 ```bash
+# Start the bot
 python main.py
+
+# Start the dashboard (separate terminal)
+cd dashboard
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-## Bot Setup on Discord Developer Portal
+### Docker
 
-1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
-2. Create a new application or select your existing one
-3. Go to the **Bot** section
-4. Enable these **Privileged Gateway Intents**:
-   - Message Content Intent
-   - Server Members Intent
-   - Presence Intent (optional)
-5. Copy your bot token and set it as `DISCORD_BOT_TOKEN`
-6. Go to **OAuth2 > URL Generator**
-7. Select scopes: `bot` and `applications.commands`
-8. Select permissions: 
-   - Send Messages
-   - Embed Links
-   - Read Message History
-   - Use Slash Commands
-9. Use the generated URL to invite your bot
-
-## Leveling Formula
-
-The bot uses a formula similar to Arcane/MEE6:
-
-```
-XP Required = 5 × (level²) + (50 × level) + 100
+```bash
+# Build and run with Docker Compose
+docker compose up -d
 ```
 
-- **XP per message**: 15-25 (random)
-- **Cooldown**: 60 seconds between XP gains
-- **Level calculation**: Based on total accumulated XP
+---
 
-### Example XP Requirements
+## Commands
 
-| Level | Total XP Needed |
-|-------|----------------|
-| 1 | 155 |
-| 5 | 1,000 |
-| 10 | 3,850 |
-| 20 | 14,600 |
-| 50 | 89,250 |
+### 👤 User Commands
+
+| Command | Description | Usage |
+|---------|-------------|-------|
+| `&rank` / `/rank` | View rank card with XP progress | `&rank [user]` |
+| `&xp` / `/xp` | View detailed XP statistics | `&xp [user]` |
+| `&leaderboard` / `/leaderboard` | Server rankings by XP | `&leaderboard [page]` |
+| `&rolerewards` / `/rolerewards` | View configured role rewards | `&rolerewards` |
+| `&help` / `/help` | Interactive help system | `&help [command]` |
+
+### 🛠️ Admin Commands
+
+| Command | Description | Usage |
+|---------|-------------|-------|
+| `&setlevel` / `/setlevel` | Set a user's level | `&setlevel <user> <level>` |
+| `&addxp` / `/addxp` | Add XP to a user | `&addxp <user> <amount>` |
+| `&removexp` / `/removexp` | Remove XP from a user | `&removexp <user> <amount>` |
+| `&resetlevel` / `/resetlevel` | Reset a user's data | `&resetlevel <user>` |
+| `&resetalllevels` / `/resetalllevels` | Reset all server data | `&resetalllevels CONFIRM` |
+| `&clean-lb` / `/clean-lb` | Remove departed users from leaderboard | `&clean-lb` |
+| `&setlevelchannel` / `/setlevelchannel` | Set announcement channel | `&setlevelchannel [#channel]` |
+| `&addrole` / `/addrole` | Add a role reward | `&addrole <level> <role>` |
+| `&removerole` / `/removerole` | Remove a role reward | `&removerole <level>` |
+
+### 🎯 Fun Commands
+
+| Command | Description | Usage |
+|---------|-------------|-------|
+| `&8ball` / `/8ball` | Ask the magic 8-ball | `&8ball <question>` |
+| `&coinflip` / `/coinflip` | Flip a coin | `&coinflip` |
+| `&roll` / `/roll` | Roll a dice | `&roll [sides]` |
+| `&choose` / `/choose` | Pick from options | `&choose <a, b, c>` |
+| `&rps` / `/rps` | Rock-paper-scissors | `&rps <choice>` |
+
+### ℹ️ Info Commands
+
+| Command | Description | Usage |
+|---------|-------------|-------|
+| `&ping` / `/ping` | Check bot latency | `&ping` |
+| `&uptime` / `/uptime` | Show bot uptime | `&uptime` |
+| `&about` / `/about` | Bot information | `&about` |
+| `&invite` / `/invite` | Get invite link | `&invite` |
+| `&serverinfo` / `/serverinfo` | Server information | `&serverinfo` |
+| `&userinfo` / `/userinfo` | User information | `&userinfo [user]` |
+| `&membercount` / `/membercount` | Server member count | `&membercount` |
+| `&roleinfo` / `/roleinfo` | Role information | `&roleinfo <role>` |
+
+### 📦 GitHub Commands
+
+| Command | Description | Usage |
+|---------|-------------|-------|
+| `&github repo` | View repository info | `&github repo <owner/repo>` |
+| `&github user` | View GitHub profile | `&github user <username>` |
+| `&github search-repos` | Search repositories | `&github search-repos <query>` |
+| `&github search-users` | Search users | `&github search-users <query>` |
+
+---
+
+## Dashboard
+
+The Miku Dashboard is a modern web interface for managing your server's leveling system.
+
+### Pages
+
+| Page | Description |
+|------|-------------|
+| **Overview** | Real-time server statistics and quick actions |
+| **Leveling** | XP configuration, cooldowns, and formula preview |
+| **Role Rewards** | Visual role reward management with search |
+| **Leaderboard** | Searchable, paginated rankings with XP bars |
+| **Analytics** | Charts for XP, messages, activity patterns |
+| **User Profiles** | Detailed stats, XP history, and admin actions |
+| **Settings** | General server configuration |
+
+### Screenshots
+
+> Screenshots coming soon.
+
+### API
+
+The dashboard exposes a REST API for programmatic access:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/me` | GET | Current user information |
+| `/api/guilds/{id}/settings` | GET/POST | Guild settings |
+| `/api/guilds/{id}/rewards` | GET/POST/DELETE | Role rewards |
+| `/api/guilds/{id}/leaderboard` | GET | Paginated leaderboard |
+| `/api/guilds/{id}/analytics` | GET | Server analytics |
+| `/api/guilds/{id}/users/{uid}` | GET | User profile |
+| `/api/guilds/{id}/users/{uid}/history` | GET | User XP history |
+| `/api/guilds/{id}/stats/overview` | GET | Dashboard overview |
+
+---
 
 ## Project Structure
 
 ```
-main.py                 # Entrypoint (adds src/ to path and runs the bot)
-├── pyproject.toml       # Dependencies
-├── requirements.txt     # Python dependencies (optional)
-├── README.md            # Documentation
-└── src/
-   ├── bot.py            # Bot setup, DB init, cog loading
-   ├── cogs/
-   │   ├── leveling.py    # XP/levels/leaderboards
-   │   ├── help.py        # Interactive help menu
-   │   ├── github.py      # GitHub lookup/search
-   │   ├── utilities.py   # Utility commands
-   │   ├── fun.py         # Fun commands
-   │   └── info.py        # Info commands
-   └── utils/
-      ├── database.py     # PostgreSQL (asyncpg) DB layer
-      ├── github_client.py # GitHub API client
-      └── rank_card.py     # Rank card generator
+miku/
+├── main.py                     # Entry point
+├── pyproject.toml              # Project configuration
+├── requirements.txt            # Python dependencies
+├── .env.example                # Environment template
+│
+├── src/
+│   ├── bot.py                  # Bot initialization and setup
+│   │
+│   ├── cogs/
+│   │   ├── leveling.py         # XP tracking and leveling commands
+│   │   ├── help.py             # Interactive help system
+│   │   ├── fun.py              # Fun and games commands
+│   │   ├── utilities.py        # Utility commands
+│   │   ├── info.py             # Information commands
+│   │   └── github.py           # GitHub integration
+│   │
+│   ├── services/
+│   │   ├── level_service.py    # XP calculation business logic
+│   │   └── formula_registry.py # XP formula implementations
+│   │
+│   └── utils/
+│       ├── database.py         # PostgreSQL (asyncpg) operations
+│       ├── rank_card.py        # Rank card image generation
+│       └── github_client.py    # GitHub API client
+│
+├── dashboard/
+│   ├── backend/
+│   │   ├── main.py             # FastAPI application
+│   │   ├── auth.py             # Discord OAuth2
+│   │   ├── config.py           # Dashboard configuration
+│   │   ├── discord_api.py      # Discord REST API wrapper
+│   │   └── templates/          # Jinja2 templates
+│   └── static/
+│       ├── style.css           # Dark theme stylesheet
+│       └── api.js              # API client and helpers
+│
+├── .github/
+│   ├── workflows/              # CI/CD pipelines
+│   ├── dependabot.yml          # Dependency updates
+│   └── CODEOWNERS              # Code ownership
+│
+├── docs/                       # Documentation
+├── tests/                      # Test suite
+└── bot/                        # Legacy extension system
 ```
-
-## Features Breakdown
-
-### XP Gain System
-- Automatic XP on every message (excluding bots and DMs)
-- 60-second cooldown per user per guild
-- Random XP gain (15-25) to prevent farming
-- Level-up notifications with embeds
-
-### Rank Card
-Shows:
-- User's rank in the server
-- Current level
-- Total messages sent
-- Progress bar to next level
-- Total XP earned
-
-### Leaderboard
-- Shows top 50 members
-- Paginated display (10 per page)
-- Medal emojis for top 3 ()
-- Displays level, XP, and message count
-
-### Database
-- Async PostgreSQL operations (asyncpg)
-- Tracks: user_id, guild_id, xp, level, messages, last_message_time
-- Auto-creates tables on first run
-- Data persists across restarts
-
-## Customization
-
-### Change XP Gain Range
-Edit in `src/cogs/leveling.py`:
-```python
-xp_gain = random.randint(15, 25)  # Change these values
-```
-
-### Change Cooldown Time
-Edit in `src/cogs/leveling.py`:
-```python
-self.cooldown_time = 60  # seconds
-```
-
-### Change Command Prefix
-Edit in `src/bot.py`:
-```python
-command_prefix='&'  # Change to your preferred prefix
-```
-
-### Modify Level Formula
-Edit the `calculate_level` and `calculate_xp_for_level` methods in `src/cogs/leveling.py`
-
-## Troubleshooting
-
-### Bot doesn't respond to commands
-- Make sure Message Content intent is enabled
-- Check that the bot has proper permissions in the server
-- Verify the bot token is correct
-
-### Slash commands not showing
-- Wait up to 1 hour for global commands to sync
-- Try kicking and re-inviting the bot
-- Check bot has `applications.commands` scope
-
-### Database errors
-- Verify `DATABASE_URL` points to a reachable PostgreSQL instance
-- Confirm the database user can create tables (first run)
-
-## License
-
-This project is open source and available for personal and educational use.
-
-## Contributing
-
-Feel free to fork, modify, and improve this bot! Contributions are welcome.
-
-## Tips
-
-- The bot works in multiple servers simultaneously
-- Each server has its own leaderboard and levels
-- Levels don't transfer between servers
-- Admin commands require Discord administrator permission
-- Level-up messages auto-delete after 10 seconds to reduce spam
 
 ---
 
-Made with using discord.py
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Discord Gateway                        │
+├─────────────────────────────────────────────────────────┤
+│                     src/bot.py                            │
+│                  MikuBot(commands.Bot)                    │
+├──────────┬──────────────┬────────────────┬──────────────┤
+│  Cogs    │   Services    │    Utils       │  Dashboard   │
+├──────────┼──────────────┼────────────────┼──────────────┤
+│ leveling │ level_service│ database.py    │  FastAPI      │
+│ help     │ formula_reg  │ rank_card.py   │  asyncpg      │
+│ fun      │              │ github_client  │  Jinja2       │
+│ utilities│              │                │  Alpine.js    │
+│ info     │              │                │  Chart.js     │
+│ github   │              │                │              │
+└──────────┴──────────────┴────────────────┴──────────────┘
+                       │
+                       ▼
+              ┌──────────────┐
+              │  PostgreSQL  │
+              │  (Neon.tech) │
+              └──────────────┘
+```
+
+---
+
+## Technology Stack
+
+- **Runtime:** Python 3.14+ (async/await)
+- **Framework:** discord.py 2.7+
+- **Database:** PostgreSQL 16+ via asyncpg
+- **Dashboard:** FastAPI + Jinja2 + Alpine.js + Chart.js
+- **Images:** Pillow (rank cards)
+- **HTTP:** httpx, aiohttp
+- **Auth:** Discord OAuth2 (itsdangerous sessions)
+- **CI/CD:** GitHub Actions (Ruff, Bandit, pip-audit)
+
+---
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/miku.git
+cd miku
+
+# Install with dev dependencies
+uv sync --group dev
+
+# Create a branch
+git checkout -b feature/your-feature
+
+# Make your changes and run checks
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest
+
+# Commit with conventional commit message
+git commit -m "feat: add your feature"
+```
+
+### Code of Conduct
+
+Please read our [Code of Conduct](CODE_OF_CONDUCT.md).
+
+---
+
+## Roadmap
+
+- [x] XP tracking and leveling system
+- [x] Role rewards and leaderboards
+- [x] Web dashboard with analytics
+- [x] Interactive help system
+- [x] GitHub integration
+- [x] CI/CD pipelines
+- [ ] Moderation commands suite
+- [ ] Welcome/leave message system
+- [ ] Temporary voice channel system
+- [ ] Giveaway system
+- [ ] Translation support (i18n)
+- [ ] Docker Compose deployment
+- [ ] Automated testing suite
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+
+## Credits
+
+- Built with [discord.py](https://github.com/Rapptz/discord.py)
+- Dashboard powered by [FastAPI](https://fastapi.tiangolo.com/) and [Alpine.js](https://alpinejs.dev/)
+- Charts by [Chart.js](https://www.chartjs.org/)
+- Deployed on [Neon](https://neon.tech) PostgreSQL
+
+---
+
+<div align="center">
+  <sub>Made with ❤️ by the Miku team</sub>
+</div>

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import abc
 import logging
-from typing import ClassVar, Dict, Type
+from typing import ClassVar
 
 logger = logging.getLogger("miku.formula_registry")
 
@@ -108,10 +108,10 @@ class FormulaRegistry:
     """
 
     def __init__(self) -> None:
-        self._formulas: Dict[str, Type[BaseFormula]] = {}
-        self._instances: Dict[str, BaseFormula] = {}
+        self._formulas: dict[str, type[BaseFormula]] = {}
+        self._instances: dict[str, BaseFormula] = {}
 
-    def register(self, name: str, formula_cls: Type[BaseFormula]) -> None:
+    def register(self, name: str, formula_cls: type[BaseFormula]) -> None:
         if not issubclass(formula_cls, BaseFormula):
             raise TypeError(f"{formula_cls.__name__} must inherit from BaseFormula")
         self._formulas[name] = formula_cls

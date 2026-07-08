@@ -6,11 +6,13 @@ All commands are hybrid (prefix + slash).
 from __future__ import annotations
 
 import logging
-from typing import Optional
-
 import discord
 from discord import app_commands
 from discord.ext import commands
+
+from utils.discord_helpers import send
+
+
 
 logger = logging.getLogger("miku.info")
 
@@ -24,15 +26,12 @@ class Info(commands.Cog):
     async def cog_load(self) -> None:
         logger.info("Info cog loaded")
 
-    async def _send(self, ctx: commands.Context, *args, **kwargs):
-        if getattr(ctx, "interaction", None) is None:
-            kwargs.pop("ephemeral", None)
-        return await ctx.send(*args, **kwargs)
+
 
     @commands.hybrid_command(name="membercount", description="Show the server member count")
     async def membercount(self, ctx: commands.Context) -> None:
         if ctx.guild is None:
-            await self._send(
+            await send(
                 ctx,
                 embed=discord.Embed(
                     title="Member Count",
@@ -44,13 +43,13 @@ class Info(commands.Cog):
             return
         count = ctx.guild.member_count
         embed = discord.Embed(title="Member Count", description=str(count or "Unknown"), color=EMBED_COLOR)
-        await self._send(ctx, embed=embed)
+        await send(ctx, embed=embed)
 
     @commands.hybrid_command(name="roleinfo", description="Show information about a role")
     @app_commands.describe(role="Role to inspect")
     async def roleinfo(self, ctx: commands.Context, role: discord.Role) -> None:
         if ctx.guild is None:
-            await self._send(
+            await send(
                 ctx,
                 embed=discord.Embed(
                     title="Role Info",
@@ -76,13 +75,13 @@ class Info(commands.Cog):
             perms_display = f"{perms_display} (+{len(perms) - 25} more)"
         embed.add_field(name="Permissions", value=perms_display[:1024], inline=False)
 
-        await self._send(ctx, embed=embed)
+        await send(ctx, embed=embed)
 
     @commands.hybrid_command(name="channelinfo", description="Show information about a channel")
     @app_commands.describe(channel="Channel to inspect (defaults to current)")
-    async def channelinfo(self, ctx: commands.Context, channel: Optional[discord.abc.GuildChannel] = None) -> None:
+    async def channelinfo(self, ctx: commands.Context, channel: discord.abc.GuildChannel | None = None) -> None:
         if ctx.guild is None:
-            await self._send(
+            await send(
                 ctx,
                 embed=discord.Embed(
                     title="Channel Info",
@@ -95,7 +94,7 @@ class Info(commands.Cog):
 
         ch = channel or getattr(ctx, "channel", None)
         if ch is None or not isinstance(ch, discord.abc.GuildChannel):
-            await self._send(
+            await send(
                 ctx,
                 embed=discord.Embed(
                     title="Channel Info",
@@ -122,7 +121,7 @@ class Info(commands.Cog):
             embed.add_field(name="Bitrate", value=str(ch.bitrate), inline=True)
             embed.add_field(name="User Limit", value=str(ch.user_limit or 0), inline=True)
 
-        await self._send(ctx, embed=embed)
+        await send(ctx, embed=embed)
 
 
 async def setup(bot: commands.Bot) -> None:

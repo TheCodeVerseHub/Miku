@@ -39,13 +39,15 @@
                 <input class="form-input" type="number" x-model.number="settings.cooldown_seconds" min="1" max="3600" @change="save()">
                 <div class="form-hint">Default: 60. How long a user must wait before earning XP again.</div>
             </div>
+
+            <button class="btn btn-primary" @click="save()">Save All Settings</button>
         </div>
 
         <div class="card">
             <h3>XP Formula Preview</h3>
             <div class="form-group">
-                <label class="form-label">Level</label>
-                <input class="form-input" type="number" x-model.number="previewLevel" min="1" max="100">
+                <label class="form-label">Preview Level</label>
+                <input class="form-input" type="number" x-model.number="previewLevel" min="1" max="500">
             </div>
             <div class="xp-preview-box">
                 <div class="config-row">
@@ -94,45 +96,33 @@ function levelingData() {
     return {
         settings: { xp_enabled: true, min_xp: 15, max_xp: 25, cooldown_seconds: 60 },
         stats: { total_users: 0, total_xp: 0, total_messages: 0 },
-        previewLevel: 10,
-        avgXp: '0',
+        previewLevel: 10, avgXp: '0',
         async init() {
             const [s, a] = await Promise.all([
                 API.getSettings('{{ guild_id }}'),
                 API.getAnalytics('{{ guild_id }}')
             ]);
             if (s) this.settings = s;
-            if (a) {
-                this.stats = a;
-                this.avgXp = a.total_users > 0 ? fmtNum(Math.round(a.total_xp / a.total_users)) : '0';
-            }
+            if (a) { this.stats = a; this.avgXp = a.total_users > 0 ? fmtNum(Math.round(a.total_xp / a.total_users)) : '0'; }
         },
         async save() {
             const result = await API.updateSettings('{{ guild_id }}', this.settings);
             if (result && result.ok) showToast('Settings saved', 'success');
             else showToast('Failed to save settings', 'error');
         },
-        xpForLevel(lvl) {
-            let total = 0;
-            for (let i = 1; i <= lvl; i++) total += 5 * (i ** 2) + (50 * i) + 100;
-            return total;
-        },
-        xpForNext(lvl) {
-            return 5 * ((lvl + 1) ** 2) + (50 * (lvl + 1)) + 100;
-        },
+        xpForLevel(lvl) { let t = 0; for (let i = 1; i <= lvl; i++) t += 5 * (i ** 2) + (50 * i) + 100; return t; },
+        xpForNext(lvl) { return 5 * ((lvl + 1) ** 2) + (50 * (lvl + 1)) + 100; },
         avgMsgs(lvl) {
             const avgXp = (this.settings.min_xp + this.settings.max_xp) / 2;
             if (avgXp <= 0) return 'N/A';
             return Math.ceil(this.xpForLevel(lvl) / avgXp).toLocaleString();
         },
         async resetAll() {
-            if (!confirm('This will DELETE ALL level data for this server. Are you sure?')) return;
-            if (!confirm('Really? This cannot be undone!')) return;
+            if (!await confirmDialog('This will DELETE ALL level data for this server. Are you sure?', 'Reset All Levels')) return;
+            if (!await confirmDialog('Really? This cannot be undone!', 'Final Confirmation')) return;
             const result = await API.resetAll('{{ guild_id }}');
-            if (result && result.ok) {
-                showToast('All levels reset', 'success');
-                this.stats = { total_users: 0, total_xp: 0, total_messages: 0, top_users: [] };
-            } else showToast('Failed to reset', 'error');
+            if (result && result.ok) { showToast('All levels reset', 'success'); location.reload(); }
+            else showToast('Failed to reset', 'error');
         },
         fmtNum
     };

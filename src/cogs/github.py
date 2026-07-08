@@ -14,12 +14,13 @@ Hybrid command notes (same as leveling cog):
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
+from utils.discord_helpers import maybe_defer, send
 from utils.github_client import (
     GitHubAPIError,
     GitHubClient,
@@ -102,16 +103,7 @@ class GitHub(commands.Cog):
 
     # -- hybrid-command helpers (same pattern as leveling cog) ---------------
 
-    async def _send(self, ctx: commands.Context, *args, **kwargs):
-        """Send helper that strips interaction-only kwargs in prefix mode."""
-        if getattr(ctx, "interaction", None) is None:
-            kwargs.pop("ephemeral", None)
-        return await ctx.send(*args, **kwargs)
 
-    async def _maybe_defer(self, ctx: commands.Context) -> None:
-        """Defer only when invoked as a slash command."""
-        if getattr(ctx, "interaction", None) is not None:
-            await ctx.defer()
 
     # -- shared error handler ------------------------------------------------
 
@@ -135,7 +127,7 @@ class GitHub(commands.Cog):
                 description=f"Something went wrong: {exc}",
                 color=discord.Color.red(),
             )
-        await self._send(ctx, embed=embed, ephemeral=True)
+        await send(ctx, embed=embed, ephemeral=True)
 
     # ========================================================================
     # Command group
@@ -161,7 +153,7 @@ class GitHub(commands.Cog):
             color=EMBED_COLOR,
         )
         embed.set_footer(text="Alias: gh | Both prefix (&) and slash (/) work")
-        await self._send(ctx, embed=embed)
+        await send(ctx, embed=embed)
 
     # -- /github repo -------------------------------------------------------
 
@@ -171,7 +163,7 @@ class GitHub(commands.Cog):
         """Display detailed information about a GitHub repository."""
         parsed = _parse_repo(repository)
         if not parsed:
-            await self._send(
+            await send(
                 ctx,
                 embed=discord.Embed(
                     title="Invalid Format",
@@ -186,7 +178,7 @@ class GitHub(commands.Cog):
             return
 
         owner, repo = parsed
-        await self._maybe_defer(ctx)
+        await maybe_defer(ctx)
 
         try:
             data = await self._client.get_repo(owner, repo)
@@ -231,7 +223,7 @@ class GitHub(commands.Cog):
             )
 
         embed.set_footer(text="GitHub")
-        await self._send(ctx, embed=embed)
+        await send(ctx, embed=embed)
 
     # -- /github user -------------------------------------------------------
 
@@ -239,7 +231,7 @@ class GitHub(commands.Cog):
     @app_commands.describe(username="GitHub username")
     async def github_user(self, ctx: commands.Context, *, username: str) -> None:
         """Display a GitHub user or organisation profile."""
-        await self._maybe_defer(ctx)
+        await maybe_defer(ctx)
 
         try:
             data = await self._client.get_user(username.strip())
@@ -281,7 +273,7 @@ class GitHub(commands.Cog):
         embed.add_field(name="Joined", value=_ts(data.get("created_at")), inline=True)
 
         embed.set_footer(text="GitHub")
-        await self._send(ctx, embed=embed)
+        await send(ctx, embed=embed)
 
     # -- /github search-repos -----------------------------------------------
 
@@ -293,7 +285,7 @@ class GitHub(commands.Cog):
     @app_commands.describe(query="Search query")
     async def github_search_repos(self, ctx: commands.Context, *, query: str) -> None:
         """Search GitHub repositories and show the top results."""
-        await self._maybe_defer(ctx)
+        await maybe_defer(ctx)
 
         try:
             data = await self._client.search_repos(query)
@@ -310,7 +302,7 @@ class GitHub(commands.Cog):
                 description=f"No repositories found for **{_trunc(query, 100)}**.",
                 color=EMBED_COLOR,
             )
-            await self._send(ctx, embed=embed)
+            await send(ctx, embed=embed)
             return
 
         embed = discord.Embed(
@@ -334,7 +326,7 @@ class GitHub(commands.Cog):
             )
 
         embed.set_footer(text=f"Showing {len(items[:5])} of {total:,} results")
-        await self._send(ctx, embed=embed)
+        await send(ctx, embed=embed)
 
     # -- /github search-users -----------------------------------------------
 
@@ -346,7 +338,7 @@ class GitHub(commands.Cog):
     @app_commands.describe(query="Search query")
     async def github_search_users(self, ctx: commands.Context, *, query: str) -> None:
         """Search GitHub users and show the top results."""
-        await self._maybe_defer(ctx)
+        await maybe_defer(ctx)
 
         try:
             data = await self._client.search_users(query)
@@ -363,7 +355,7 @@ class GitHub(commands.Cog):
                 description=f"No users found for **{_trunc(query, 100)}**.",
                 color=EMBED_COLOR,
             )
-            await self._send(ctx, embed=embed)
+            await send(ctx, embed=embed)
             return
 
         embed = discord.Embed(
@@ -386,7 +378,7 @@ class GitHub(commands.Cog):
         embed.set_footer(
             text=f"Showing {len(items[:5])} of {total:,} results | Use /github user <name> for full profile"
         )
-        await self._send(ctx, embed=embed)
+        await send(ctx, embed=embed)
 
 
 async def setup(bot: commands.Bot) -> None:

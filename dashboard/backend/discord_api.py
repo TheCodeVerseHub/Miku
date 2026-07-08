@@ -156,7 +156,7 @@ async def get_guild_members(guild_id: int) -> dict[str, dict[str, Any]]:
     after = None
 
     while True:
-        params = f"?limit=1000"
+        params = "?limit=1000"
         if after:
             params += f"&after={after}"
 
