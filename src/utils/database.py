@@ -433,6 +433,68 @@ async def reset_guild_data(guild_id: int) -> None:
         )
 
 # ============================================================================
+# Departed User Cleanup
+# ============================================================================
+
+async def clean_departed_users(guild_id: int, active_user_ids: set) -> Dict[str, int]:
+    """Remove leveling data for users who are no longer guild members.
+
+    Compares stored user IDs against the provided set of active member IDs,
+    then deletes all leveling-related rows for departed members atomically.
+
+    Returns:
+        dict with keys: total_checked, total_removed, total_remaining
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            rows = await conn.fetch(
+                'SELECT user_id FROM user_levels WHERE guild_id = $1',
+                guild_id,
+            )
+            db_user_ids = {row["user_id"] for row in rows}
+
+            total_checked = len(db_user_ids)
+            departed_ids = list(db_user_ids - active_user_ids)
+
+            if not departed_ids:
+                return {
+                    "total_checked": total_checked,
+                    "total_removed": 0,
+                    "total_remaining": total_checked,
+                }
+
+            for table in ("user_levels", "xp_log", "audit_log"):
+                await conn.execute(
+                    f"DELETE FROM {table} WHERE guild_id = $1 AND user_id = ANY($2::bigint[])",
+                    guild_id,
+                    departed_ids,
+                )
+
+            return {
+                "total_checked": total_checked,
+                "total_removed": len(departed_ids),
+                "total_remaining": total_checked - len(departed_ids),
+            }
+
+
+async def delete_user_leveling_data(user_id: int, guild_id: int) -> None:
+    """Delete all leveling-related data for a single user in a guild.
+
+    Used by the automatic ``on_member_remove`` listener so departed users
+    disappear from leaderboard / dashboard immediately.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            for table in ("user_levels", "xp_log", "audit_log"):
+                await conn.execute(
+                    f"DELETE FROM {table} WHERE user_id = $1 AND guild_id = $2",
+                    user_id,
+                    guild_id,
+                )
+
+# ============================================================================
 # Guild Settings Operations
 # ============================================================================
 
