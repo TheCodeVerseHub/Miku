@@ -12,7 +12,6 @@ Usage inside a cog:
 
 import asyncio
 import logging
-import os
 import time
 from typing import Any
 
@@ -141,7 +140,7 @@ class GitHubClient:
                 self._cache[cache_key] = data
                 return data
 
-        except (GitHubAPIError, GitHubNotFoundError, GitHubRateLimitError):
+        except GitHubAPIError, GitHubNotFoundError, GitHubRateLimitError:
             raise
         except asyncio.TimeoutError:
             raise GitHubAPIError("Request to GitHub timed out", status=0)

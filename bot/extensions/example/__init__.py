@@ -37,7 +37,6 @@ If you REALLY want to go overboard with this, you can use alembic for managing y
 quite convoluted.
 """
 
-import discord
 from discord.ext import commands
 from sqlalchemy.ext.asyncio.session import AsyncSession
 from sqlalchemy import BigInteger, String

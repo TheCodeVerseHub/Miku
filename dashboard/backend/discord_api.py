@@ -30,7 +30,9 @@ def _auth() -> dict[str, str]:
     if _headers is None:
         token = config.bot_token
         if not token:
-            logger.warning("DISCORD_BOT_TOKEN not configured — Discord API calls will fail")
+            logger.warning(
+                "DISCORD_BOT_TOKEN not configured — Discord API calls will fail"
+            )
         _headers = {"Authorization": f"Bot {token}", "Content-Type": "application/json"}
     return _headers
 
@@ -44,12 +46,18 @@ async def _get(path: str) -> list[Any] | dict[str, Any] | None:
                 retry = float(resp.headers.get("Retry-After", 5))
                 logger.warning("Rate limited, retrying after %.1fs", retry)
                 import asyncio
+
                 await asyncio.sleep(retry)
                 return await _get(path)
             resp.raise_for_status()
             return resp.json()
         except httpx.HTTPStatusError as e:
-            logger.error("Discord API %s %s: %s", e.request.method, e.request.url, e.response.text)
+            logger.error(
+                "Discord API %s %s: %s",
+                e.request.method,
+                e.request.url,
+                e.response.text,
+            )
             return None
         except Exception as e:
             logger.error("Discord API request failed: %s", e)
@@ -104,15 +112,17 @@ async def get_guild_roles(guild_id: int) -> list[dict[str, Any]]:
 
     roles: list[dict[str, Any]] = []
     for r in data:
-        roles.append({
-            "id": r["id"],
-            "name": r["name"],
-            "color": r["color"],
-            "position": r["position"],
-            "managed": r["managed"],
-            "permissions": r["permissions"],
-            "icon": r.get("icon"),
-        })
+        roles.append(
+            {
+                "id": r["id"],
+                "name": r["name"],
+                "color": r["color"],
+                "position": r["position"],
+                "managed": r["managed"],
+                "permissions": r["permissions"],
+                "icon": r.get("icon"),
+            }
+        )
 
     roles.sort(key=lambda r: r["position"], reverse=True)
     _role_cache[guild_id] = roles
@@ -135,10 +145,9 @@ async def get_assignable_roles(guild_id: int) -> list[dict[str, Any]]:
             )
 
     return [
-        r for r in roles
-        if r["name"] != "@everyone"
-        and not r["managed"]
-        and r["position"] < bot_top
+        r
+        for r in roles
+        if r["name"] != "@everyone" and not r["managed"] and r["position"] < bot_top
     ]
 
 
@@ -156,7 +165,7 @@ async def get_guild_members(guild_id: int) -> dict[str, dict[str, Any]]:
     after = None
 
     while True:
-        params = f"?limit=1000"
+        params = "?limit=1000"
         if after:
             params += f"&after={after}"
 
@@ -172,7 +181,9 @@ async def get_guild_members(guild_id: int) -> dict[str, dict[str, Any]]:
 
             if avatar_hash:
                 ext = "gif" if avatar_hash.startswith("a_") else "png"
-                avatar_url = f"https://cdn.discordapp.com/avatars/{uid}/{avatar_hash}.{ext}"
+                avatar_url = (
+                    f"https://cdn.discordapp.com/avatars/{uid}/{avatar_hash}.{ext}"
+                )
             else:
                 default = int(disc) % 5 if disc != "0" else 0
                 avatar_url = f"https://cdn.discordapp.com/embed/avatars/{default}.png"
@@ -206,7 +217,9 @@ def default_user(user_id: int | str) -> dict[str, Any]:
     }
 
 
-async def enrich_leaderboard(guild_id: int, db_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+async def enrich_leaderboard(
+    guild_id: int, db_rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Merge Discord member data into raw DB leaderboard rows."""
     members = await get_guild_members(guild_id)
 
@@ -214,10 +227,12 @@ async def enrich_leaderboard(guild_id: int, db_rows: list[dict[str, Any]]) -> li
     for row in db_rows:
         uid = str(row["user_id"])
         member = members.get(uid) or default_user(uid)
-        enriched.append({
-            **member,
-            "level": row.get("level", 0),
-            "xp": row.get("xp", 0),
-            "messages": row.get("messages", 0),
-        })
+        enriched.append(
+            {
+                **member,
+                "level": row.get("level", 0),
+                "xp": row.get("xp", 0),
+                "messages": row.get("messages", 0),
+            }
+        )
     return enriched

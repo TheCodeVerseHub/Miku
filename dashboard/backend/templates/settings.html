@@ -11,21 +11,25 @@
 
     <div class="grid grid-2">
         <div class="card">
-            <div class="card-header">
-                <h3>Level-Up Announcements</h3>
-            </div>
+            <div class="card-header"><h3>Level-Up Announcements</h3></div>
             <div class="form-group">
                 <label class="form-label">Level-Up Channel ID</label>
                 <input class="form-input" type="number" x-model.number="settings.levelup_channel_id" placeholder="Leave empty for current channel">
                 <div class="form-hint">When set, level-up messages will go to this channel. When empty, announcements appear in the same channel as the message.</div>
             </div>
+            <div class="form-group">
+                <label class="toggle">
+                    <input type="checkbox" x-model="settings.xp_enabled" @change="save()">
+                    <span class="toggle-slider"></span>
+                    <span class="form-label" style="margin: 0;">XP System Enabled</span>
+                </label>
+            </div>
             <button class="btn btn-primary" @click="save()">Save Settings</button>
+            <div x-show="saved" style="margin-top: 12px; color: var(--success); font-size: 13px;">✓ Settings saved successfully</div>
         </div>
 
         <div class="card">
-            <div class="card-header">
-                <h3>Current Configuration</h3>
-            </div>
+            <div class="card-header"><h3>Current Configuration</h3></div>
             <div>
                 <div class="config-row">
                     <span class="config-label">XP System</span>
@@ -33,7 +37,7 @@
                 </div>
                 <div class="config-row">
                     <span class="config-label">XP Range</span>
-                    <span class="config-value" x-text="`${settings.min_xp} - ${settings.max_xp}`"></span>
+                    <span class="config-value" x-text="`${settings.min_xp} – ${settings.max_xp}`"></span>
                 </div>
                 <div class="config-row">
                     <span class="config-label">Cooldown</span>
@@ -41,7 +45,11 @@
                 </div>
                 <div class="config-row">
                     <span class="config-label">Level-Up Channel</span>
-                    <span class="config-value" x-text="settings.levelup_channel_id ? settings.levelup_channel_id : 'Same channel'"></span>
+                    <span class="config-value" x-text="settings.levelup_channel_id ? '#' + settings.levelup_channel_id : 'Same channel'"></span>
+                </div>
+                <div class="config-row">
+                    <span class="config-label">Configuration Age</span>
+                    <span class="config-value" x-text="settings.created_at ? fmtDate(settings.created_at) : 'New'"></span>
                 </div>
             </div>
         </div>
@@ -51,16 +59,19 @@
 <script>
 function settingsData() {
     return {
-        settings: { levelup_channel_id: null, xp_enabled: true, min_xp: 15, max_xp: 25, cooldown_seconds: 60 },
+        settings: { levelup_channel_id: null, xp_enabled: true, min_xp: 15, max_xp: 25, cooldown_seconds: 60, created_at: null },
+        saved: false,
         async init() {
             const s = await API.getSettings('{{ guild_id }}');
             if (s) this.settings = s;
         },
         async save() {
+            this.saved = false;
             const result = await API.updateSettings('{{ guild_id }}', this.settings);
-            if (result && result.ok) showToast('Settings saved', 'success');
+            if (result && result.ok) { showToast('Settings saved', 'success'); this.saved = true; }
             else showToast('Failed to save', 'error');
-        }
+        },
+        fmtDate
     };
 }
 </script>

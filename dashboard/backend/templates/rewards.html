@@ -5,10 +5,13 @@
 <div x-data="rewardsData()" x-init="await init()">
     <div class="section-bar">
         <div>
-            <div class="desc">Award roles when users reach specific levels &mdash; <strong><span x-text="rewards.length"></span> rewards configured</strong></div>
+            <div class="desc">Award roles when users reach specific levels — <strong><span x-text="rewards.length"></span> rewards configured</strong></div>
         </div>
         <div class="section-actions">
-            <button class="btn btn-primary" @click="openAdd()">Add Reward</button>
+            <div class="search-box">
+                <input class="form-input" type="text" x-model="search" placeholder="Search rewards..." @input.debounce="200">
+            </div>
+            <button class="btn btn-primary" @click="openAdd()">+ Add Reward</button>
         </div>
     </div>
 
@@ -19,11 +22,11 @@
                     <tr>
                         <th style="width: 60px;">Level</th>
                         <th>Role</th>
-                        <th style="width: 120px;">Actions</th>
+                        <th style="width: 140px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <template x-for="r in rewards" :key="r.level">
+                    <template x-for="r in filteredRewards" :key="r.level">
                         <tr>
                             <td style="font-size: 16px; font-weight: 700; color: var(--accent);" x-text="r.level + '.'"></td>
                             <td>
@@ -43,8 +46,11 @@
                             </td>
                         </tr>
                     </template>
-                    <template x-if="rewards.length === 0">
-                        <tr><td colspan="3" class="empty-state">No role rewards configured yet.</td></tr>
+                    <template x-if="filteredRewards.length === 0">
+                        <tr><td colspan="3" class="empty-state">
+                            <template x-if="search">No rewards match your search.</template>
+                            <template x-if="!search">No role rewards configured yet. Click "Add Reward" to get started.</template>
+                        </td></tr>
                     </template>
                 </tbody>
             </table>
@@ -58,6 +64,7 @@
             <div class="form-group">
                 <label class="form-label">Level</label>
                 <input class="form-input" type="number" x-model.number="newLevel" min="1" placeholder="e.g. 5">
+                <div class="form-error" x-show="formError" x-text="formError"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Role</label>
@@ -91,6 +98,7 @@
                         </div>
                     </div>
                 </div>
+                <div class="form-error" x-show="formErrorRole" x-text="formErrorRole"></div>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-ghost" @click="closeModal()">Cancel</button>
@@ -103,15 +111,18 @@
 <script>
 function rewardsData() {
     return {
-        rewards: [],
-        showModal: false,
-        editing: null,
-        newLevel: 1,
-        selectedRole: null,
-        roles: [],
-        pickerOpen: false,
-        roleSearch: '',
-        filteredRoles: [],
+        rewards: [], showModal: false, editing: null, newLevel: 1,
+        selectedRole: null, roles: [], pickerOpen: false, roleSearch: '',
+        filteredRoles: [], search: '', formError: '', formErrorRole: '',
+
+        get filteredRewards() {
+            if (!this.search) return this.rewards;
+            const q = this.search.toLowerCase();
+            return this.rewards.filter(r =>
+                r.level.toString().includes(q) ||
+                (this.roleName(r.role_id) || '').toLowerCase().includes(q)
+            );
+        },
 
         async init() {
             const [r, roles] = await Promise.all([
@@ -123,84 +134,54 @@ function rewardsData() {
             this.filteredRoles = this.roles;
         },
 
-        roleName(roleId) {
-            const r = this.roles.find(r => r.id === roleId);
-            return r ? r.name : null;
-        },
-
-        roleColor(roleId) {
-            const r = this.roles.find(r => r.id === roleId);
-            return r ? this.hexColor(r.color) : getAvatarColor(roleId);
-        },
-
-        hexColor(color) {
-            if (!color || color === 0) return '#99aab5';
-            return '#' + color.toString(16).padStart(6, '0');
-        },
+        roleName(roleId) { const r = this.roles.find(r => r.id === roleId); return r ? r.name : null; },
+        roleColor(roleId) { const r = this.roles.find(r => r.id === roleId); return r ? this.hexColor(r.color) : getAvatarColor(roleId); },
+        hexColor(color) { if (!color || color === 0) return '#99aab5'; return '#' + color.toString(16).padStart(6, '0'); },
 
         filterRoles() {
             const q = this.roleSearch.toLowerCase();
-            this.filteredRoles = this.roles.filter(r =>
-                r.name.toLowerCase().includes(q) || r.id.includes(q)
-            );
+            this.filteredRoles = this.roles.filter(r => r.name.toLowerCase().includes(q) || r.id.includes(q));
         },
 
-        selectRole(role) {
-            this.selectedRole = role;
-            this.pickerOpen = false;
-            this.roleSearch = '';
-        },
+        selectRole(role) { this.selectedRole = role; this.pickerOpen = false; this.roleSearch = ''; this.formErrorRole = ''; },
+        clearRole() { this.selectedRole = null; },
 
-        clearRole() {
-            this.selectedRole = null;
-        },
-
-        openAdd() {
-            this.editing = null;
-            this.newLevel = 1;
-            this.selectedRole = null;
-            this.showModal = true;
-        },
+        openAdd() { this.editing = null; this.newLevel = 1; this.selectedRole = null; this.formError = ''; this.formErrorRole = ''; this.showModal = true; },
 
         openEdit(r) {
-            this.editing = r;
-            this.newLevel = r.level;
+            this.editing = r; this.newLevel = r.level;
             this.selectedRole = this.roles.find(role => role.id === r.role_id) || null;
+            this.formError = ''; this.formErrorRole = '';
             this.showModal = true;
         },
 
-        closeModal() {
-            this.showModal = false;
-            this.editing = null;
-            this.selectedRole = null;
+        closeModal() { this.showModal = false; this.editing = null; this.selectedRole = null; this.formError = ''; this.formErrorRole = ''; },
+
+        validate() {
+            let valid = true;
+            this.formError = ''; this.formErrorRole = '';
+            if (!this.newLevel || this.newLevel < 1) { this.formError = 'Please enter a valid level (1 or higher).'; valid = false; }
+            if (!this.selectedRole) { this.formErrorRole = 'Please select a role.'; valid = false; }
+            return valid;
         },
 
         async save() {
-            if (!this.newLevel || !this.selectedRole) {
-                showToast('Please fill in all fields', 'error');
-                return;
-            }
-            if (this.editing) {
-                await API.removeReward('{{ guild_id }}', this.editing.level);
-            }
+            if (!this.validate()) return;
+            if (this.editing) await API.removeReward('{{ guild_id }}', this.editing.level);
             const result = await API.addReward('{{ guild_id }}', this.newLevel, this.selectedRole.id);
             if (result && result.ok) {
                 showToast(this.editing ? 'Reward updated' : 'Role reward added', 'success');
-                this.showModal = false;
-                this.editing = null;
-                this.selectedRole = null;
+                this.closeModal();
                 this.rewards = await API.getRewards('{{ guild_id }}') || [];
                 this.newLevel = 1;
             } else showToast('Failed to save reward', 'error');
         },
 
         async remove(level) {
-            if (!confirm(`Remove reward for Level ${level}?`)) return;
+            if (!await confirmDialog(`Remove reward for Level ${level}?`, 'Remove Reward')) return;
             const result = await API.removeReward('{{ guild_id }}', level);
-            if (result && result.ok) {
-                showToast('Reward removed', 'success');
-                this.rewards = await API.getRewards('{{ guild_id }}') || [];
-            } else showToast('Failed to remove reward', 'error');
+            if (result && result.ok) { showToast('Reward removed', 'success'); this.rewards = await API.getRewards('{{ guild_id }}') || []; }
+            else showToast('Failed to remove reward', 'error');
         }
     };
 }

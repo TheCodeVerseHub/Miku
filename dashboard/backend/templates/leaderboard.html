@@ -5,11 +5,12 @@
 <div x-data="leaderboardData()" x-init="init()">
     <div class="section-bar">
         <div>
-            <div class="desc">Rankings for <strong>{{ guild_name or 'Server' }}</strong> &mdash; <span x-text="total + ' users tracked'">--</span></div>
+            <div class="desc">Rankings for <strong>{{ guild_name or 'Server' }}</strong> — <span x-text="total + ' users tracked'">--</span></div>
         </div>
         <div class="section-actions">
             <div class="search-box">
-                <input class="form-input" type="text" x-model="search" placeholder="Search by user ID..." @input.debounce="load()">
+                <input class="form-input" type="text" x-model="search" placeholder="Search by name or ID..." @input.debounce="load()">
+                <button class="btn btn-ghost btn-sm" @click="search = ''; load()" x-show="search">Clear</button>
             </div>
         </div>
     </div>
@@ -31,12 +32,7 @@
                     <template x-for="(u, i) in users" :key="u.user_id">
                         <tr :class="i < 3 ? 'row-' + ['gold','silver','bronze'][i] : ''">
                             <td>
-                                <template x-if="i < 3">
-                                    <div class="lb-rank" :class="'lb-rank-' + (offset + i + 1)" x-text="offset + i + 1"></div>
-                                </template>
-                                <template x-if="i >= 3">
-                                    <div class="lb-rank lb-rank-default" x-text="offset + i + 1"></div>
-                                </template>
+                                <div class="lb-rank" :class="offset + i < 3 ? 'lb-rank-' + (offset + i + 1) : 'lb-rank-default'" x-text="offset + i + 1"></div>
                             </td>
                             <td>
                                 <a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" class="user-cell" style="text-decoration: none; color: inherit;">
@@ -64,17 +60,20 @@
                             </td>
                         </tr>
                     </template>
-                    <template x-if="users.length === 0">
-                        <tr><td colspan="6" class="empty-state">No users found.</td></tr>
+                    <template x-if="loading">
+                        <tr><td colspan="6" style="text-align: center; padding: 32px;">Loading...</td></tr>
+                    </template>
+                    <template x-if="!loading && users.length === 0">
+                        <tr><td colspan="6" class="empty-state">No users found. <template x-if="search">Try a different search term.</template></td></tr>
                     </template>
                 </tbody>
             </table>
         </div>
 
         <div class="pagination" style="padding: 16px 18px; margin: 0;">
-            <button class="btn btn-ghost btn-sm" @click="prevPage()" :disabled="page <= 1">Prev</button>
+            <button class="btn btn-ghost btn-sm" @click="prevPage()" :disabled="page <= 1">← Prev</button>
             <span class="pagination-info" x-text="`Page ${page} of ${totalPages}`"></span>
-            <button class="btn btn-ghost btn-sm" @click="nextPage()" :disabled="page >= totalPages">Next</button>
+            <button class="btn btn-ghost btn-sm" @click="nextPage()" :disabled="page >= totalPages">Next →</button>
         </div>
     </div>
 </div>
@@ -82,38 +81,19 @@
 <script>
 function leaderboardData() {
     return {
-        users: [],
-        total: 0,
-        page: 1,
-        perPage: 10,
-        search: '',
+        users: [], total: 0, page: 1, perPage: 10, search: '', loading: false,
         get totalPages() { return Math.max(1, Math.ceil(this.total / this.perPage)); },
         get offset() { return (this.page - 1) * this.perPage; },
         async init() { await this.load(); },
         async load() {
+            this.loading = true;
             const data = await API.getLeaderboard('{{ guild_id }}', this.perPage, this.offset, this.search);
-            if (data) {
-                this.users = data.users;
-                this.total = data.total;
-            }
+            if (data) { this.users = data.users; this.total = data.total; }
+            this.loading = false;
         },
         prevPage() { if (this.page > 1) { this.page--; this.load(); } },
         nextPage() { if (this.page < this.totalPages) { this.page++; this.load(); } },
-        xpForLevel(lvl) {
-            let total = 0;
-            for (let i = 1; i <= lvl; i++) total += 5 * (i ** 2) + (50 * i) + 100;
-            return total;
-        },
-        xpPct(u) {
-            const xp = u.xp || 0;
-            const lvl = u.level || 0;
-            const cur = this.xpForLevel(lvl);
-            const nxt = this.xpForLevel(lvl + 1);
-            const progress = xp - cur;
-            const needed = nxt - cur;
-            return needed > 0 ? Math.min(100, (progress / needed) * 100) : 0;
-        },
-        fmtNum
+        xpForLevel, xpPct, fmtNum
     };
 }
 </script>

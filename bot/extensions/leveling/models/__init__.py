@@ -3,4 +3,3 @@
 - `sql.py` contains SQLAlchemy ORM models (database tables).
 - `domain.py` contains small dataclasses used by services.
 """
-

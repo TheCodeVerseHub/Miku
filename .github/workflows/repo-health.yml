@@ -1,0 +1,44 @@
+name: Repository Health
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify README
+        run: |
+          test -f README.md || { echo "README.md missing"; exit 1; }
+          echo "README.md exists"
+
+      - name: Verify workflow files
+        run: |
+          for f in .github/workflows/*.yml; do
+            echo "Checking $f"
+            python3 -c "import yaml; yaml.safe_load(open('$f'))" || { echo "Invalid YAML in $f"; exit 1; }
+          done
+
+      - name: Validate project structure
+        run: |
+          python3 << 'EOF'
+          import os
+          required = ['main.py', 'src/bot.py', 'src/utils/database.py', 'src/cogs/leveling.py', 'pyproject.toml']
+          for f in required:
+              assert os.path.exists(f), f"Missing: {f}"
+          print("Project structure valid")
+          EOF
+
+      - name: Check for TODO/FIXME
+        run: |
+          todos=$(grep -r "TODO\|FIXME" --include='*.py' --include='*.html' --include='*.js' --include='*.css' --exclude-dir=.venv --exclude-dir=.git --exclude-dir=__pycache__ . | wc -l)
+          echo "Found $todos TODO/FIXME markers"
+
+      - name: Check file size limits
+        run: |
+          find . -type f -name '*.py' -size +500k -not -path './.venv/*' -not -path './.git/*' -exec echo "Large file: {}" \;

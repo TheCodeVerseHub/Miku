@@ -12,11 +12,12 @@ from __future__ import annotations
 import logging
 import platform
 from datetime import datetime, timezone
-from typing import Optional
 
 import discord
 from discord import app_commands
 from discord.ext import commands
+
+from utils.discord_helpers import maybe_defer, send
 
 logger = logging.getLogger("miku.utilities")
 
@@ -52,39 +53,6 @@ class Utilities(commands.Cog):
 
     # -- hybrid-command helpers (same pattern as other cogs) -----------------
 
-    async def _send(self, ctx: commands.Context, *args, **kwargs):
-        interaction = getattr(ctx, "interaction", None)
-
-        if interaction is None:
-            kwargs.pop("ephemeral", None)
-
-        try:
-            return await ctx.send(*args, **kwargs)
-        except discord.NotFound as e:
-            if (
-                interaction is not None
-                and getattr(e, "code", None) == 10062
-                and getattr(ctx, "channel", None) is not None
-            ):
-                kwargs.pop("ephemeral", None)
-                return await ctx.channel.send(*args, **kwargs)  # type: ignore[union-attr]
-            raise
-        except discord.InteractionResponded:
-            if interaction is not None:
-                return await interaction.followup.send(*args, **kwargs)
-            raise
-
-    async def _maybe_defer(self, ctx: commands.Context, *, ephemeral: bool = False) -> None:
-        interaction = getattr(ctx, "interaction", None)
-        if interaction is None:
-            return
-        if interaction.response.is_done():
-            return
-        try:
-            await ctx.defer(ephemeral=ephemeral)
-        except (discord.NotFound, discord.HTTPException):
-            return
-
     # =====================================================================
     # Commands
     # =====================================================================
@@ -98,19 +66,21 @@ class Utilities(commands.Cog):
             description=f"Latency: **{latency_ms}ms**",
             color=EMBED_COLOR,
         )
-        await self._send(ctx, embed=embed)
+        await send(ctx, embed=embed)
 
-    @commands.hybrid_command(name="uptime", description="Show how long the bot has been online")
+    @commands.hybrid_command(
+        name="uptime", description="Show how long the bot has been online"
+    )
     async def uptime(self, ctx: commands.Context) -> None:
         """Show bot uptime."""
-        started_at: Optional[datetime] = getattr(self.bot, "start_time", None)
+        started_at: datetime | None = getattr(self.bot, "start_time", None)
         if started_at is None:
             embed = discord.Embed(
                 title="Uptime",
                 description="Uptime tracking is not available in this build.",
                 color=discord.Color.orange(),
             )
-            await self._send(ctx, embed=embed, ephemeral=True)
+            await send(ctx, embed=embed, ephemeral=True)
             return
 
         now = datetime.now(timezone.utc)
@@ -122,19 +92,21 @@ class Utilities(commands.Cog):
             color=EMBED_COLOR,
         )
         embed.set_footer(text=f"Started {started_at.strftime('%Y-%m-%d %H:%M:%S UTC')}")
-        await self._send(ctx, embed=embed)
+        await send(ctx, embed=embed)
 
     @commands.hybrid_command(name="about", description="Learn more about Miku")
     async def about(self, ctx: commands.Context) -> None:
         """Show bot stats and version info."""
-        await self._maybe_defer(ctx, ephemeral=False)
+        await maybe_defer(ctx, ephemeral=False)
 
         guild_count = len(getattr(self.bot, "guilds", []))
         command_count = len(list(getattr(self.bot, "walk_commands", lambda: [])()))
 
-        started_at: Optional[datetime] = getattr(self.bot, "start_time", None)
+        started_at: datetime | None = getattr(self.bot, "start_time", None)
         if started_at is not None:
-            uptime = _format_timedelta((datetime.now(timezone.utc) - started_at).total_seconds())
+            uptime = _format_timedelta(
+                (datetime.now(timezone.utc) - started_at).total_seconds()
+            )
         else:
             uptime = "N/A"
 
@@ -145,7 +117,7 @@ class Utilities(commands.Cog):
             if owner is not None:
                 owner_text = f"{owner}"
         except Exception:
-            pass
+            logger.debug("Could not fetch bot application info for about command")
 
         embed = discord.Embed(
             title="About Miku",
@@ -158,18 +130,22 @@ class Utilities(commands.Cog):
 
         embed.add_field(name="Owner", value=owner_text, inline=True)
         embed.add_field(name="Python", value=platform.python_version(), inline=True)
-        embed.add_field(name="discord.py", value=getattr(discord, "__version__", "Unknown"), inline=True)
+        embed.add_field(
+            name="discord.py",
+            value=getattr(discord, "__version__", "Unknown"),
+            inline=True,
+        )
 
         if self.bot.user is not None:
             embed.set_thumbnail(url=self.bot.user.display_avatar.url)
 
-        await self._send(ctx, embed=embed)
+        await send(ctx, embed=embed)
 
     @commands.hybrid_command(name="invite", description="Get the bot invite link")
     async def invite(self, ctx: commands.Context) -> None:
         """Send an OAuth2 invite link for the bot."""
         if self.bot.user is None:
-            await self._send(
+            await send(
                 ctx,
                 embed=discord.Embed(
                     title="Invite",
@@ -191,11 +167,13 @@ class Utilities(commands.Cog):
             description=f"Click here to invite me to your server:\n{url}",
             color=EMBED_COLOR,
         )
-        await self._send(ctx, embed=embed, ephemeral=True)
+        await send(ctx, embed=embed, ephemeral=True)
 
     @commands.hybrid_command(name="avatar", description="Show a user's avatar")
     @app_commands.describe(user="User to view (defaults to you)")
-    async def avatar(self, ctx: commands.Context, user: Optional[discord.User] = None) -> None:
+    async def avatar(
+        self, ctx: commands.Context, user: discord.User | None = None
+    ) -> None:
         """Display avatar for a user."""
         target = user or ctx.author
         embed = discord.Embed(
@@ -203,14 +181,18 @@ class Utilities(commands.Cog):
             color=EMBED_COLOR,
         )
         embed.set_image(url=target.display_avatar.url)
-        await self._send(ctx, embed=embed)
+        await send(ctx, embed=embed)
 
-    @commands.hybrid_command(name="userinfo", description="Show information about a user")
+    @commands.hybrid_command(
+        name="userinfo", description="Show information about a user"
+    )
     @app_commands.describe(user="User to view (defaults to you)")
-    async def userinfo(self, ctx: commands.Context, user: Optional[discord.Member] = None) -> None:
+    async def userinfo(
+        self, ctx: commands.Context, user: discord.Member | None = None
+    ) -> None:
         """Display basic info about a member."""
         if ctx.guild is None:
-            await self._send(
+            await send(
                 ctx,
                 embed=discord.Embed(
                     title="User Info",
@@ -224,7 +206,7 @@ class Utilities(commands.Cog):
         member = user or ctx.author
         if not isinstance(member, discord.Member):
             # Shouldn't happen in guild context, but keep it safe.
-            await self._send(
+            await send(
                 ctx,
                 embed=discord.Embed(
                     title="User Info",
@@ -263,13 +245,15 @@ class Utilities(commands.Cog):
             )
 
         embed.add_field(name="Roles", value=roles_display, inline=False)
-        await self._send(ctx, embed=embed)
+        await send(ctx, embed=embed)
 
-    @commands.hybrid_command(name="serverinfo", description="Show information about this server")
+    @commands.hybrid_command(
+        name="serverinfo", description="Show information about this server"
+    )
     async def serverinfo(self, ctx: commands.Context) -> None:
         """Display server information."""
         if ctx.guild is None:
-            await self._send(
+            await send(
                 ctx,
                 embed=discord.Embed(
                     title="Server Info",
@@ -291,14 +275,28 @@ class Utilities(commands.Cog):
             embed.set_thumbnail(url=guild.icon.url)
 
         embed.add_field(name="ID", value=str(guild.id), inline=True)
-        embed.add_field(name="Owner", value=str(guild.owner) if guild.owner else "Unknown", inline=True)
-        embed.add_field(name="Created", value=f"<t:{int(guild.created_at.timestamp())}:F>", inline=True)
+        embed.add_field(
+            name="Owner",
+            value=str(guild.owner) if guild.owner else "Unknown",
+            inline=True,
+        )
+        embed.add_field(
+            name="Created",
+            value=f"<t:{int(guild.created_at.timestamp())}:F>",
+            inline=True,
+        )
 
-        embed.add_field(name="Members", value=str(guild.member_count or "Unknown"), inline=True)
-        embed.add_field(name="Text Channels", value=str(len(guild.text_channels)), inline=True)
-        embed.add_field(name="Voice Channels", value=str(len(guild.voice_channels)), inline=True)
+        embed.add_field(
+            name="Members", value=str(guild.member_count or "Unknown"), inline=True
+        )
+        embed.add_field(
+            name="Text Channels", value=str(len(guild.text_channels)), inline=True
+        )
+        embed.add_field(
+            name="Voice Channels", value=str(len(guild.voice_channels)), inline=True
+        )
 
-        await self._send(ctx, embed=embed)
+        await send(ctx, embed=embed)
 
 
 async def setup(bot: commands.Bot) -> None:

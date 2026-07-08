@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 import random
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import discord
 from discord.ext import commands
@@ -34,12 +34,14 @@ logger = logging.getLogger("miku.level_service")
 # Enums / constants for restriction types and XP sources
 # ──────────────────────────────────────────────────────────────────────
 
+
 class RestrictionType:
     IGNORE_ROLE = "IGNORE_ROLE"
     ALLOW_CHANNEL = "ALLOW_CHANNEL"
     BLOCK_CHANNEL = "BLOCK_CHANNEL"
     IGNORE_CATEGORY = "IGNORE_CATEGORY"
     ALLOW_CATEGORY = "ALLOW_CATEGORY"
+
 
 _VALID_RESTRICTIONS = {
     RestrictionType.IGNORE_ROLE,
@@ -74,12 +76,14 @@ class TargetType:
 class LevelService:
     """Central service for XP/leveling operations."""
 
-    def __init__(self, bot: commands.Bot, formula_registry: Optional[FormulaRegistry] = None) -> None:
+    def __init__(
+        self, bot: commands.Bot, formula_registry: FormulaRegistry | None = None
+    ) -> None:
         self.bot = bot
         self.formula_registry = formula_registry or FormulaRegistry()
         self.formula_registry.load_defaults()
         # In-memory cooldown tracking (cleared on bot restart).
-        self._cooldowns: Dict[str, float] = {}
+        self._cooldowns: dict[str, float] = {}
 
     # ══════════════════════════════════════════════════════════════════
     # Formula helpers (delegated to current formula)
@@ -96,14 +100,18 @@ class LevelService:
     def calculate_xp_for_level(self, level: int, guild_id: int = 0) -> int:
         return self._get_formula(guild_id).xp_for_level(level)
 
-    def calculate_xp_to_next_level(self, current_xp: int, current_level: int, guild_id: int = 0) -> Tuple[int, int, int]:
+    def calculate_xp_to_next_level(
+        self, current_xp: int, current_level: int, guild_id: int = 0
+    ) -> tuple[int, int, int]:
         return self._get_formula(guild_id).xp_to_next_level(current_xp, current_level)
 
     # ══════════════════════════════════════════════════════════════════
     # Cooldown
     # ══════════════════════════════════════════════════════════════════
 
-    def is_on_cooldown(self, user_id: int, guild_id: int, cooldown_seconds: int = 60) -> bool:
+    def is_on_cooldown(
+        self, user_id: int, guild_id: int, cooldown_seconds: int = 60
+    ) -> bool:
         key = f"{user_id}_{guild_id}"
         last = self._cooldowns.get(key)
         if last is None:
@@ -124,25 +132,31 @@ class LevelService:
             "xp_enabled": settings.get("xp_enabled", True) if settings else True,
             "min_xp": settings.get("min_xp", 15) if settings else 15,
             "max_xp": settings.get("max_xp", 25) if settings else 25,
-            "cooldown_seconds": settings.get("cooldown_seconds", 60) if settings else 60,
+            "cooldown_seconds": (
+                settings.get("cooldown_seconds", 60) if settings else 60
+            ),
         }
 
     def _roll_base_xp(self, config: dict) -> int:
         return random.randint(config["min_xp"], config["max_xp"])
 
-    async def _resolve_multipliers(self, guild_id: int, member: discord.Member, channel: discord.TextChannel) -> float:
+    async def _resolve_multipliers(
+        self, guild_id: int, member: discord.Member, channel: discord.TextChannel
+    ) -> float:
         """Compute combined multiplier for this member + channel."""
         # TODO: load from xp_multipliers table when it exists.
         # For now, always 1.0 (no multipliers).
         return 1.0
 
-    async def _check_restrictions(self, guild_id: int, member: discord.Member, channel: discord.TextChannel) -> bool:
+    async def _check_restrictions(
+        self, guild_id: int, member: discord.Member, channel: discord.TextChannel
+    ) -> bool:
         """Return True if XP should be awarded (no restriction blocks it)."""
         # TODO: load from xp_restrictions table when it exists.
         # For now, always allow.
         return True
 
-    async def award_message_xp(self, message: discord.Message) -> Optional[Dict[str, Any]]:
+    async def award_message_xp(self, message: discord.Message) -> dict[str, Any] | None:
         """Handle a message for XP awarding.
 
         Returns a dict with keys ``xp_gained``, ``old_level``, ``new_level``
@@ -164,13 +178,17 @@ class LevelService:
         if not isinstance(message.author, discord.Member):
             return None
 
-        if not await self._check_restrictions(guild_id, message.author, message.channel):
+        if not await self._check_restrictions(
+            guild_id, message.author, message.channel
+        ):
             return None
 
         self.set_cooldown(user_id, guild_id)
 
         base_xp = self._roll_base_xp(config)
-        multiplier = await self._resolve_multipliers(guild_id, message.author, message.channel)
+        multiplier = await self._resolve_multipliers(
+            guild_id, message.author, message.channel
+        )
         xp_gain = max(1, round(base_xp * multiplier))
 
         user_data = await db.get_user_data(user_id, guild_id)
@@ -187,7 +205,9 @@ class LevelService:
         new_level = self.calculate_level(new_xp, guild_id)
         messages += 1
 
-        await db.update_user_xp(user_id, guild_id, new_xp, new_level, messages, time.time())
+        await db.update_user_xp(
+            user_id, guild_id, new_xp, new_level, messages, time.time()
+        )
 
         await self._log_xp(guild_id, user_id, xp_gain, XpSource.MESSAGE)
 
@@ -204,7 +224,14 @@ class LevelService:
     # Level-up handling
     # ══════════════════════════════════════════════════════════════════
 
-    async def handle_level_up(self, guild: discord.Guild, member: discord.Member, old_level: int, new_level: int, fallback_channel: Optional[discord.abc.Messageable] = None) -> None:
+    async def handle_level_up(
+        self,
+        guild: discord.Guild,
+        member: discord.Member,
+        old_level: int,
+        new_level: int,
+        fallback_channel: discord.abc.Messageable | None = None,
+    ) -> None:
         """Post level-up announcement and assign role rewards."""
         embed = discord.Embed(
             title=" Level Up!",
@@ -231,20 +258,29 @@ class LevelService:
 
         try:
             if not used_custom_channel:
-                await target_channel.send(embed=embed, delete_after=random.uniform(3, 5))
+                await target_channel.send(
+                    embed=embed, delete_after=random.uniform(3, 5)
+                )
             else:
                 await target_channel.send(embed=embed)
         except Exception:
             if fallback_channel is not None and target_channel != fallback_channel:
                 try:
-                    await fallback_channel.send(embed=embed, delete_after=random.uniform(3, 5))
+                    await fallback_channel.send(
+                        embed=embed, delete_after=random.uniform(3, 5)
+                    )
                 except Exception:
-                    pass
+                    logger.warning(
+                        "Failed to send level-up message to fallback channel in guild %s",
+                        guild.id,
+                    )
 
         for reached_level in range(old_level + 1, new_level + 1):
             await self.assign_role_reward(guild, member, reached_level)
 
-    async def assign_role_reward(self, guild: discord.Guild, member: discord.Member, level: int) -> None:
+    async def assign_role_reward(
+        self, guild: discord.Guild, member: discord.Member, level: int
+    ) -> None:
         """Assign a role reward for a specific level."""
         role_id = await db.get_role_for_level(guild.id, level)
         if role_id is None:
@@ -252,11 +288,21 @@ class LevelService:
 
         role = guild.get_role(role_id)
         if role is None:
-            logger.warning("Role reward target role not found (guild=%s level=%s role_id=%s)", guild.id, level, role_id)
+            logger.warning(
+                "Role reward target role not found (guild=%s level=%s role_id=%s)",
+                guild.id,
+                level,
+                role_id,
+            )
             return
 
         if role.managed:
-            logger.warning("Role reward role is managed (guild=%s level=%s role=%s)", guild.id, level, role.id)
+            logger.warning(
+                "Role reward role is managed (guild=%s level=%s role=%s)",
+                guild.id,
+                level,
+                role.id,
+            )
             return
 
         if role in member.roles:
@@ -277,18 +323,28 @@ class LevelService:
             logger.warning("Missing Manage Roles (guild=%s)", guild.id)
             return
         if bot_member.top_role <= role:
-            logger.warning("Bot role too low for role reward (guild=%s level=%s)", guild.id, level)
+            logger.warning(
+                "Bot role too low for role reward (guild=%s level=%s)", guild.id, level
+            )
             return
 
         try:
             await member.add_roles(role, reason=f"Level {level} reward")
-            logger.info("Assigned role reward (guild=%s user=%s level=%s role=%s)", guild.id, member.id, level, role.id)
+            logger.info(
+                "Assigned role reward (guild=%s user=%s level=%s role=%s)",
+                guild.id,
+                member.id,
+                level,
+                role.id,
+            )
         except discord.Forbidden:
             logger.warning("Forbidden assigning role reward (guild=%s)", guild.id)
         except Exception:
             logger.exception("Failed to assign role reward (guild=%s)", guild.id)
 
-    async def refresh_rewards(self, guild: discord.Guild, member: discord.Member) -> None:
+    async def refresh_rewards(
+        self, guild: discord.Guild, member: discord.Member
+    ) -> None:
         """Assign any role rewards the member is missing for their current level."""
         user_data = await db.get_user_data(member.id, guild.id)
         if not user_data:
@@ -303,23 +359,38 @@ class LevelService:
     # Admin XP mutations
     # ══════════════════════════════════════════════════════════════════
 
-    async def set_level(self, guild_id: int, user_id: int, level: int, admin_id: int, reason: str = "") -> Dict[str, Any]:
+    async def set_level(
+        self, guild_id: int, user_id: int, level: int, admin_id: int, reason: str = ""
+    ) -> dict[str, Any]:
         """Set a user's level (recalculates XP)."""
         if level < 0:
             raise ValueError("Level must be 0 or higher")
         xp = self.calculate_xp_for_level(level, guild_id)
         user_data = await db.get_user_data(user_id, guild_id)
-        messages = user_data["messages"] if user_data else 0
         old_level = user_data["level"] if user_data else 0
 
         await db.set_user_level(user_id, guild_id, level, xp)
 
-        await self._log_xp(guild_id, user_id, xp - (user_data["xp"] if user_data else 0), XpSource.ADMIN, reason)
-        await self._log_audit(guild_id, user_id, admin_id, "set_level", {"old_level": old_level, "new_level": level, "reason": reason})
+        await self._log_xp(
+            guild_id,
+            user_id,
+            xp - (user_data["xp"] if user_data else 0),
+            XpSource.ADMIN,
+            reason,
+        )
+        await self._log_audit(
+            guild_id,
+            user_id,
+            admin_id,
+            "set_level",
+            {"old_level": old_level, "new_level": level, "reason": reason},
+        )
 
         return {"old_level": old_level, "new_level": level, "xp": xp}
 
-    async def set_xp(self, guild_id: int, user_id: int, xp: int, admin_id: int, reason: str = "") -> Dict[str, Any]:
+    async def set_xp(
+        self, guild_id: int, user_id: int, xp: int, admin_id: int, reason: str = ""
+    ) -> dict[str, Any]:
         """Set a user's XP directly (recalculates level)."""
         if xp < 0:
             raise ValueError("XP must be 0 or higher")
@@ -332,11 +403,36 @@ class LevelService:
         await db.update_user_xp(user_id, guild_id, xp, new_level, messages, time.time())
 
         await self._log_xp(guild_id, user_id, xp - old_xp, XpSource.ADMIN, reason)
-        await self._log_audit(guild_id, user_id, admin_id, "set_xp", {"old_xp": old_xp, "new_xp": xp, "old_level": old_level, "new_level": new_level, "reason": reason})
+        await self._log_audit(
+            guild_id,
+            user_id,
+            admin_id,
+            "set_xp",
+            {
+                "old_xp": old_xp,
+                "new_xp": xp,
+                "old_level": old_level,
+                "new_level": new_level,
+                "reason": reason,
+            },
+        )
 
-        return {"old_xp": old_xp, "new_xp": xp, "old_level": old_level, "new_level": new_level}
+        return {
+            "old_xp": old_xp,
+            "new_xp": xp,
+            "old_level": old_level,
+            "new_level": new_level,
+        }
 
-    async def add_xp(self, guild_id: int, user_id: int, amount: int, admin_id: int, source: str = XpSource.ADMIN, reason: str = "") -> Dict[str, Any]:
+    async def add_xp(
+        self,
+        guild_id: int,
+        user_id: int,
+        amount: int,
+        admin_id: int,
+        source: str = XpSource.ADMIN,
+        reason: str = "",
+    ) -> dict[str, Any]:
         """Add XP to a user."""
         user_data = await db.get_user_data(user_id, guild_id)
         if user_data:
@@ -351,22 +447,43 @@ class LevelService:
         new_xp = max(0, current_xp + amount)
         new_level = self.calculate_level(new_xp, guild_id)
 
-        await db.update_user_xp(user_id, guild_id, new_xp, new_level, messages, time.time())
+        await db.update_user_xp(
+            user_id, guild_id, new_xp, new_level, messages, time.time()
+        )
 
         await self._log_xp(guild_id, user_id, amount, source, reason)
         if source == XpSource.ADMIN:
-            await self._log_audit(guild_id, user_id, admin_id, "add_xp", {"amount": amount, "reason": reason})
+            await self._log_audit(
+                guild_id,
+                user_id,
+                admin_id,
+                "add_xp",
+                {"amount": amount, "reason": reason},
+            )
 
-        return {"old_xp": current_xp, "new_xp": new_xp, "old_level": current_level, "new_level": new_level}
+        return {
+            "old_xp": current_xp,
+            "new_xp": new_xp,
+            "old_level": current_level,
+            "new_level": new_level,
+        }
 
-    async def remove_xp(self, guild_id: int, user_id: int, amount: int, admin_id: int, reason: str = "") -> Dict[str, Any]:
+    async def remove_xp(
+        self, guild_id: int, user_id: int, amount: int, admin_id: int, reason: str = ""
+    ) -> dict[str, Any]:
         """Remove XP from a user."""
-        return await self.add_xp(guild_id, user_id, -amount, admin_id, XpSource.ADMIN, reason)
+        return await self.add_xp(
+            guild_id, user_id, -amount, admin_id, XpSource.ADMIN, reason
+        )
 
-    async def reset_member(self, guild_id: int, user_id: int, admin_id: int, reason: str = "") -> None:
+    async def reset_member(
+        self, guild_id: int, user_id: int, admin_id: int, reason: str = ""
+    ) -> None:
         """Reset a user's XP data entirely."""
         await db.reset_user_data(user_id, guild_id)
-        await self._log_audit(guild_id, user_id, admin_id, "reset_member", {"reason": reason})
+        await self._log_audit(
+            guild_id, user_id, admin_id, "reset_member", {"reason": reason}
+        )
 
     async def reset_guild(self, guild_id: int, admin_id: int, reason: str = "") -> None:
         """Reset all XP data for a guild."""
@@ -377,14 +494,18 @@ class LevelService:
     # Logging
     # ══════════════════════════════════════════════════════════════════
 
-    async def _log_xp(self, guild_id: int, user_id: int, amount: int, source: str, reason: str = "") -> None:
+    async def _log_xp(
+        self, guild_id: int, user_id: int, amount: int, source: str, reason: str = ""
+    ) -> None:
         """Record an XP change in the xp_log."""
         try:
             await db.insert_xp_log(guild_id, user_id, amount, source, reason)
         except Exception:
             logger.exception("Failed to log XP entry")
 
-    async def _log_audit(self, guild_id: int, user_id: int, admin_id: int, action: str, details: dict) -> None:
+    async def _log_audit(
+        self, guild_id: int, user_id: int, admin_id: int, action: str, details: dict
+    ) -> None:
         """Record an admin action in the audit log."""
         try:
             await db.insert_audit_log(guild_id, user_id, admin_id, action, details)
@@ -395,14 +516,18 @@ class LevelService:
     # Queries for dashboard / analytics
     # ══════════════════════════════════════════════════════════════════
 
-    async def get_member_stats(self, guild_id: int, user_id: int) -> Optional[Dict[str, Any]]:
+    async def get_member_stats(
+        self, guild_id: int, user_id: int
+    ) -> dict[str, Any] | None:
         user_data = await db.get_user_data(user_id, guild_id)
         if not user_data:
             return None
         rank = await db.get_user_rank(user_id, guild_id)
         xp = user_data["xp"]
         level = user_data["level"]
-        xp_needed, xp_progress, xp_required = self.calculate_xp_to_next_level(xp, level, guild_id)
+        xp_needed, xp_progress, xp_required = self.calculate_xp_to_next_level(
+            xp, level, guild_id
+        )
         return {
             "xp": xp,
             "level": level,
@@ -411,13 +536,17 @@ class LevelService:
             "xp_to_next_level": xp_needed,
             "xp_progress": xp_progress,
             "xp_required_for_level": xp_required,
-            "progress_pct": round((xp_progress / xp_required * 100) if xp_required > 0 else 0, 1),
+            "progress_pct": round(
+                (xp_progress / xp_required * 100) if xp_required > 0 else 0, 1
+            ),
         }
 
-    async def get_leaderboard(self, guild_id: int, limit: int = 10, offset: int = 0) -> List[Dict[str, Any]]:
+    async def get_leaderboard(
+        self, guild_id: int, limit: int = 10, offset: int = 0
+    ) -> list[dict[str, Any]]:
         return await db.get_leaderboard(guild_id, limit, offset)
 
-    async def get_guild_stats(self, guild_id: int) -> Dict[str, Any]:
+    async def get_guild_stats(self, guild_id: int) -> dict[str, Any]:
         total_users = await db.get_total_users(guild_id)
         leaderboard = await db.get_leaderboard(guild_id, limit=5)
         return {

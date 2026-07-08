@@ -4,13 +4,14 @@
 
 <div x-data="userData()" x-init="init()">
     <div class="section-bar">
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <div class="user-avatar">
+        <div style="display: flex; align-items: center; gap: 14px;">
+            <div class="user-avatar user-avatar-lg">
                 <img :src="profile.avatar_url" :alt="profile.username" @error="onAvatarError($event, userId)">
             </div>
             <div>
-                <div style="font-weight: 600;" x-text="profile.display_name || profile.username || 'User ' + String(userId).slice(0, 8) + '...'">User Profile</div>
-                <div class="desc" x-text="'ID: ' + userId">--</div>
+                <div style="font-size: 18px; font-weight: 700;" x-text="profile.display_name || profile.username || 'User ' + String(userId).slice(0, 8) + '...'">User Profile</div>
+                <div class="desc" style="margin-top: 2px;" x-text="'ID: ' + userId">--</div>
+                <div class="desc" x-show="profile.created_at" x-text="'Account created: ' + fmtDate(profile.created_at)"></div>
             </div>
         </div>
         <div class="section-actions">
@@ -23,60 +24,82 @@
         </div>
     </div>
 
+    <div class="grid grid-3" style="margin-bottom: 18px;">
+        <div class="stat-card">
+            <div class="stat-card-label">Current Level</div>
+            <div class="stat-card-value" x-text="profile.level ?? '--'"></div>
+        </div>
+        <div class="stat-card accent">
+            <div class="stat-card-label">Server Rank</div>
+            <div class="stat-card-value" x-text="'#' + (profile.rank ?? '--')"></div>
+        </div>
+        <div class="stat-card success">
+            <div class="stat-card-label">Total XP</div>
+            <div class="stat-card-value" x-text="fmtNum(profile.xp)">--</div>
+        </div>
+    </div>
+
     <div class="grid grid-2">
         <div class="card">
-            <div class="card-header">
-                <h3>Level & XP</h3>
-            </div>
-            <div style="display: flex; gap: 28px; margin-bottom: 18px; flex-wrap: wrap;">
-                <div>
-                    <div class="info-stat-label">Level</div>
-                    <div style="font-size: 34px; font-weight: 700; line-height: 1.2; letter-spacing: -0.5px;" x-text="profile.level">--</div>
-                </div>
-                <div>
-                    <div class="info-stat-label">Server Rank</div>
-                    <div style="font-size: 34px; font-weight: 700; line-height: 1.2; letter-spacing: -0.5px;" x-text="'#' + profile.rank">--</div>
-                </div>
-                <div>
-                    <div class="info-stat-label">Total XP</div>
-                    <div style="font-size: 34px; font-weight: 700; line-height: 1.2; letter-spacing: -0.5px;" x-text="fmtNum(profile.xp)">--</div>
-                </div>
-            </div>
-
+            <div class="card-header"><h3>Progress</h3></div>
             <div class="form-group">
-                <label class="form-label">XP Progress</label>
-                <div x-text="`${fmtNum(xpProgress)} / ${fmtNum(xpRequired)} (${xpPercent}%)`" style="font-size: 13px; margin-bottom: 6px; color: var(--text-secondary);"></div>
+                <label class="form-label">XP Progress to Next Level</label>
+                <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
+                    <span style="color: var(--text-secondary);" x-text="fmtNum(xpProgress) + ' / ' + fmtNum(xpRequired) + ' XP'"></span>
+                    <span style="color: var(--accent); font-weight: 600;" x-text="xpPercent + '%'"></span>
+                </div>
                 <div class="progress-bar">
                     <div class="progress-fill" :style="'width: ' + Math.min(100, xpPercent) + '%'"></div>
                 </div>
             </div>
 
-            <div class="grid grid-2" style="gap: 8px;">
+            <div class="grid grid-3" style="gap: 8px;">
                 <div class="info-stat">
                     <div class="info-stat-label">Messages</div>
                     <div class="info-stat-value" x-text="fmtNum(profile.messages)">--</div>
                 </div>
                 <div class="info-stat">
-                    <div class="info-stat-label">Avg XP / Message</div>
+                    <div class="info-stat-label">Avg XP / Msg</div>
                     <div class="info-stat-value" x-text="avgXp">--</div>
+                </div>
+                <div class="info-stat">
+                    <div class="info-stat-label">XP to Next</div>
+                    <div class="info-stat-value" x-text="fmtNum(xpNeeded)">--</div>
                 </div>
             </div>
         </div>
 
         <div class="card">
-            <div class="card-header">
-                <h3>Admin Actions</h3>
+            <div class="card-header"><h3>Recent Activity</h3></div>
+            <div class="timeline">
+                <template x-for="entry in history" :key="entry.id">
+                    <div class="timeline-item">
+                        <div class="timeline-dot" :class="entry.amount > 0 ? 'success' : 'danger'"></div>
+                        <div class="timeline-time" x-text="fmtRelative(entry.created_at)"></div>
+                        <div class="timeline-content">
+                            <span x-text="(entry.amount > 0 ? '+' : '') + entry.amount + ' XP'"></span>
+                            <span style="color: var(--text-muted); font-size: 12px;" x-text="'(' + (entry.source || 'unknown') + ')'"></span>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="history.length === 0">
+                    <p style="color: var(--text-muted); text-align: center; padding: 24px; font-size: 14px;">No recent activity</p>
+                </template>
             </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h3>Admin Actions</h3></div>
             <div class="form-group">
                 <label class="form-label">Set Level</label>
-                <div style="display: flex; gap: 8px;">
+                <div class="form-row">
                     <input class="form-input" type="number" x-model.number="setLevelVal" min="0" placeholder="Level">
                     <button class="btn btn-primary btn-sm" @click="doSetLevel()">Set</button>
                 </div>
             </div>
             <div class="form-group">
                 <label class="form-label">Add XP</label>
-                <div style="display: flex; gap: 8px;">
+                <div class="form-row">
                     <input class="form-input" type="number" x-model.number="addXpVal" placeholder="XP amount">
                     <button class="btn btn-success btn-sm" @click="doAddXp()">Add</button>
                 </div>
@@ -92,57 +115,49 @@
 function userData() {
     return {
         userId: '{{ user_id }}',
-        profile: { xp: 0, level: 0, messages: 0, rank: 0 },
-        setLevelVal: 0,
-        addXpVal: 0,
-        xpProgress: 0,
-        xpRequired: 1,
-        xpPercent: 0,
-        avgXp: '0',
+        profile: { xp: 0, level: 0, messages: 0, rank: 0, created_at: null },
+        history: [],
+        setLevelVal: 0, addXpVal: 0,
+        xpProgress: 0, xpRequired: 1, xpNeeded: 0, xpPercent: 0, avgXp: '0',
         async init() {
             await this.load();
         },
         async load() {
-            const data = await API.getUserProfile('{{ guild_id }}', '{{ user_id }}');
+            const [data, hist] = await Promise.all([
+                API.getUserProfile('{{ guild_id }}', '{{ user_id }}'),
+                API.getUserHistory('{{ guild_id }}', '{{ user_id }}', 10),
+            ]);
             if (data) {
                 this.profile = data;
                 this.setLevelVal = data.level;
                 this.calcXp();
             }
+            if (hist) this.history = hist;
         },
         calcXp() {
             const xp = this.profile.xp || 0;
             const lvl = this.profile.level || 0;
-            const totalForCurrent = this.xpForLevel(lvl);
-            const totalForNext = this.xpForLevel(lvl + 1);
+            const totalForCurrent = xpForLevel(lvl);
+            const totalForNext = xpForLevel(lvl + 1);
             this.xpProgress = xp - totalForCurrent;
             this.xpRequired = totalForNext - totalForCurrent;
+            this.xpNeeded = totalForNext - xp;
             this.xpPercent = this.xpRequired > 0 ? ((this.xpProgress / this.xpRequired) * 100).toFixed(1) : 0;
             this.avgXp = this.profile.messages > 0 ? fmtNum(Math.round(xp / this.profile.messages)) : '0';
         },
-        xpForLevel(lvl) {
-            let total = 0;
-            for (let i = 1; i <= lvl; i++) total += 5 * (i ** 2) + (50 * i) + 100;
-            return total;
-        },
         async doSetLevel() {
             const result = await API.setLevel('{{ guild_id }}', '{{ user_id }}', this.setLevelVal);
-            if (result && result.ok) {
-                showToast(`Level set to ${result.level}`, 'success');
-                await this.load();
-            } else showToast('Failed to set level', 'error');
+            if (result && result.ok) { showToast(`Level set to ${result.level}`, 'success'); await this.load(); }
+            else showToast('Failed to set level', 'error');
         },
         async doAddXp() {
             if (!this.addXpVal) return;
             const result = await API.addXp('{{ guild_id }}', '{{ user_id }}', this.addXpVal);
-            if (result && result.ok) {
-                showToast(`Added ${this.addXpVal} XP`, 'success');
-                this.addXpVal = 0;
-                await this.load();
-            } else showToast('Failed to add XP', 'error');
+            if (result && result.ok) { showToast(`Added ${this.addXpVal} XP`, 'success'); this.addXpVal = 0; await this.load(); }
+            else showToast('Failed to add XP', 'error');
         },
         async doReset() {
-            if (!confirm('Reset this user\'s level data?')) return;
+            if (!await confirmDialog("Reset this user's level data?", 'Reset User')) return;
             const result = await API.resetUser('{{ guild_id }}', '{{ user_id }}');
             if (result && result.ok) {
                 showToast('User reset', 'success');
@@ -150,7 +165,7 @@ function userData() {
                 this.calcXp();
             } else showToast('Failed to reset', 'error');
         },
-        fmtNum
+        fmtNum, xpForLevel, fmtDate, fmtRelative
     };
 }
 </script>

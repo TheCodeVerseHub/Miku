@@ -5,7 +5,11 @@
 <div x-data="analyticsData()" x-init="init()">
     <div class="section-bar">
         <div>
-            <div class="desc">Server statistics and level distribution for <strong>{{ guild_name or 'Server' }}</strong></div>
+            <div class="desc">Server statistics and activity for <strong>{{ guild_name or 'Server' }}</strong></div>
+        </div>
+        <div class="section-actions">
+            <button class="btn btn-ghost btn-sm" @click="period = '7d'; refresh()">7 Days</button>
+            <button class="btn btn-ghost btn-sm" @click="period = '30d'; refresh()" :class="{ active: period === '30d' }">30 Days</button>
         </div>
     </div>
 
@@ -30,57 +34,89 @@
 
     <div class="grid grid-2">
         <div class="card">
-            <div class="card-header">
-                <h3>Level Distribution</h3>
+            <div class="card-header"><h3>Level Distribution</h3></div>
+            <div class="chart-container">
+                <template x-if="data.level_distribution && data.level_distribution.length > 0">
+                    <canvas id="levelChart"></canvas>
+                </template>
+                <template x-if="!data.level_distribution || data.level_distribution.length === 0">
+                    <p class="empty-state" style="padding: 32px;">Not enough data yet to show distribution.</p>
+                </template>
             </div>
-            <template x-if="data.level_distribution && data.level_distribution.length > 0">
-                <div style="position: relative;">
-                    <canvas id="levelChart" style="max-height: 280px;"></canvas>
-                </div>
-            </template>
-            <template x-if="(!data.level_distribution || data.level_distribution.length === 0)">
-                <p style="color: var(--text-muted); text-align: center; padding: 48px 24px; font-size: 14px;">Not enough data yet to show distribution.</p>
-            </template>
         </div>
         <div class="card">
-            <div class="card-header">
-                <h3>Top Members</h3>
-                <a href="/guilds/{{ guild_id }}/leaderboard" class="btn btn-ghost btn-sm">View All</a>
+            <div class="card-header"><h3>XP Over Time</h3></div>
+            <div class="chart-container">
+                <template x-if="extended.xp_by_day && extended.xp_by_day.length > 0">
+                    <canvas id="xpChart"></canvas>
+                </template>
+                <template x-if="!extended.xp_by_day || extended.xp_by_day.length === 0">
+                    <p class="empty-state" style="padding: 32px;">Collect more data to see XP trends.</p>
+                </template>
             </div>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
+        </div>
+        <div class="card">
+            <div class="card-header"><h3>Messages Per Day</h3></div>
+            <div class="chart-container">
+                <template x-if="extended.messages_by_day && extended.messages_by_day.length > 0">
+                    <canvas id="messagesChart"></canvas>
+                </template>
+                <template x-if="!extended.messages_by_day || extended.messages_by_day.length === 0">
+                    <p class="empty-state" style="padding: 32px;">Collect more data to see message trends.</p>
+                </template>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h3>Hourly Activity</h3></div>
+            <div class="chart-container">
+                <template x-if="extended.hourly_activity && extended.hourly_activity.length > 0">
+                    <canvas id="hourlyChart"></canvas>
+                </template>
+                <template x-if="!extended.hourly_activity || extended.hourly_activity.length === 0">
+                    <p class="empty-state" style="padding: 32px;">Collect more data to see hourly trends.</p>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>Top Members</h3>
+            <a href="/guilds/{{ guild_id }}/leaderboard" class="btn btn-ghost btn-sm">View All</a>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">#</th>
+                        <th>Member</th>
+                        <th>Level</th>
+                        <th>XP</th>
+                        <th>Messages</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="(u, i) in data.top_users" :key="u.user_id">
                         <tr>
-                            <th style="width: 50px;">#</th>
-                            <th>Member</th>
-                            <th>Level</th>
-                            <th>XP</th>
-                            <th>Messages</th>
+                            <td><span class="badge" :class="'badge-rank-' + (i+1)" x-text="'#' + (i+1)"></span></td>
+                            <td>
+                                <a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" class="user-cell" style="text-decoration: none; color: inherit;">
+                                    <div class="user-avatar">
+                                        <img :src="u.avatar_url" :alt="u.username" @error="onAvatarError($event, u.user_id)">
+                                    </div>
+                                    <div class="user-info">
+                                        <div class="user-name" x-text="u.display_name || u.username"></div>
+                                        <div class="user-id" x-text="u.user_id"></div>
+                                    </div>
+                                </a>
+                            </td>
+                            <td><span class="badge badge-level" x-text="'Lvl ' + u.level"></span></td>
+                            <td style="font-weight: 600;" x-text="fmtNum(u.xp)"></td>
+                            <td x-text="fmtNum(u.messages)"></td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        <template x-for="(u, i) in data.top_users" :key="u.user_id">
-                            <tr>
-                                <td><span class="badge" :class="'badge-rank-' + (i+1)" x-text="'#' + (i+1)"></span></td>
-                                <td>
-                                    <a :href="`/guilds/{{ guild_id }}/users/${u.user_id}`" class="user-cell" style="text-decoration: none; color: inherit;">
-                                        <div class="user-avatar">
-                                            <img :src="u.avatar_url" :alt="u.username" @error="onAvatarError($event, u.user_id)">
-                                        </div>
-                                        <div class="user-info">
-                                            <div class="user-name" x-text="u.display_name || u.username"></div>
-                                            <div class="user-id" x-text="u.user_id"></div>
-                                        </div>
-                                    </a>
-                                </td>
-                                <td><span class="badge badge-level" x-text="'Lvl ' + u.level"></span></td>
-                                <td style="font-weight: 600;" x-text="fmtNum(u.xp)"></td>
-                                <td x-text="fmtNum(u.messages)"></td>
-                            </tr>
-                        </template>
-                    </tbody>
-                </table>
-            </div>
+                    </template>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
@@ -89,58 +125,91 @@
 function analyticsData() {
     return {
         data: { total_users: 0, total_xp: 0, total_messages: 0, level_distribution: [], top_users: [] },
-        chart: null,
+        extended: { xp_by_day: [], messages_by_day: [], hourly_activity: [] },
+        charts: [], period: '30d',
         get levelRange() {
             const dist = this.data.level_distribution || [];
             if (dist.length === 0) return '--';
             const levels = dist.map(d => d.level);
-            return `${Math.min(...levels)} - ${Math.max(...levels)}`;
+            return Math.min(...levels) + ' – ' + Math.max(...levels);
         },
         async init() {
-            this.data = await API.getAnalytics('{{ guild_id }}') || this.data;
-            this.$nextTick(() => this.renderChart());
+            const [base, ext] = await Promise.all([
+                API.getAnalytics('{{ guild_id }}'),
+                API.getExtendedAnalytics('{{ guild_id }}'),
+            ]);
+            if (base) this.data = base;
+            if (ext) this.extended = ext;
+            this.$nextTick(() => this.renderCharts());
         },
-        renderChart() {
-            const dist = this.data.level_distribution || [];
-            if (dist.length === 0) return;
-            if (this.chart) { this.chart.destroy(); }
-
-            const labels = dist.map(d => 'Lvl ' + d.level);
-            const counts = dist.map(d => d.count);
-
-            const ctx = document.getElementById('levelChart').getContext('2d');
-            this.chart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Users',
-                        data: counts,
-                        backgroundColor: 'rgba(88, 101, 242, 0.6)',
-                        borderColor: 'rgba(88, 101, 242, 1)',
-                        borderWidth: 1,
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        x: {
-                            ticks: { color: '#9d9db8' },
-                            grid: { color: '#2a2a4a' }
-                        },
-                        y: {
-                            ticks: { color: '#9d9db8' },
-                            grid: { color: '#2a2a4a' },
-                            beginAtZero: true
-                        }
-                    }
+        async refresh() {
+            const ext = await API.getExtendedAnalytics('{{ guild_id }}');
+            if (ext) this.extended = ext;
+            this.$nextTick(() => this.renderCharts());
+        },
+        renderCharts() {
+            this.charts.forEach(c => c.destroy());
+            this.charts = [];
+            const opts = {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#9d9db8' } } },
+                scales: {
+                    x: { ticks: { color: '#9d9db8', maxTicksLimit: 10 }, grid: { color: '#2a2a4a' } },
+                    y: { ticks: { color: '#9d9db8' }, grid: { color: '#2a2a4a' }, beginAtZero: true }
                 }
-            });
+            };
+
+            const dist = this.data.level_distribution || [];
+            if (dist.length > 0) {
+                const ctx = document.getElementById('levelChart')?.getContext('2d');
+                if (ctx) this.charts.push(new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: dist.map(d => 'Lvl ' + d.level),
+                        datasets: [{ label: 'Users', data: dist.map(d => d.count), backgroundColor: 'rgba(88, 101, 242, 0.6)', borderColor: 'rgba(88, 101, 242, 1)', borderWidth: 1, borderRadius: 4 }]
+                    },
+                    options: { ...opts, plugins: { legend: { display: false } } }
+                }));
+            }
+
+            const xpData = this.extended.xp_by_day || [];
+            if (xpData.length > 0) {
+                const ctx = document.getElementById('xpChart')?.getContext('2d');
+                if (ctx) this.charts.push(new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: xpData.map(d => d.date),
+                        datasets: [{ label: 'XP Earned', data: xpData.map(d => d.xp), borderColor: '#5865f2', backgroundColor: 'rgba(88, 101, 242, 0.1)', fill: true, tension: 0.4, pointRadius: 3 }]
+                    },
+                    options: opts
+                }));
+            }
+
+            const msgData = this.extended.messages_by_day || [];
+            if (msgData.length > 0) {
+                const ctx = document.getElementById('messagesChart')?.getContext('2d');
+                if (ctx) this.charts.push(new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: msgData.map(d => d.date),
+                        datasets: [{ label: 'Messages', data: msgData.map(d => d.count), backgroundColor: 'rgba(62, 207, 142, 0.5)', borderColor: '#3ecf8e', borderWidth: 1, borderRadius: 4 }]
+                    },
+                    options: { ...opts, plugins: { legend: { display: false } } }
+                }));
+            }
+
+            const hourData = this.extended.hourly_activity || [];
+            if (hourData.length > 0) {
+                const ctx = document.getElementById('hourlyChart')?.getContext('2d');
+                if (ctx) this.charts.push(new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: hourData.map(d => d.hour + ':00'),
+                        datasets: [{ label: 'Messages', data: hourData.map(d => d.count), backgroundColor: 'rgba(254, 231, 92, 0.5)', borderColor: '#fee75c', borderWidth: 1, borderRadius: 4 }]
+                    },
+                    options: { ...opts, plugins: { legend: { display: false } } }
+                }));
+            }
         },
         fmtNum
     };

@@ -44,4 +44,3 @@ if __name__ == "__main__":
 
     async_main = cast(Callable[[], Coroutine[Any, Any, None]], main_attr)
     asyncio.run(async_main())
-

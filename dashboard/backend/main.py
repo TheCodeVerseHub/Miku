@@ -1,15 +1,16 @@
 """FastAPI dashboard backend for Miku Discord bot."""
 
-import json
+# ruff: noqa: E402 — sys.path.insert before local imports
+
 import logging
 import os
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request, Response
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import URLSafeTimedSerializer
@@ -24,7 +25,12 @@ if BOT_SRC not in sys.path:
 from cachetools import TTLCache
 
 from .config import config
-from .discord_api import enrich_leaderboard, get_assignable_roles, get_guild_members, default_user
+from .discord_api import (
+    enrich_leaderboard,
+    get_assignable_roles,
+    get_guild_members,
+    default_user,
+)
 from .auth import (
     exchange_code,
     get_current_user as _get_current_user,
@@ -56,6 +62,7 @@ async def get_user_guilds(access_token: str) -> list[dict]:
         _guild_cache[access_token] = guilds
     return guilds or []
 
+
 # ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
@@ -72,6 +79,7 @@ def render(name: str, **context) -> HTMLResponse:
     html = template.render(**context)
     return HTMLResponse(html)
 
+
 # Static files
 static_dir = str(Path(__file__).parent.parent / "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -80,7 +88,7 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 serializer = URLSafeTimedSerializer(config.session_secret, salt="session")
 
 # Database pool (lazy-init, same style as bot)
-_pool: Optional[asyncpg.Pool] = None
+_pool: asyncpg.Pool | None = None
 
 
 async def get_db() -> asyncpg.Pool:
@@ -107,7 +115,7 @@ def make_session(data: dict) -> str:
     return serializer.dumps(data)
 
 
-def read_session(token: str) -> Optional[dict]:
+def read_session(token: str) -> dict | None:
     try:
         return serializer.loads(token, max_age=86400 * 7)
     except Exception:
@@ -189,11 +197,7 @@ async def api_me(request: Request):
         return JSONResponse({"authenticated": False}, status_code=401)
     user = await get_current_user(session_data["access_token"])
     guilds = await get_user_guilds(session_data["access_token"])
-    manageable = [
-        g
-        for g in guilds
-        if int(g.get("permissions", 0)) & (0x8 | 0x20)
-    ]
+    manageable = [g for g in guilds if int(g.get("permissions", 0)) & (0x8 | 0x20)]
     return {
         "authenticated": True,
         "user": user,
@@ -276,7 +280,11 @@ async def add_role_reward(request: Request, guild_id: int):
     role_id = int(raw_role_id)
     logger.info(
         "add_role_reward: guild_id=%s level=%s raw_role_id=%s (type=%s) role_id=%s",
-        guild_id, level, raw_role_id, type(raw_role_id).__name__, role_id,
+        guild_id,
+        level,
+        raw_role_id,
+        type(raw_role_id).__name__,
+        role_id,
     )
     db = await get_db()
     async with db.acquire() as conn:
@@ -455,9 +463,7 @@ async def bot_stats():
             "SELECT COUNT(DISTINCT guild_id) FROM guild_settings"
         )
         user_count = await conn.fetchval("SELECT COUNT(*) FROM user_levels")
-        total_xp = await conn.fetchval(
-            "SELECT COALESCE(SUM(xp), 0) FROM user_levels"
-        )
+        total_xp = await conn.fetchval("SELECT COALESCE(SUM(xp), 0) FROM user_levels")
         total_messages = await conn.fetchval(
             "SELECT COALESCE(SUM(messages), 0) FROM user_levels"
         )
@@ -467,6 +473,188 @@ async def bot_stats():
             "total_xp": total_xp or 0,
             "total_messages": total_messages or 0,
         }
+
+
+# ---------------------------------------------------------------------------
+# Enhanced API endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/guilds/{guild_id}/stats/overview")
+async def guild_stats_overview(request: Request, guild_id: int):
+    _, _ = await require_guild_access(request, guild_id)
+    db = await get_db()
+    async with db.acquire() as conn:
+        total_users = await conn.fetchval(
+            "SELECT COUNT(*) FROM user_levels WHERE guild_id = $1", guild_id
+        )
+        total_xp = await conn.fetchval(
+            "SELECT COALESCE(SUM(xp), 0) FROM user_levels WHERE guild_id = $1",
+            guild_id,
+        )
+        total_messages = await conn.fetchval(
+            "SELECT COALESCE(SUM(messages), 0) FROM user_levels WHERE guild_id = $1",
+            guild_id,
+        )
+        top_users_raw = await conn.fetch(
+            "SELECT user_id, xp, level, messages FROM user_levels WHERE guild_id = $1 ORDER BY xp DESC LIMIT 5",
+            guild_id,
+        )
+        top_users = await enrich_leaderboard(guild_id, [dict(r) for r in top_users_raw])
+        members = await get_guild_members(guild_id)
+        member_count = len(members)
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        xp_earned_today = await conn.fetchval(
+            "SELECT COALESCE(SUM(amount), 0) FROM xp_log WHERE guild_id = $1 AND created_at >= $2 AND source = 'message'",
+            guild_id,
+            today,
+        )
+        messages_today = await conn.fetchval(
+            "SELECT COUNT(*) FROM xp_log WHERE guild_id = $1 AND created_at >= $2 AND source = 'message'",
+            guild_id,
+            today,
+        )
+        active_members_today = await conn.fetchval(
+            "SELECT COUNT(DISTINCT user_id) FROM xp_log WHERE guild_id = $1 AND created_at >= $2 AND source = 'message'",
+            guild_id,
+            today,
+        )
+        level_range = await conn.fetchrow(
+            "SELECT MIN(level) as min_level, MAX(level) as max_level FROM user_levels WHERE guild_id = $1",
+            guild_id,
+        )
+        return {
+            "total_users": total_users or 0,
+            "total_xp": total_xp or 0,
+            "total_messages": total_messages or 0,
+            "member_count": member_count,
+            "top_users": top_users,
+            "xp_earned_today": xp_earned_today or 0,
+            "messages_today": messages_today or 0,
+            "active_members_today": active_members_today or 0,
+            "level_range": {
+                "min": level_range["min_level"] if level_range else 0,
+                "max": level_range["max_level"] if level_range else 0,
+            },
+        }
+
+
+@app.get("/api/guilds/{guild_id}/users/{user_id}/history")
+async def user_xp_history(
+    request: Request, guild_id: int, user_id: int, limit: int = 50, offset: int = 0
+):
+    _, _ = await require_guild_access(request, guild_id)
+    db = await get_db()
+    async with db.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, user_id, guild_id, amount, source, reason, created_at FROM xp_log WHERE guild_id = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4",
+            guild_id,
+            user_id,
+            limit,
+            offset,
+        )
+        return [dict(r) for r in rows]
+
+
+@app.get("/api/guilds/{guild_id}/analytics/extended")
+async def extended_analytics(request: Request, guild_id: int):
+    _, _ = await require_guild_access(request, guild_id)
+    db = await get_db()
+    async with db.acquire() as conn:
+        total_users = await conn.fetchval(
+            "SELECT COUNT(*) FROM user_levels WHERE guild_id = $1", guild_id
+        )
+        total_xp = await conn.fetchval(
+            "SELECT COALESCE(SUM(xp), 0) FROM user_levels WHERE guild_id = $1",
+            guild_id,
+        )
+        total_messages = await conn.fetchval(
+            "SELECT COALESCE(SUM(messages), 0) FROM user_levels WHERE guild_id = $1",
+            guild_id,
+        )
+        level_dist = await conn.fetch(
+            "SELECT level, COUNT(*) as count FROM user_levels WHERE guild_id = $1 GROUP BY level ORDER BY level",
+            guild_id,
+        )
+        top_users_raw = await conn.fetch(
+            "SELECT user_id, xp, level, messages FROM user_levels WHERE guild_id = $1 ORDER BY xp DESC LIMIT 5",
+            guild_id,
+        )
+        enriched_users = await enrich_leaderboard(
+            guild_id, [dict(r) for r in top_users_raw]
+        )
+        xp_by_day = await conn.fetch(
+            """
+            SELECT DATE(created_at) as date, COALESCE(SUM(amount), 0) as xp
+            FROM xp_log
+            WHERE guild_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY DATE(created_at)
+            ORDER BY date
+            """,
+            guild_id,
+        )
+        messages_by_day = await conn.fetch(
+            """
+            SELECT DATE(created_at) as date, COUNT(*) as count
+            FROM xp_log
+            WHERE guild_id = $1 AND source = 'message' AND created_at >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY DATE(created_at)
+            ORDER BY date
+            """,
+            guild_id,
+        )
+        active_users_by_day = await conn.fetch(
+            """
+            SELECT DATE(created_at) as date, COUNT(DISTINCT user_id) as count
+            FROM xp_log
+            WHERE guild_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY DATE(created_at)
+            ORDER BY date
+            """,
+            guild_id,
+        )
+        hourly_activity = await conn.fetch(
+            """
+            SELECT EXTRACT(HOUR FROM created_at)::int as hour, COUNT(*) as count
+            FROM xp_log
+            WHERE guild_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY EXTRACT(HOUR FROM created_at)
+            ORDER BY hour
+            """,
+            guild_id,
+        )
+        return {
+            "total_users": total_users or 0,
+            "total_xp": total_xp or 0,
+            "total_messages": total_messages or 0,
+            "level_distribution": [dict(r) for r in level_dist],
+            "top_users": enriched_users,
+            "xp_by_day": [{"date": str(r["date"]), "xp": r["xp"]} for r in xp_by_day],
+            "messages_by_day": [
+                {"date": str(r["date"]), "count": r["count"]} for r in messages_by_day
+            ],
+            "active_users_by_day": [
+                {"date": str(r["date"]), "count": r["count"]}
+                for r in active_users_by_day
+            ],
+            "hourly_activity": [
+                {"hour": r["hour"], "count": r["count"]} for r in hourly_activity
+            ],
+            "top_channels": [],
+        }
+
+
+@app.delete("/api/guilds/{guild_id}/users/{user_id}/rewards/{level}")
+async def remove_user_reward(request: Request, guild_id: int, user_id: int, level: int):
+    _, _ = await require_guild_access(request, guild_id)
+    db = await get_db()
+    async with db.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM role_rewards WHERE guild_id = $1 AND level = $2",
+            guild_id,
+            level,
+        )
+        return {"ok": result != "DELETE 0"}
 
 
 # ---------------------------------------------------------------------------
@@ -557,9 +745,7 @@ async def api_reset_all(request: Request, guild_id: int):
     _, _ = await require_guild_access(request, guild_id)
     db = await get_db()
     async with db.acquire() as conn:
-        await conn.execute(
-            "DELETE FROM user_levels WHERE guild_id = $1", guild_id
-        )
+        await conn.execute("DELETE FROM user_levels WHERE guild_id = $1", guild_id)
         return {"ok": True}
 
 
@@ -609,88 +795,67 @@ async def dashboard_page(request: Request):
     return render("dashboard.html", request=request, page="dashboard")
 
 
-@app.get("/guilds/{guild_id}", response_class=HTMLResponse)
-async def guild_overview(request: Request, guild_id: int):
+async def _render_guild_page(
+    request: Request,
+    guild_id: int,
+    template: str,
+    page: str,
+    **extra: Any,
+):
+    """Render a guild-scoped dashboard page with shared auth/context extraction."""
     try:
         _, guild = await require_guild_access(request, guild_id)
     except HTTPException:
         return RedirectResponse(url="/dashboard")
     gid = str(guild_id)
-    guild_name = guild.get("name", "")
-    guild_icon = guild.get("icon", "")
-    return render("dashboard.html", request=request, page="overview", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
+    return render(
+        template,
+        request=request,
+        page=page,
+        guild_id=gid,
+        guild_name=guild.get("name", ""),
+        guild_icon=guild.get("icon", ""),
+        **extra,
+    )
+
+
+@app.get("/guilds/{guild_id}", response_class=HTMLResponse)
+async def guild_overview(request: Request, guild_id: int):
+    return await _render_guild_page(request, guild_id, "dashboard.html", "overview")
 
 
 @app.get("/guilds/{guild_id}/leveling", response_class=HTMLResponse)
 async def guild_leveling(request: Request, guild_id: int):
-    try:
-        _, guild = await require_guild_access(request, guild_id)
-    except HTTPException:
-        return RedirectResponse(url="/dashboard")
-    gid = str(guild_id)
-    guild_name = guild.get("name", "")
-    guild_icon = guild.get("icon", "")
-    return render("leveling.html", request=request, page="leveling", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
+    return await _render_guild_page(request, guild_id, "leveling.html", "leveling")
 
 
 @app.get("/guilds/{guild_id}/rewards", response_class=HTMLResponse)
 async def guild_rewards(request: Request, guild_id: int):
-    try:
-        _, guild = await require_guild_access(request, guild_id)
-    except HTTPException:
-        return RedirectResponse(url="/dashboard")
-    gid = str(guild_id)
-    guild_name = guild.get("name", "")
-    guild_icon = guild.get("icon", "")
-    return render("rewards.html", request=request, page="rewards", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
+    return await _render_guild_page(request, guild_id, "rewards.html", "rewards")
 
 
 @app.get("/guilds/{guild_id}/leaderboard", response_class=HTMLResponse)
 async def guild_leaderboard(request: Request, guild_id: int):
-    try:
-        _, guild = await require_guild_access(request, guild_id)
-    except HTTPException:
-        return RedirectResponse(url="/dashboard")
-    gid = str(guild_id)
-    guild_name = guild.get("name", "")
-    guild_icon = guild.get("icon", "")
-    return render("leaderboard.html", request=request, page="leaderboard", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
+    return await _render_guild_page(
+        request, guild_id, "leaderboard.html", "leaderboard"
+    )
 
 
 @app.get("/guilds/{guild_id}/users/{user_id}", response_class=HTMLResponse)
 async def guild_user(request: Request, guild_id: int, user_id: int):
-    try:
-        _, guild = await require_guild_access(request, guild_id)
-    except HTTPException:
-        return RedirectResponse(url="/dashboard")
-    gid = str(guild_id)
-    guild_name = guild.get("name", "")
-    guild_icon = guild.get("icon", "")
-    return render("users.html", request=request, page="users", guild_id=gid, user_id=user_id, guild_name=guild_name, guild_icon=guild_icon)
+    return await _render_guild_page(
+        request, guild_id, "users.html", "users", user_id=user_id
+    )
 
 
 @app.get("/guilds/{guild_id}/analytics", response_class=HTMLResponse)
 async def guild_analytics(request: Request, guild_id: int):
-    try:
-        _, guild = await require_guild_access(request, guild_id)
-    except HTTPException:
-        return RedirectResponse(url="/dashboard")
-    gid = str(guild_id)
-    guild_name = guild.get("name", "")
-    guild_icon = guild.get("icon", "")
-    return render("analytics.html", request=request, page="analytics", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
+    return await _render_guild_page(request, guild_id, "analytics.html", "analytics")
 
 
 @app.get("/guilds/{guild_id}/settings", response_class=HTMLResponse)
 async def guild_settings_page(request: Request, guild_id: int):
-    try:
-        _, guild = await require_guild_access(request, guild_id)
-    except HTTPException:
-        return RedirectResponse(url="/dashboard")
-    gid = str(guild_id)
-    guild_name = guild.get("name", "")
-    guild_icon = guild.get("icon", "")
-    return render("settings.html", request=request, page="settings", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
+    return await _render_guild_page(request, guild_id, "settings.html", "settings")
 
 
 # ---------------------------------------------------------------------------
@@ -718,7 +883,7 @@ async def startup():
                 try:
                     await conn.execute(col_sql)
                 except Exception:
-                    pass
+                    logger.debug("Migration already applied: %s", col_sql.split()[-1])
     except Exception:
         logger.warning("Could not run guild_settings migrations (DB not ready yet)")
 

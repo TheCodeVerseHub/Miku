@@ -28,7 +28,7 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
-from typing import Optional, Tuple
+
 
 import aiohttp
 from cachetools import TTLCache
@@ -73,7 +73,7 @@ class RankCardGenerator:
     async def close(self) -> None:
         await self._http.close()
 
-    async def _fetch_avatar(self, avatar_url: str) -> Optional[Image.Image]:
+    async def _fetch_avatar(self, avatar_url: str) -> Image.Image | None:
         if avatar_url in self._avatar_cache:
             return self._avatar_cache[avatar_url]
 
@@ -161,7 +161,7 @@ class RankCardGenerator:
         required_xp: int,
         total_xp: int,
         messages: int,
-        accent_color: Tuple[int, int, int] = (88, 101, 242),
+        accent_color: tuple[int, int, int] = (88, 101, 242),
     ) -> bytes:
         """Generate a PNG rank card and return it as bytes."""
 
@@ -215,7 +215,7 @@ class RankCardGenerator:
         )
         draw.text(
             (220, 220),
-            f"Total XP: {total_xp:,} • Messages: {messages:,} • {progress*100:.1f}%",
+            f"Total XP: {total_xp:,} • Messages: {messages:,} • {progress * 100:.1f}%",
             font=font_small,
             fill=(180, 180, 180),
         )

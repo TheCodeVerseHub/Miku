@@ -8,8 +8,9 @@ This module intentionally separates responsibilities:
 """
 
 import datetime
-import random
 import logging
+import random
+from math import sqrt
 
 from discord import Member, Message
 
@@ -79,7 +80,7 @@ class LevelingProfileService:
 
     async def delete_profile(self, member_profile: LevelingProfile) -> None:
         self._logger.debug(
-            f"Deleting leveling profile for %d on %d",
+            "Deleting leveling profile for %d on %d",
             member_profile.user_id,
             member_profile.guild_id,
         )
@@ -99,9 +100,6 @@ XP_MAX = 25
 
 # Seconds a user must wait before earning XP again
 EXPERIENCE_GAIN_COOLDOWN = datetime.timedelta(minutes=1)
-
-
-from math import sqrt
 
 
 class MessageEvaluationService:

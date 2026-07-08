@@ -15,10 +15,7 @@ from typing import Optional, Tuple
 
 import aiohttp
 from cachetools import TTLCache
-from discord import Member
 from PIL import Image, ImageDraw, ImageFont
-
-from ..models.sql import LevelingProfile
 
 
 class RankCardGenerator:
@@ -212,7 +209,9 @@ class RankCardGenerator:
             bytes: Bytes of the generated rank card image.
         """
         cache_key = f"{username}:{rank}:{level}:{current_xp}:{messages}"
-        self._logger.debug("Generating rank card for %s with cache key %s", username, cache_key)
+        self._logger.debug(
+            "Generating rank card for %s with cache key %s", username, cache_key
+        )
 
         if cache_key in self._card_cache:
             self._logger.debug("Rank card cache hit for %s", username)
@@ -244,9 +243,7 @@ class RankCardGenerator:
 
             draw.text((220, 160), progress_text, font=font_small, fill=self.text_color)
 
-            stats = (
-                f"Total XP: {total_xp:,} • Messages: {messages:,} • {progress*100:.1f}%"
-            )
+            stats = f"Total XP: {total_xp:,} • Messages: {messages:,} • {progress * 100:.1f}%"
             draw.text(
                 (220, 210), stats, font=font_small, fill=self.secondary_text_color
             )
