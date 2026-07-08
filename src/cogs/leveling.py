@@ -206,6 +206,23 @@ class Leveling(commands.Cog):
                 fallback_channel=message.channel,
             )
 
+    @commands.Cog.listener()
+    async def on_member_remove(self, member: discord.Member):
+        """Remove leveling data when a member leaves the guild."""
+        if member.bot:
+            return
+        try:
+            await db.delete_user_leveling_data(member.id, member.guild.id)
+            logger.info(
+                "Cleaned up leveling data for departed member %s in guild %s",
+                member.id, member.guild.id,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to clean up leveling data for %s in guild %s",
+                member.id, member.guild.id,
+            )
+
     # ──────────────────────────────────────────────────────────────────
     # Leaderboard embed builder
     # ──────────────────────────────────────────────────────────────────
@@ -500,6 +517,30 @@ class Leveling(commands.Cog):
             description="All level data has been reset for this server",
             color=self.EMBED_COLOR,
         )
+        await self._send(ctx, embed=embed)
+
+    @commands.hybrid_command(
+        name="clean-lb",
+        description="Remove departed users from the leaderboard (Admin only)",
+    )
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
+    async def clean_lb(self, ctx: commands.Context):
+        """Remove leveling data for users who are no longer in the server."""
+        if ctx.guild is None:
+            return
+        await self._maybe_defer(ctx)
+
+        active_ids = {m.id for m in ctx.guild.members}
+        stats = await db.clean_departed_users(ctx.guild.id, active_ids)
+
+        embed = discord.Embed(
+            title="\u2705 Leaderboard cleaned successfully.",
+            color=discord.Color.green(),
+        )
+        embed.add_field(name="Users checked", value=str(stats["total_checked"]), inline=True)
+        embed.add_field(name="Removed", value=str(stats["total_removed"]), inline=True)
+        embed.add_field(name="Remaining", value=str(stats["total_remaining"]), inline=True)
         await self._send(ctx, embed=embed)
 
     # ──────────────────────────────────────────────────────────────────
