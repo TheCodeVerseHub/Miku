@@ -1,12 +1,13 @@
 """FastAPI dashboard backend for Miku Discord bot."""
 
-import json
+# ruff: noqa: E402 — sys.path.insert before local imports
+
 import logging
 import os
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 
 from fastapi import FastAPI, HTTPException, Request
@@ -24,7 +25,12 @@ if BOT_SRC not in sys.path:
 from cachetools import TTLCache
 
 from .config import config
-from .discord_api import enrich_leaderboard, get_assignable_roles, get_guild_members, default_user
+from .discord_api import (
+    enrich_leaderboard,
+    get_assignable_roles,
+    get_guild_members,
+    default_user,
+)
 from .auth import (
     exchange_code,
     get_current_user as _get_current_user,
@@ -56,6 +62,7 @@ async def get_user_guilds(access_token: str) -> list[dict]:
         _guild_cache[access_token] = guilds
     return guilds or []
 
+
 # ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
@@ -71,6 +78,7 @@ def render(name: str, **context) -> HTMLResponse:
     template = _jinja_env.get_template(name)
     html = template.render(**context)
     return HTMLResponse(html)
+
 
 # Static files
 static_dir = str(Path(__file__).parent.parent / "static")
@@ -189,11 +197,7 @@ async def api_me(request: Request):
         return JSONResponse({"authenticated": False}, status_code=401)
     user = await get_current_user(session_data["access_token"])
     guilds = await get_user_guilds(session_data["access_token"])
-    manageable = [
-        g
-        for g in guilds
-        if int(g.get("permissions", 0)) & (0x8 | 0x20)
-    ]
+    manageable = [g for g in guilds if int(g.get("permissions", 0)) & (0x8 | 0x20)]
     return {
         "authenticated": True,
         "user": user,
@@ -276,7 +280,11 @@ async def add_role_reward(request: Request, guild_id: int):
     role_id = int(raw_role_id)
     logger.info(
         "add_role_reward: guild_id=%s level=%s raw_role_id=%s (type=%s) role_id=%s",
-        guild_id, level, raw_role_id, type(raw_role_id).__name__, role_id,
+        guild_id,
+        level,
+        raw_role_id,
+        type(raw_role_id).__name__,
+        role_id,
     )
     db = await get_db()
     async with db.acquire() as conn:
@@ -455,9 +463,7 @@ async def bot_stats():
             "SELECT COUNT(DISTINCT guild_id) FROM guild_settings"
         )
         user_count = await conn.fetchval("SELECT COUNT(*) FROM user_levels")
-        total_xp = await conn.fetchval(
-            "SELECT COALESCE(SUM(xp), 0) FROM user_levels"
-        )
+        total_xp = await conn.fetchval("SELECT COALESCE(SUM(xp), 0) FROM user_levels")
         total_messages = await conn.fetchval(
             "SELECT COALESCE(SUM(messages), 0) FROM user_levels"
         )
@@ -494,23 +500,24 @@ async def guild_stats_overview(request: Request, guild_id: int):
             "SELECT user_id, xp, level, messages FROM user_levels WHERE guild_id = $1 ORDER BY xp DESC LIMIT 5",
             guild_id,
         )
-        top_users = await enrich_leaderboard(
-            guild_id, [dict(r) for r in top_users_raw]
-        )
+        top_users = await enrich_leaderboard(guild_id, [dict(r) for r in top_users_raw])
         members = await get_guild_members(guild_id)
         member_count = len(members)
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         xp_earned_today = await conn.fetchval(
             "SELECT COALESCE(SUM(amount), 0) FROM xp_log WHERE guild_id = $1 AND created_at >= $2 AND source = 'message'",
-            guild_id, today,
+            guild_id,
+            today,
         )
         messages_today = await conn.fetchval(
             "SELECT COUNT(*) FROM xp_log WHERE guild_id = $1 AND created_at >= $2 AND source = 'message'",
-            guild_id, today,
+            guild_id,
+            today,
         )
         active_members_today = await conn.fetchval(
             "SELECT COUNT(DISTINCT user_id) FROM xp_log WHERE guild_id = $1 AND created_at >= $2 AND source = 'message'",
-            guild_id, today,
+            guild_id,
+            today,
         )
         level_range = await conn.fetchrow(
             "SELECT MIN(level) as min_level, MAX(level) as max_level FROM user_levels WHERE guild_id = $1",
@@ -541,7 +548,10 @@ async def user_xp_history(
     async with db.acquire() as conn:
         rows = await conn.fetch(
             "SELECT id, user_id, guild_id, amount, source, reason, created_at FROM xp_log WHERE guild_id = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4",
-            guild_id, user_id, limit, offset,
+            guild_id,
+            user_id,
+            limit,
+            offset,
         )
         return [dict(r) for r in rows]
 
@@ -619,14 +629,13 @@ async def extended_analytics(request: Request, guild_id: int):
             "total_messages": total_messages or 0,
             "level_distribution": [dict(r) for r in level_dist],
             "top_users": enriched_users,
-            "xp_by_day": [
-                {"date": str(r["date"]), "xp": r["xp"]} for r in xp_by_day
-            ],
+            "xp_by_day": [{"date": str(r["date"]), "xp": r["xp"]} for r in xp_by_day],
             "messages_by_day": [
                 {"date": str(r["date"]), "count": r["count"]} for r in messages_by_day
             ],
             "active_users_by_day": [
-                {"date": str(r["date"]), "count": r["count"]} for r in active_users_by_day
+                {"date": str(r["date"]), "count": r["count"]}
+                for r in active_users_by_day
             ],
             "hourly_activity": [
                 {"hour": r["hour"], "count": r["count"]} for r in hourly_activity
@@ -642,7 +651,8 @@ async def remove_user_reward(request: Request, guild_id: int, user_id: int, leve
     async with db.acquire() as conn:
         result = await conn.execute(
             "DELETE FROM role_rewards WHERE guild_id = $1 AND level = $2",
-            guild_id, level,
+            guild_id,
+            level,
         )
         return {"ok": result != "DELETE 0"}
 
@@ -735,9 +745,7 @@ async def api_reset_all(request: Request, guild_id: int):
     _, _ = await require_guild_access(request, guild_id)
     db = await get_db()
     async with db.acquire() as conn:
-        await conn.execute(
-            "DELETE FROM user_levels WHERE guild_id = $1", guild_id
-        )
+        await conn.execute("DELETE FROM user_levels WHERE guild_id = $1", guild_id)
         return {"ok": True}
 
 
@@ -828,12 +836,16 @@ async def guild_rewards(request: Request, guild_id: int):
 
 @app.get("/guilds/{guild_id}/leaderboard", response_class=HTMLResponse)
 async def guild_leaderboard(request: Request, guild_id: int):
-    return await _render_guild_page(request, guild_id, "leaderboard.html", "leaderboard")
+    return await _render_guild_page(
+        request, guild_id, "leaderboard.html", "leaderboard"
+    )
 
 
 @app.get("/guilds/{guild_id}/users/{user_id}", response_class=HTMLResponse)
 async def guild_user(request: Request, guild_id: int, user_id: int):
-    return await _render_guild_page(request, guild_id, "users.html", "users", user_id=user_id)
+    return await _render_guild_page(
+        request, guild_id, "users.html", "users", user_id=user_id
+    )
 
 
 @app.get("/guilds/{guild_id}/analytics", response_class=HTMLResponse)

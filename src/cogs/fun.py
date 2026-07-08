@@ -14,7 +14,6 @@ from discord.ext import commands
 from utils.discord_helpers import send
 
 
-
 logger = logging.getLogger("miku.fun")
 
 EMBED_COLOR = discord.Color.from_rgb(88, 101, 242)  # Discord blurple
@@ -27,9 +26,9 @@ class Fun(commands.Cog):
     async def cog_load(self) -> None:
         logger.info("Fun cog loaded")
 
-
-
-    @commands.hybrid_command(name="8ball", description="Ask the magic 8-ball a question")
+    @commands.hybrid_command(
+        name="8ball", description="Ask the magic 8-ball a question"
+    )
     @app_commands.describe(question="Your question")
     async def eight_ball(self, ctx: commands.Context, *, question: str) -> None:
         responses = [
@@ -61,7 +60,9 @@ class Fun(commands.Cog):
     @commands.hybrid_command(name="coinflip", description="Flip a coin")
     async def coinflip(self, ctx: commands.Context) -> None:
         result = random.choice(["Heads", "Tails"])
-        embed = discord.Embed(title="Coin Flip", description=f"**{result}**", color=EMBED_COLOR)
+        embed = discord.Embed(
+            title="Coin Flip", description=f"**{result}**", color=EMBED_COLOR
+        )
         await send(ctx, embed=embed)
 
     @commands.hybrid_command(name="roll", description="Roll a dice (default d6)")
@@ -80,7 +81,11 @@ class Fun(commands.Cog):
             )
             return
         value = random.randint(1, sides)
-        embed = discord.Embed(title="🎲 Dice Roll", description=f"d{sides} → **{value}**", color=EMBED_COLOR)
+        embed = discord.Embed(
+            title="🎲 Dice Roll",
+            description=f"d{sides} → **{value}**",
+            color=EMBED_COLOR,
+        )
         await send(ctx, embed=embed)
 
     @commands.hybrid_command(name="choose", description="Choose one option from a list")
@@ -99,7 +104,9 @@ class Fun(commands.Cog):
             )
             return
         pick = random.choice(parts)
-        embed = discord.Embed(title="Choice", description=f"I choose: **{pick}**", color=EMBED_COLOR)
+        embed = discord.Embed(
+            title="Choice", description=f"I choose: **{pick}**", color=EMBED_COLOR
+        )
         await send(ctx, embed=embed)
 
     @commands.hybrid_command(name="rps", description="Play rock-paper-scissors")

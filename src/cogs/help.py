@@ -9,7 +9,7 @@ from discord.ext import commands
 from discord import app_commands
 import logging
 
-logger = logging.getLogger('miku.help')
+logger = logging.getLogger("miku.help")
 
 BLURPLE = 0x5865F2
 PREFIX = "&"
@@ -21,11 +21,37 @@ CATEGORIES: dict[str, dict] = {
         "name": "Leveling",
         "description": "XP tracking, ranks, and leaderboards",
         "commands": [
-            {"name": "rank", "description": "View your or another user's rank card", "usage": f"{PREFIX}rank [user]", "aliases": ["level", "lvl"]},
-            {"name": "xp", "description": "View detailed XP information", "usage": f"{PREFIX}xp [user]", "aliases": []},
-            {"name": "leaderboard", "description": "View the server leaderboard", "usage": f"{PREFIX}leaderboard [page]", "aliases": ["lb", "top"]},
-            {"name": "rolerewards", "description": "View all configured role rewards", "usage": f"{PREFIX}rolerewards", "aliases": ["listroles"]},
-            {"name": "clean-lb", "description": "Remove departed users from the leaderboard", "usage": f"{PREFIX}clean-lb", "aliases": [], "permissions": ["Administrator"]},
+            {
+                "name": "rank",
+                "description": "View your or another user's rank card",
+                "usage": f"{PREFIX}rank [user]",
+                "aliases": ["level", "lvl"],
+            },
+            {
+                "name": "xp",
+                "description": "View detailed XP information",
+                "usage": f"{PREFIX}xp [user]",
+                "aliases": [],
+            },
+            {
+                "name": "leaderboard",
+                "description": "View the server leaderboard",
+                "usage": f"{PREFIX}leaderboard [page]",
+                "aliases": ["lb", "top"],
+            },
+            {
+                "name": "rolerewards",
+                "description": "View all configured role rewards",
+                "usage": f"{PREFIX}rolerewards",
+                "aliases": ["listroles"],
+            },
+            {
+                "name": "clean-lb",
+                "description": "Remove departed users from the leaderboard",
+                "usage": f"{PREFIX}clean-lb",
+                "aliases": [],
+                "permissions": ["Administrator"],
+            },
         ],
     },
     "admin": {
@@ -33,14 +59,62 @@ CATEGORIES: dict[str, dict] = {
         "name": "Admin",
         "description": "Server management and configuration commands",
         "commands": [
-            {"name": "setlevel", "description": "Set a user's level to a specific value", "usage": f"{PREFIX}setlevel <user> <level>", "aliases": [], "permissions": ["Administrator"]},
-            {"name": "addxp", "description": "Add XP to a user", "usage": f"{PREFIX}addxp <user> <amount>", "aliases": [], "permissions": ["Administrator"]},
-            {"name": "removexp", "description": "Remove XP from a user", "usage": f"{PREFIX}removexp <user> <amount>", "aliases": [], "permissions": ["Administrator"]},
-            {"name": "resetlevel", "description": "Reset a user's level and XP data", "usage": f"{PREFIX}resetlevel <user>", "aliases": [], "permissions": ["Administrator"]},
-            {"name": "resetalllevels", "description": "Reset ALL server level data", "usage": f"{PREFIX}resetalllevels CONFIRM", "aliases": [], "permissions": ["Administrator"]},
-            {"name": "setlevelchannel", "description": "Set the level-up announcement channel", "usage": f"{PREFIX}setlevelchannel [channel]", "aliases": [], "permissions": ["Administrator"]},
-            {"name": "addrole", "description": "Add a role reward for reaching a level", "usage": f"{PREFIX}addrole <level> <role>", "aliases": [], "permissions": ["Administrator"]},
-            {"name": "removerole", "description": "Remove a role reward from a level", "usage": f"{PREFIX}removerole <level>", "aliases": [], "permissions": ["Administrator"]},
+            {
+                "name": "setlevel",
+                "description": "Set a user's level to a specific value",
+                "usage": f"{PREFIX}setlevel <user> <level>",
+                "aliases": [],
+                "permissions": ["Administrator"],
+            },
+            {
+                "name": "addxp",
+                "description": "Add XP to a user",
+                "usage": f"{PREFIX}addxp <user> <amount>",
+                "aliases": [],
+                "permissions": ["Administrator"],
+            },
+            {
+                "name": "removexp",
+                "description": "Remove XP from a user",
+                "usage": f"{PREFIX}removexp <user> <amount>",
+                "aliases": [],
+                "permissions": ["Administrator"],
+            },
+            {
+                "name": "resetlevel",
+                "description": "Reset a user's level and XP data",
+                "usage": f"{PREFIX}resetlevel <user>",
+                "aliases": [],
+                "permissions": ["Administrator"],
+            },
+            {
+                "name": "resetalllevels",
+                "description": "Reset ALL server level data",
+                "usage": f"{PREFIX}resetalllevels CONFIRM",
+                "aliases": [],
+                "permissions": ["Administrator"],
+            },
+            {
+                "name": "setlevelchannel",
+                "description": "Set the level-up announcement channel",
+                "usage": f"{PREFIX}setlevelchannel [channel]",
+                "aliases": [],
+                "permissions": ["Administrator"],
+            },
+            {
+                "name": "addrole",
+                "description": "Add a role reward for reaching a level",
+                "usage": f"{PREFIX}addrole <level> <role>",
+                "aliases": [],
+                "permissions": ["Administrator"],
+            },
+            {
+                "name": "removerole",
+                "description": "Remove a role reward from a level",
+                "usage": f"{PREFIX}removerole <level>",
+                "aliases": [],
+                "permissions": ["Administrator"],
+            },
         ],
     },
     "utility": {
@@ -48,11 +122,36 @@ CATEGORIES: dict[str, dict] = {
         "name": "Utility",
         "description": "Helpful commands that work in any server",
         "commands": [
-            {"name": "ping", "description": "Check if the bot is responsive and view latency", "usage": f"{PREFIX}ping", "aliases": []},
-            {"name": "uptime", "description": "Show how long the bot has been online", "usage": f"{PREFIX}uptime", "aliases": []},
-            {"name": "about", "description": "Bot information, stats, and version info", "usage": f"{PREFIX}about", "aliases": []},
-            {"name": "invite", "description": "Get an invite link to add the bot to your server", "usage": f"{PREFIX}invite", "aliases": []},
-            {"name": "avatar", "description": "Show a user's avatar", "usage": f"{PREFIX}avatar [user]", "aliases": []},
+            {
+                "name": "ping",
+                "description": "Check if the bot is responsive and view latency",
+                "usage": f"{PREFIX}ping",
+                "aliases": [],
+            },
+            {
+                "name": "uptime",
+                "description": "Show how long the bot has been online",
+                "usage": f"{PREFIX}uptime",
+                "aliases": [],
+            },
+            {
+                "name": "about",
+                "description": "Bot information, stats, and version info",
+                "usage": f"{PREFIX}about",
+                "aliases": [],
+            },
+            {
+                "name": "invite",
+                "description": "Get an invite link to add the bot to your server",
+                "usage": f"{PREFIX}invite",
+                "aliases": [],
+            },
+            {
+                "name": "avatar",
+                "description": "Show a user's avatar",
+                "usage": f"{PREFIX}avatar [user]",
+                "aliases": [],
+            },
         ],
     },
     "fun": {
@@ -60,11 +159,36 @@ CATEGORIES: dict[str, dict] = {
         "name": "Fun",
         "description": "Games and random commands",
         "commands": [
-            {"name": "8ball", "description": "Ask the magic 8-ball a question", "usage": f"{PREFIX}8ball <question>", "aliases": []},
-            {"name": "coinflip", "description": "Flip a coin for heads or tails", "usage": f"{PREFIX}coinflip", "aliases": []},
-            {"name": "roll", "description": "Roll a dice with custom sides", "usage": f"{PREFIX}roll [sides]", "aliases": []},
-            {"name": "choose", "description": "Pick one option from a comma-separated list", "usage": f"{PREFIX}choose <a, b, c>", "aliases": []},
-            {"name": "rps", "description": "Play rock-paper-scissors against the bot", "usage": f"{PREFIX}rps <rock|paper|scissors>", "aliases": []},
+            {
+                "name": "8ball",
+                "description": "Ask the magic 8-ball a question",
+                "usage": f"{PREFIX}8ball <question>",
+                "aliases": [],
+            },
+            {
+                "name": "coinflip",
+                "description": "Flip a coin for heads or tails",
+                "usage": f"{PREFIX}coinflip",
+                "aliases": [],
+            },
+            {
+                "name": "roll",
+                "description": "Roll a dice with custom sides",
+                "usage": f"{PREFIX}roll [sides]",
+                "aliases": [],
+            },
+            {
+                "name": "choose",
+                "description": "Pick one option from a comma-separated list",
+                "usage": f"{PREFIX}choose <a, b, c>",
+                "aliases": [],
+            },
+            {
+                "name": "rps",
+                "description": "Play rock-paper-scissors against the bot",
+                "usage": f"{PREFIX}rps <rock|paper|scissors>",
+                "aliases": [],
+            },
         ],
     },
     "info": {
@@ -72,11 +196,36 @@ CATEGORIES: dict[str, dict] = {
         "name": "Info",
         "description": "Server, role, channel, and user information",
         "commands": [
-            {"name": "membercount", "description": "Show the server's total member count", "usage": f"{PREFIX}membercount", "aliases": []},
-            {"name": "roleinfo", "description": "Show detailed information about a role", "usage": f"{PREFIX}roleinfo <role>", "aliases": []},
-            {"name": "channelinfo", "description": "Show information about a channel", "usage": f"{PREFIX}channelinfo [channel]", "aliases": []},
-            {"name": "userinfo", "description": "Show information about a server member", "usage": f"{PREFIX}userinfo [user]", "aliases": []},
-            {"name": "serverinfo", "description": "Show information about the current server", "usage": f"{PREFIX}serverinfo", "aliases": []},
+            {
+                "name": "membercount",
+                "description": "Show the server's total member count",
+                "usage": f"{PREFIX}membercount",
+                "aliases": [],
+            },
+            {
+                "name": "roleinfo",
+                "description": "Show detailed information about a role",
+                "usage": f"{PREFIX}roleinfo <role>",
+                "aliases": [],
+            },
+            {
+                "name": "channelinfo",
+                "description": "Show information about a channel",
+                "usage": f"{PREFIX}channelinfo [channel]",
+                "aliases": [],
+            },
+            {
+                "name": "userinfo",
+                "description": "Show information about a server member",
+                "usage": f"{PREFIX}userinfo [user]",
+                "aliases": [],
+            },
+            {
+                "name": "serverinfo",
+                "description": "Show information about the current server",
+                "usage": f"{PREFIX}serverinfo",
+                "aliases": [],
+            },
         ],
     },
     "github": {
@@ -84,10 +233,30 @@ CATEGORIES: dict[str, dict] = {
         "name": "GitHub",
         "description": "Repository and user lookup via the GitHub API",
         "commands": [
-            {"name": "github repo", "description": "View repository information (stars, forks, language, license)", "usage": f"{PREFIX}github repo <owner/repo>", "aliases": []},
-            {"name": "github user", "description": "View a GitHub user or organisation profile", "usage": f"{PREFIX}github user <username>", "aliases": []},
-            {"name": "github search-repos", "description": "Search GitHub repositories by query", "usage": f"{PREFIX}github search-repos <query>", "aliases": ["sr"]},
-            {"name": "github search-users", "description": "Search GitHub users by query", "usage": f"{PREFIX}github search-users <query>", "aliases": ["su"]},
+            {
+                "name": "github repo",
+                "description": "View repository information (stars, forks, language, license)",
+                "usage": f"{PREFIX}github repo <owner/repo>",
+                "aliases": [],
+            },
+            {
+                "name": "github user",
+                "description": "View a GitHub user or organisation profile",
+                "usage": f"{PREFIX}github user <username>",
+                "aliases": [],
+            },
+            {
+                "name": "github search-repos",
+                "description": "Search GitHub repositories by query",
+                "usage": f"{PREFIX}github search-repos <query>",
+                "aliases": ["sr"],
+            },
+            {
+                "name": "github search-users",
+                "description": "Search GitHub users by query",
+                "usage": f"{PREFIX}github search-users <query>",
+                "aliases": ["su"],
+            },
         ],
     },
 }
@@ -107,7 +276,9 @@ def build_main_embed(bot: commands.Bot) -> discord.Embed:
     cats = []
     for cfg in CATEGORIES.values():
         count = len(cfg["commands"])
-        cats.append(f"{cfg['emoji']} **{cfg['name']}** — {cfg['description']} ({count} commands)")
+        cats.append(
+            f"{cfg['emoji']} **{cfg['name']}** — {cfg['description']} ({count} commands)"
+        )
     embed.add_field(
         name="Categories",
         value="\n".join(cats),
@@ -143,7 +314,9 @@ def build_category_embed(category_key: str, page: int = 0) -> discord.Embed:
         if cmd.get("aliases"):
             parts.append(f"Aliases: {', '.join(f'`{a}`' for a in cmd['aliases'])}")
         if cmd.get("permissions"):
-            parts.append(f"Permissions: {', '.join(f'`{p}`' for p in cmd['permissions'])}")
+            parts.append(
+                f"Permissions: {', '.join(f'`{p}`' for p in cmd['permissions'])}"
+            )
         embed.add_field(
             name=f"{PREFIX}{cmd['name']}",
             value="\n".join(parts),
@@ -151,7 +324,9 @@ def build_category_embed(category_key: str, page: int = 0) -> discord.Embed:
         )
 
     if total_pages > 1:
-        embed.set_footer(text=f"Page {page + 1} of {total_pages} \u2022 {len(cmds)} commands")
+        embed.set_footer(
+            text=f"Page {page + 1} of {total_pages} \u2022 {len(cmds)} commands"
+        )
     else:
         embed.set_footer(text=f"{len(cmds)} commands")
     return embed
@@ -188,7 +363,10 @@ def build_search_embed(query: str) -> discord.Embed:
     results = []
     for cfg in CATEGORIES.values():
         for cmd in cfg["commands"]:
-            if query.lower() in cmd["name"].lower() or query.lower() in cmd["description"].lower():
+            if (
+                query.lower() in cmd["name"].lower()
+                or query.lower() in cmd["description"].lower()
+            ):
                 results.append((cfg, cmd))
 
     embed = discord.Embed(
@@ -209,9 +387,13 @@ def build_search_embed(query: str) -> discord.Embed:
             inline=True,
         )
     if len(results) > 10:
-        embed.set_footer(text=f"Showing 10 of {len(results)} results — use a more specific query")
+        embed.set_footer(
+            text=f"Showing 10 of {len(results)} results — use a more specific query"
+        )
     else:
-        embed.set_footer(text=f"{len(results)} result{'s' if len(results) != 1 else ''} found")
+        embed.set_footer(
+            text=f"{len(results)} result{'s' if len(results) != 1 else ''} found"
+        )
     return embed
 
 
@@ -307,13 +489,20 @@ class CategorySelect(discord.ui.Select):
             ),
         ]
         for key, cfg in CATEGORIES.items():
-            options.append(discord.SelectOption(
-                label=cfg["name"],
-                description=cfg["description"],
-                emoji=cfg["emoji"],
-                value=key,
-            ))
-        super().__init__(placeholder="Select a category...", options=options, min_values=1, max_values=1)
+            options.append(
+                discord.SelectOption(
+                    label=cfg["name"],
+                    description=cfg["description"],
+                    emoji=cfg["emoji"],
+                    value=key,
+                )
+            )
+        super().__init__(
+            placeholder="Select a category...",
+            options=options,
+            min_values=1,
+            max_values=1,
+        )
 
     async def callback(self, interaction: discord.Interaction):
         value = self.values[0]
@@ -332,7 +521,9 @@ class CategorySelect(discord.ui.Select):
 
 class HomeButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(emoji="🏠", label="Home", style=discord.ButtonStyle.secondary, row=1)
+        super().__init__(
+            emoji="🏠", label="Home", style=discord.ButtonStyle.secondary, row=1
+        )
 
     async def callback(self, interaction: discord.Interaction):
         view: HelpView = self.view
@@ -345,18 +536,24 @@ class HomeButton(discord.ui.Button):
 
 class SearchButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(emoji="🔍", label="Search", style=discord.ButtonStyle.secondary, row=1)
+        super().__init__(
+            emoji="🔍", label="Search", style=discord.ButtonStyle.secondary, row=1
+        )
 
     async def callback(self, interaction: discord.Interaction):
         view: HelpView = self.view
-        modal = SearchModal(bot=view.bot, author_id=view.author_id, message=interaction.message)
+        modal = SearchModal(
+            bot=view.bot, author_id=view.author_id, message=interaction.message
+        )
         modal.view = view
         await interaction.response.send_modal(modal)
 
 
 class PrevButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(emoji="◀", label="Prev", style=discord.ButtonStyle.secondary, row=1)
+        super().__init__(
+            emoji="◀", label="Prev", style=discord.ButtonStyle.secondary, row=1
+        )
 
     async def callback(self, interaction: discord.Interaction):
         view: HelpView = self.view
@@ -369,13 +566,17 @@ class PrevButton(discord.ui.Button):
 
 class NextButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(emoji="▶", label="Next", style=discord.ButtonStyle.secondary, row=1)
+        super().__init__(
+            emoji="▶", label="Next", style=discord.ButtonStyle.secondary, row=1
+        )
 
     async def callback(self, interaction: discord.Interaction):
         view: HelpView = self.view
         if view.current_category:
             cmds = CATEGORIES[view.current_category]["commands"]
-            total_pages = max(1, (len(cmds) + COMMANDS_PER_PAGE - 1) // COMMANDS_PER_PAGE)
+            total_pages = max(
+                1, (len(cmds) + COMMANDS_PER_PAGE - 1) // COMMANDS_PER_PAGE
+            )
             if view.current_page < total_pages - 1:
                 view.current_page += 1
                 embed = build_category_embed(view.current_category, view.current_page)
@@ -406,7 +607,9 @@ class HelpView(discord.ui.View):
                     item.disabled = True
                 else:
                     cmds = CATEGORIES[self.current_category]["commands"]
-                    total_pages = max(1, (len(cmds) + COMMANDS_PER_PAGE - 1) // COMMANDS_PER_PAGE)
+                    total_pages = max(
+                        1, (len(cmds) + COMMANDS_PER_PAGE - 1) // COMMANDS_PER_PAGE
+                    )
                     item.disabled = self.current_page >= total_pages - 1
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -438,7 +641,9 @@ class Help(commands.Cog):
     async def cog_load(self):
         logger.info("Help cog loaded")
 
-    @commands.hybrid_command(name="help", description="Display bot commands and information")
+    @commands.hybrid_command(
+        name="help", description="Display bot commands and information"
+    )
     @app_commands.describe(command="Get help for a specific command")
     async def help_command(self, ctx: commands.Context, command: str | None = None):
         async def send(*args, **kwargs):

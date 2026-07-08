@@ -75,9 +75,7 @@ async def get_current_user(access_token: str) -> dict | None:
 async def get_user_guilds(access_token: str) -> list[dict]:
     headers = {"Authorization": f"Bearer {access_token}"}
     async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            f"{DISCORD_API}/users/@me/guilds", headers=headers
-        )
+        resp = await client.get(f"{DISCORD_API}/users/@me/guilds", headers=headers)
         if resp.status_code != 200:
             return []
         return resp.json()

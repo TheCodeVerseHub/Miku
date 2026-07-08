@@ -215,7 +215,7 @@ class RankCardGenerator:
         )
         draw.text(
             (220, 220),
-            f"Total XP: {total_xp:,} • Messages: {messages:,} • {progress*100:.1f}%",
+            f"Total XP: {total_xp:,} • Messages: {messages:,} • {progress * 100:.1f}%",
             font=font_small,
             fill=(180, 180, 180),
         )

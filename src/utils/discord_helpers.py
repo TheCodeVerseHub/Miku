@@ -13,7 +13,9 @@ logger = logging.getLogger("miku.helpers")
 __all__ = ("send", "maybe_defer")
 
 
-async def send(ctx: commands.Context, *args: Any, **kwargs: Any) -> discord.Message | None:
+async def send(
+    ctx: commands.Context, *args: Any, **kwargs: Any
+) -> discord.Message | None:
     """Send a message handling both prefix and slash invocations.
 
     - Strips ``ephemeral`` in prefix mode.
@@ -49,5 +51,5 @@ async def maybe_defer(ctx: commands.Context, *, ephemeral: bool = False) -> None
         return
     try:
         await ctx.defer(ephemeral=ephemeral)
-    except (discord.NotFound, discord.HTTPException):
+    except discord.NotFound, discord.HTTPException:
         return

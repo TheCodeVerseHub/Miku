@@ -34,7 +34,9 @@ class BaseFormula(abc.ABC):
     def xp_for_level(self, level: int) -> int:
         """Return the cumulative XP required to reach *exactly* this level."""
 
-    def xp_to_next_level(self, current_xp: int, current_level: int) -> tuple[int, int, int]:
+    def xp_to_next_level(
+        self, current_xp: int, current_level: int
+    ) -> tuple[int, int, int]:
         """Return (xp_needed, xp_progress, xp_required_for_level)."""
         xp_for_current = self.xp_for_level(current_level)
         xp_for_next = self.xp_for_level(current_level + 1)
@@ -58,13 +60,13 @@ class QuadraticFormula(BaseFormula):
         xp_needed = 0
         while xp_needed <= xp:
             level += 1
-            xp_needed += 5 * (level ** 2) + (50 * level) + 100
+            xp_needed += 5 * (level**2) + (50 * level) + 100
         return max(0, level - 1)
 
     def xp_for_level(self, level: int) -> int:
         total_xp = 0
         for lvl in range(1, level + 1):
-            total_xp += 5 * (lvl ** 2) + (50 * lvl) + 100
+            total_xp += 5 * (lvl**2) + (50 * lvl) + 100
         return total_xp
 
 
@@ -121,7 +123,9 @@ class FormulaRegistry:
         if name not in self._instances:
             cls = self._formulas.get(name)
             if cls is None:
-                raise KeyError(f"Unknown formula '{name}'. Available: {list(self._formulas)}")
+                raise KeyError(
+                    f"Unknown formula '{name}'. Available: {list(self._formulas)}"
+                )
             self._instances[name] = cls()
         return self._instances[name]
 

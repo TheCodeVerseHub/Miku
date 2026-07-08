@@ -25,16 +25,10 @@ class DashboardConfig:
             "DASHBOARD_SESSION_SECRET", "change-me-in-production"
         )
     )
-    database_url: str = field(
-        default_factory=lambda: os.getenv("DATABASE_URL", "")
-    )
-    bot_token: str = field(
-        default_factory=lambda: os.getenv("DISCORD_BOT_TOKEN", "")
-    )
+    database_url: str = field(default_factory=lambda: os.getenv("DATABASE_URL", ""))
+    bot_token: str = field(default_factory=lambda: os.getenv("DISCORD_BOT_TOKEN", ""))
     host: str = field(default_factory=lambda: os.getenv("DASHBOARD_HOST", "0.0.0.0"))
-    port: int = field(
-        default_factory=lambda: int(os.getenv("DASHBOARD_PORT", "8000"))
-    )
+    port: int = field(default_factory=lambda: int(os.getenv("DASHBOARD_PORT", "8000")))
 
 
 config = DashboardConfig()

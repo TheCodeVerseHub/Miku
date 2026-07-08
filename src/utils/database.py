@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-logger = logging.getLogger('miku.database')
+logger = logging.getLogger("miku.database")
 
 # Database connection pool
 _pool: asyncpg.Pool | None = None
@@ -37,14 +37,15 @@ _pool: asyncpg.Pool | None = None
 # Connection Pool Management
 # ============================================================================
 
+
 async def get_pool() -> asyncpg.Pool:
     """Get or create database connection pool"""
     global _pool
     if _pool is None:
-        database_url = os.getenv('DATABASE_URL')
+        database_url = os.getenv("DATABASE_URL")
         if not database_url:
             raise ValueError("DATABASE_URL environment variable not set")
-        
+
         # NOTE: `statement_cache_size=0` is intentional.
         # asyncpg caches prepared statements by default; after DDL (ALTER TABLE)
         # some servers can raise InvalidCachedStatementError. Disabling the cache
@@ -60,6 +61,7 @@ async def get_pool() -> asyncpg.Pool:
         logger.info("Database connection pool created")
     return _pool
 
+
 async def close_pool():
     """Close the database connection pool"""
     global _pool
@@ -68,14 +70,17 @@ async def close_pool():
         _pool = None
         logger.info("Database connection pool closed")
 
+
 # ============================================================================
 # Database Initialization
 # ============================================================================
+
 
 async def init_db() -> None:
     """Initialize database tables"""
     pool = await get_pool()
     async with pool.acquire() as conn:
+
         async def _migrate_epoch_column_to_timestamp(table: str, column: str) -> None:
             """Convert legacy epoch columns (DOUBLE PRECISION) to TIMESTAMP.
 
@@ -114,19 +119,25 @@ async def init_db() -> None:
                 )
                 return
 
-            logger.info("Migrating %s.%s from DOUBLE PRECISION to TIMESTAMP", table, column)
+            logger.info(
+                "Migrating %s.%s from DOUBLE PRECISION to TIMESTAMP", table, column
+            )
             try:
-                await conn.execute(f'ALTER TABLE {table} ALTER COLUMN {column} DROP DEFAULT')
+                await conn.execute(
+                    f"ALTER TABLE {table} ALTER COLUMN {column} DROP DEFAULT"
+                )
             except Exception:
                 logger.debug("No default to drop for %s.%s", table, column)
 
             await conn.execute(
                 f"ALTER TABLE {table} ALTER COLUMN {column} TYPE TIMESTAMP USING to_timestamp({column})"
             )
-            await conn.execute(f'ALTER TABLE {table} ALTER COLUMN {column} SET DEFAULT NOW()')
+            await conn.execute(
+                f"ALTER TABLE {table} ALTER COLUMN {column} SET DEFAULT NOW()"
+            )
 
         # User levels table
-        await conn.execute('''
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS user_levels (
                 user_id BIGINT NOT NULL,
                 guild_id BIGINT NOT NULL,
@@ -138,7 +149,7 @@ async def init_db() -> None:
                 updated_at TIMESTAMP DEFAULT NOW(),
                 PRIMARY KEY (user_id, guild_id)
             )
-        ''')
+        """)
 
         # Lightweight migrations for older schemas.
         # Hosted DBs might already contain tables created by a previous version.
@@ -155,15 +166,15 @@ async def init_db() -> None:
         # Migrate legacy epoch timestamp columns if present.
         await _migrate_epoch_column_to_timestamp("user_levels", "created_at")
         await _migrate_epoch_column_to_timestamp("user_levels", "updated_at")
-        
+
         # Create index for leaderboard queries
-        await conn.execute('''
+        await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_user_levels_guild_xp 
             ON user_levels(guild_id, xp DESC)
-        ''')
-        
+        """)
+
         # Guild settings table
-        await conn.execute('''
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS guild_settings (
                 guild_id BIGINT PRIMARY KEY,
                 levelup_channel_id BIGINT,
@@ -174,7 +185,7 @@ async def init_db() -> None:
                 created_at TIMESTAMP DEFAULT NOW(),
                 updated_at TIMESTAMP DEFAULT NOW()
             )
-        ''')
+        """)
 
         await conn.execute(
             "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()"
@@ -194,9 +205,9 @@ async def init_db() -> None:
 
         await _migrate_epoch_column_to_timestamp("guild_settings", "created_at")
         await _migrate_epoch_column_to_timestamp("guild_settings", "updated_at")
-        
+
         # Role rewards table
-        await conn.execute('''
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS role_rewards (
                 guild_id BIGINT NOT NULL,
                 level INTEGER NOT NULL,
@@ -204,16 +215,16 @@ async def init_db() -> None:
                 created_at TIMESTAMP DEFAULT NOW(),
                 PRIMARY KEY (guild_id, level)
             )
-        ''')
-        
+        """)
+
         # Create index for role rewards
-        await conn.execute('''
+        await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_role_rewards_guild 
             ON role_rewards(guild_id)
-        ''')
+        """)
 
         # ── XP settings (separate from general guild_settings) ──────────
-        await conn.execute('''
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS xp_settings (
                 guild_id BIGINT PRIMARY KEY,
                 formula_name VARCHAR(64) DEFAULT 'quadratic',
@@ -223,23 +234,23 @@ async def init_db() -> None:
                 created_at TIMESTAMP DEFAULT NOW(),
                 updated_at TIMESTAMP DEFAULT NOW()
             )
-        ''')
+        """)
 
         await conn.execute(
             "ALTER TABLE xp_settings ADD COLUMN IF NOT EXISTS formula_name VARCHAR(64) DEFAULT 'quadratic'"
         )
 
         # Migrate existing values from guild_settings → xp_settings
-        await conn.execute('''
+        await conn.execute("""
             INSERT INTO xp_settings (guild_id, min_xp, max_xp, cooldown_seconds)
                 SELECT guild_id, min_xp, max_xp, cooldown_seconds
                 FROM guild_settings
                 WHERE guild_id NOT IN (SELECT guild_id FROM xp_settings)
             ON CONFLICT (guild_id) DO NOTHING
-        ''')
+        """)
 
         # ── XP multipliers ──────────────────────────────────────────────
-        await conn.execute('''
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS xp_multipliers (
                 id SERIAL PRIMARY KEY,
                 guild_id BIGINT NOT NULL,
@@ -250,15 +261,15 @@ async def init_db() -> None:
                 created_at TIMESTAMP DEFAULT NOW(),
                 UNIQUE(guild_id, target_type, target_id)
             )
-        ''')
+        """)
 
-        await conn.execute('''
+        await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_xp_multipliers_guild
             ON xp_multipliers(guild_id)
-        ''')
+        """)
 
         # ── XP restrictions ─────────────────────────────────────────────
-        await conn.execute('''
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS xp_restrictions (
                 id SERIAL PRIMARY KEY,
                 guild_id BIGINT NOT NULL,
@@ -266,15 +277,15 @@ async def init_db() -> None:
                 target_id BIGINT NOT NULL,
                 created_at TIMESTAMP DEFAULT NOW()
             )
-        ''')
+        """)
 
-        await conn.execute('''
+        await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_xp_restrictions_guild
             ON xp_restrictions(guild_id)
-        ''')
+        """)
 
         # ── XP log (time-series) ────────────────────────────────────────
-        await conn.execute('''
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS xp_log (
                 id BIGSERIAL PRIMARY KEY,
                 guild_id BIGINT NOT NULL,
@@ -284,20 +295,20 @@ async def init_db() -> None:
                 reason VARCHAR(512),
                 created_at TIMESTAMP DEFAULT NOW()
             )
-        ''')
+        """)
 
-        await conn.execute('''
+        await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_xp_log_guild
             ON xp_log(guild_id, created_at DESC)
-        ''')
+        """)
 
-        await conn.execute('''
+        await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_xp_log_user
             ON xp_log(guild_id, user_id, created_at DESC)
-        ''')
+        """)
 
         # ── Audit log ───────────────────────────────────────────────────
-        await conn.execute('''
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS audit_log (
                 id BIGSERIAL PRIMARY KEY,
                 guild_id BIGINT NOT NULL,
@@ -307,12 +318,12 @@ async def init_db() -> None:
                 details JSONB DEFAULT '{}',
                 created_at TIMESTAMP DEFAULT NOW()
             )
-        ''')
+        """)
 
-        await conn.execute('''
+        await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_audit_log_guild
             ON audit_log(guild_id, created_at DESC)
-        ''')
+        """)
 
         # DDL above can invalidate asyncpg's cached statement plans on this connection.
         # Refresh schema state before returning it to the pool.
@@ -321,35 +332,40 @@ async def init_db() -> None:
         except Exception:
             # Not fatal; worst case asyncpg will raise and the caller can retry.
             logger.exception("Failed to reload schema state")
-        
+
         logger.info("Database tables initialized")
+
 
 # ============================================================================
 # User Level Operations
 # ============================================================================
+
 
 async def get_user_data(user_id: int, guild_id: int) -> dict[str, Any] | None:
     """Get user's level data"""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            'SELECT * FROM user_levels WHERE user_id = $1 AND guild_id = $2',
-            user_id, guild_id
+            "SELECT * FROM user_levels WHERE user_id = $1 AND guild_id = $2",
+            user_id,
+            guild_id,
         )
         return dict(row) if row else None
 
+
 async def update_user_xp(
-    user_id: int, 
-    guild_id: int, 
-    xp: int, 
-    level: int, 
-    messages: int, 
-    last_message_time: float
+    user_id: int,
+    guild_id: int,
+    xp: int,
+    level: int,
+    messages: int,
+    last_message_time: float,
 ) -> None:
     """Update or insert user XP data"""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('''
+        await conn.execute(
+            """
             INSERT INTO user_levels 
                 (user_id, guild_id, xp, level, messages, last_message_time, updated_at)
             VALUES ($1, $2, $3, $4, $5, $6, NOW())
@@ -359,13 +375,22 @@ async def update_user_xp(
                 messages = EXCLUDED.messages,
                 last_message_time = EXCLUDED.last_message_time,
                 updated_at = NOW()
-        ''', user_id, guild_id, xp, level, messages, last_message_time)
+        """,
+            user_id,
+            guild_id,
+            xp,
+            level,
+            messages,
+            last_message_time,
+        )
+
 
 async def set_user_level(user_id: int, guild_id: int, level: int, xp: int) -> None:
     """Set user's level and XP (admin command)"""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('''
+        await conn.execute(
+            """
             INSERT INTO user_levels 
                 (user_id, guild_id, xp, level, updated_at)
             VALUES ($1, $2, $3, $4, NOW())
@@ -373,66 +398,86 @@ async def set_user_level(user_id: int, guild_id: int, level: int, xp: int) -> No
                 xp = EXCLUDED.xp,
                 level = EXCLUDED.level,
                 updated_at = NOW()
-        ''', user_id, guild_id, xp, level)
+        """,
+            user_id,
+            guild_id,
+            xp,
+            level,
+        )
+
 
 async def get_user_rank(user_id: int, guild_id: int) -> int | None:
     """Get user's rank in the guild (1-indexed)"""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow('''
+        row = await conn.fetchrow(
+            """
             SELECT COUNT(*) + 1 as rank
             FROM user_levels
             WHERE guild_id = $1 AND xp > (
                 SELECT COALESCE(xp, 0) FROM user_levels 
                 WHERE user_id = $2 AND guild_id = $1
             )
-        ''', guild_id, user_id)
-        return row['rank'] if row else None
+        """,
+            guild_id,
+            user_id,
+        )
+        return row["rank"] if row else None
 
-async def get_leaderboard(guild_id: int, limit: int = 10, offset: int = 0) -> list[dict[str, Any]]:
+
+async def get_leaderboard(
+    guild_id: int, limit: int = 10, offset: int = 0
+) -> list[dict[str, Any]]:
     """Get top users by XP in a guild"""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch('''
+        rows = await conn.fetch(
+            """
             SELECT user_id, xp, level, messages 
             FROM user_levels 
             WHERE guild_id = $1 
             ORDER BY xp DESC 
             LIMIT $2 OFFSET $3
-        ''', guild_id, limit, offset)
+        """,
+            guild_id,
+            limit,
+            offset,
+        )
         return [dict(row) for row in rows]
+
 
 async def get_total_users(guild_id: int) -> int:
     """Get total number of users with XP in a guild"""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            'SELECT COUNT(*) as count FROM user_levels WHERE guild_id = $1',
-            guild_id
+            "SELECT COUNT(*) as count FROM user_levels WHERE guild_id = $1", guild_id
         )
-        return row['count'] if row else 0
+        return row["count"] if row else 0
+
 
 async def reset_user_data(user_id: int, guild_id: int) -> None:
     """Reset a user's level data"""
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            'DELETE FROM user_levels WHERE user_id = $1 AND guild_id = $2',
-            user_id, guild_id
+            "DELETE FROM user_levels WHERE user_id = $1 AND guild_id = $2",
+            user_id,
+            guild_id,
         )
+
 
 async def reset_guild_data(guild_id: int) -> None:
     """Reset all level data for a guild"""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
-            'DELETE FROM user_levels WHERE guild_id = $1',
-            guild_id
-        )
+        await conn.execute("DELETE FROM user_levels WHERE guild_id = $1", guild_id)
+
 
 # ============================================================================
 # Departed User Cleanup
 # ============================================================================
+
 
 async def clean_departed_users(guild_id: int, active_user_ids: set) -> dict[str, int]:
     """Remove leveling data for users who are no longer guild members.
@@ -447,7 +492,7 @@ async def clean_departed_users(guild_id: int, active_user_ids: set) -> dict[str,
     async with pool.acquire() as conn:
         async with conn.transaction():
             rows = await conn.fetch(
-                'SELECT user_id FROM user_levels WHERE guild_id = $1',
+                "SELECT user_id FROM user_levels WHERE guild_id = $1",
                 guild_id,
             )
             db_user_ids = {row["user_id"] for row in rows}
@@ -492,102 +537,127 @@ async def delete_user_leveling_data(user_id: int, guild_id: int) -> None:
                     guild_id,
                 )
 
+
 # ============================================================================
 # Guild Settings Operations
 # ============================================================================
+
 
 async def get_guild_settings(guild_id: int) -> dict[str, Any] | None:
     """Get guild settings"""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            'SELECT * FROM guild_settings WHERE guild_id = $1',
-            guild_id
+            "SELECT * FROM guild_settings WHERE guild_id = $1", guild_id
         )
         return dict(row) if row else None
+
 
 async def set_levelup_channel(guild_id: int, channel_id: int | None) -> None:
     """Set or remove the level-up announcement channel"""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('''
+        await conn.execute(
+            """
             INSERT INTO guild_settings (guild_id, levelup_channel_id, updated_at)
             VALUES ($1, $2, NOW())
             ON CONFLICT(guild_id) DO UPDATE SET
                 levelup_channel_id = EXCLUDED.levelup_channel_id,
                 updated_at = NOW()
-        ''', guild_id, channel_id)
+        """,
+            guild_id,
+            channel_id,
+        )
+
 
 async def toggle_xp_system(guild_id: int, enabled: bool) -> None:
     """Enable or disable XP system for a guild"""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('''
+        await conn.execute(
+            """
             INSERT INTO guild_settings (guild_id, xp_enabled, updated_at)
             VALUES ($1, $2, NOW())
             ON CONFLICT(guild_id) DO UPDATE SET
                 xp_enabled = EXCLUDED.xp_enabled,
                 updated_at = NOW()
-        ''', guild_id, enabled)
+        """,
+            guild_id,
+            enabled,
+        )
+
 
 # ============================================================================
 # Role Rewards Operations
 # ============================================================================
+
 
 async def get_role_rewards(guild_id: int) -> list[dict[str, Any]]:
     """Get all role rewards for a guild"""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            'SELECT level, role_id FROM role_rewards WHERE guild_id = $1 ORDER BY level',
-            guild_id
+            "SELECT level, role_id FROM role_rewards WHERE guild_id = $1 ORDER BY level",
+            guild_id,
         )
         return [dict(row) for row in rows]
+
 
 async def add_role_reward(guild_id: int, level: int, role_id: int) -> None:
     """Add or update a role reward for a level"""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('''
+        await conn.execute(
+            """
             INSERT INTO role_rewards (guild_id, level, role_id)
             VALUES ($1, $2, $3)
             ON CONFLICT(guild_id, level) DO UPDATE SET
                 role_id = EXCLUDED.role_id
-        ''', guild_id, level, role_id)
+        """,
+            guild_id,
+            level,
+            role_id,
+        )
+
 
 async def remove_role_reward(guild_id: int, level: int):
     """Remove a role reward for a level"""
     pool = await get_pool()
     async with pool.acquire() as conn:
         result = await conn.execute(
-            'DELETE FROM role_rewards WHERE guild_id = $1 AND level = $2',
-            guild_id, level
+            "DELETE FROM role_rewards WHERE guild_id = $1 AND level = $2",
+            guild_id,
+            level,
         )
-        return result != 'DELETE 0'
+        return result != "DELETE 0"
+
 
 async def get_role_for_level(guild_id: int, level: int) -> int | None:
     """Get role reward for a specific level"""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            'SELECT role_id FROM role_rewards WHERE guild_id = $1 AND level = $2',
-            guild_id, level
+            "SELECT role_id FROM role_rewards WHERE guild_id = $1 AND level = $2",
+            guild_id,
+            level,
         )
-        return row['role_id'] if row else None
+        return row["role_id"] if row else None
+
 
 # ============================================================================
 # XP Settings Operations
 # ============================================================================
+
 
 async def get_xp_settings(guild_id: int) -> dict[str, Any] | None:
     """Get XP-specific settings for a guild."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            'SELECT * FROM xp_settings WHERE guild_id = $1',
-            guild_id
+            "SELECT * FROM xp_settings WHERE guild_id = $1", guild_id
         )
         return dict(row) if row else None
+
 
 async def upsert_xp_settings(guild_id: int, **kwargs) -> None:
     """Insert or update XP settings.
@@ -607,28 +677,35 @@ async def upsert_xp_settings(guild_id: int, **kwargs) -> None:
     set_clause = ", ".join(cols)
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(f'''
+        await conn.execute(
+            f"""
             INSERT INTO xp_settings (guild_id, updated_at)
             VALUES ($1, NOW())
             ON CONFLICT (guild_id) DO UPDATE SET
                 {set_clause},
                 updated_at = NOW()
-        ''', guild_id, *vals)
+        """,
+            guild_id,
+            *vals,
+        )
+
 
 # ============================================================================
 # XP Multiplier Operations
 # ============================================================================
+
 
 async def get_xp_multipliers(guild_id: int) -> list[dict[str, Any]]:
     """Get all XP multipliers for a guild."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            'SELECT id, target_type, target_id, multiplier, label '
-            'FROM xp_multipliers WHERE guild_id = $1 ORDER BY id',
-            guild_id
+            "SELECT id, target_type, target_id, multiplier, label "
+            "FROM xp_multipliers WHERE guild_id = $1 ORDER BY id",
+            guild_id,
         )
         return [dict(r) for r in rows]
+
 
 async def add_xp_multiplier(
     guild_id: int,
@@ -640,70 +717,103 @@ async def add_xp_multiplier(
     """Add or update an XP multiplier."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('''
+        await conn.execute(
+            """
             INSERT INTO xp_multipliers (guild_id, target_type, target_id, multiplier, label)
             VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (guild_id, target_type, target_id) DO UPDATE SET
                 multiplier = EXCLUDED.multiplier,
                 label = EXCLUDED.label
-        ''', guild_id, target_type, target_id, multiplier, label)
+        """,
+            guild_id,
+            target_type,
+            target_id,
+            multiplier,
+            label,
+        )
+
 
 async def remove_xp_multiplier(guild_id: int, multiplier_id: int) -> bool:
     """Remove an XP multiplier by ID."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         result = await conn.execute(
-            'DELETE FROM xp_multipliers WHERE guild_id = $1 AND id = $2',
-            guild_id, multiplier_id
+            "DELETE FROM xp_multipliers WHERE guild_id = $1 AND id = $2",
+            guild_id,
+            multiplier_id,
         )
-        return result != 'DELETE 0'
+        return result != "DELETE 0"
+
 
 # ============================================================================
 # XP Restriction Operations
 # ============================================================================
+
 
 async def get_xp_restrictions(guild_id: int) -> list[dict[str, Any]]:
     """Get all XP restrictions for a guild."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            'SELECT id, restriction_type, target_id '
-            'FROM xp_restrictions WHERE guild_id = $1 ORDER BY id',
-            guild_id
+            "SELECT id, restriction_type, target_id "
+            "FROM xp_restrictions WHERE guild_id = $1 ORDER BY id",
+            guild_id,
         )
         return [dict(r) for r in rows]
 
-async def add_xp_restriction(guild_id: int, restriction_type: str, target_id: int) -> None:
+
+async def add_xp_restriction(
+    guild_id: int, restriction_type: str, target_id: int
+) -> None:
     """Add an XP restriction."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('''
+        await conn.execute(
+            """
             INSERT INTO xp_restrictions (guild_id, restriction_type, target_id)
             VALUES ($1, $2, $3)
-        ''', guild_id, restriction_type, target_id)
+        """,
+            guild_id,
+            restriction_type,
+            target_id,
+        )
+
 
 async def remove_xp_restriction(guild_id: int, restriction_id: int) -> bool:
     """Remove an XP restriction by ID."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         result = await conn.execute(
-            'DELETE FROM xp_restrictions WHERE guild_id = $1 AND id = $2',
-            guild_id, restriction_id
+            "DELETE FROM xp_restrictions WHERE guild_id = $1 AND id = $2",
+            guild_id,
+            restriction_id,
         )
-        return result != 'DELETE 0'
+        return result != "DELETE 0"
+
 
 # ============================================================================
 # XP Log Operations
 # ============================================================================
 
-async def insert_xp_log(guild_id: int, user_id: int, amount: int, source: str, reason: str = "") -> None:
+
+async def insert_xp_log(
+    guild_id: int, user_id: int, amount: int, source: str, reason: str = ""
+) -> None:
     """Record an XP change in the log."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('''
+        await conn.execute(
+            """
             INSERT INTO xp_log (guild_id, user_id, amount, source, reason)
             VALUES ($1, $2, $3, $4, NULLIF($5, ''))
-        ''', guild_id, user_id, amount, source, reason)
+        """,
+            guild_id,
+            user_id,
+            amount,
+            source,
+            reason,
+        )
+
 
 async def get_xp_log(
     guild_id: int,
@@ -716,23 +826,30 @@ async def get_xp_log(
     async with pool.acquire() as conn:
         if source:
             rows = await conn.fetch(
-                'SELECT id, user_id, amount, source, reason, created_at '
-                'FROM xp_log WHERE guild_id = $1 AND source = $2 '
-                'ORDER BY created_at DESC LIMIT $3 OFFSET $4',
-                guild_id, source, limit, offset
+                "SELECT id, user_id, amount, source, reason, created_at "
+                "FROM xp_log WHERE guild_id = $1 AND source = $2 "
+                "ORDER BY created_at DESC LIMIT $3 OFFSET $4",
+                guild_id,
+                source,
+                limit,
+                offset,
             )
         else:
             rows = await conn.fetch(
-                'SELECT id, user_id, amount, source, reason, created_at '
-                'FROM xp_log WHERE guild_id = $1 '
-                'ORDER BY created_at DESC LIMIT $2 OFFSET $3',
-                guild_id, limit, offset
+                "SELECT id, user_id, amount, source, reason, created_at "
+                "FROM xp_log WHERE guild_id = $1 "
+                "ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+                guild_id,
+                limit,
+                offset,
             )
         return [dict(r) for r in rows]
+
 
 # ============================================================================
 # Audit Log Operations
 # ============================================================================
+
 
 async def insert_audit_log(
     guild_id: int,
@@ -744,10 +861,18 @@ async def insert_audit_log(
     """Record an admin action in the audit log."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('''
+        await conn.execute(
+            """
             INSERT INTO audit_log (guild_id, user_id, admin_id, action, details)
             VALUES ($1, $2, $3, $4, $5::jsonb)
-        ''', guild_id, user_id, admin_id, action, details or {})
+        """,
+            guild_id,
+            user_id,
+            admin_id,
+            action,
+            details or {},
+        )
+
 
 async def get_audit_log(
     guild_id: int,
@@ -758,10 +883,11 @@ async def get_audit_log(
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            'SELECT id, user_id, admin_id, action, details, created_at '
-            'FROM audit_log WHERE guild_id = $1 '
-            'ORDER BY created_at DESC LIMIT $2 OFFSET $3',
-            guild_id, limit, offset
+            "SELECT id, user_id, admin_id, action, details, created_at "
+            "FROM audit_log WHERE guild_id = $1 "
+            "ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+            guild_id,
+            limit,
+            offset,
         )
         return [dict(r) for r in rows]
-

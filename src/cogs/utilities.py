@@ -12,7 +12,6 @@ from __future__ import annotations
 import logging
 import platform
 from datetime import datetime, timezone
-from datetime import datetime, timezone
 
 import discord
 from discord import app_commands
@@ -69,7 +68,9 @@ class Utilities(commands.Cog):
         )
         await send(ctx, embed=embed)
 
-    @commands.hybrid_command(name="uptime", description="Show how long the bot has been online")
+    @commands.hybrid_command(
+        name="uptime", description="Show how long the bot has been online"
+    )
     async def uptime(self, ctx: commands.Context) -> None:
         """Show bot uptime."""
         started_at: datetime | None = getattr(self.bot, "start_time", None)
@@ -103,7 +104,9 @@ class Utilities(commands.Cog):
 
         started_at: datetime | None = getattr(self.bot, "start_time", None)
         if started_at is not None:
-            uptime = _format_timedelta((datetime.now(timezone.utc) - started_at).total_seconds())
+            uptime = _format_timedelta(
+                (datetime.now(timezone.utc) - started_at).total_seconds()
+            )
         else:
             uptime = "N/A"
 
@@ -127,7 +130,11 @@ class Utilities(commands.Cog):
 
         embed.add_field(name="Owner", value=owner_text, inline=True)
         embed.add_field(name="Python", value=platform.python_version(), inline=True)
-        embed.add_field(name="discord.py", value=getattr(discord, "__version__", "Unknown"), inline=True)
+        embed.add_field(
+            name="discord.py",
+            value=getattr(discord, "__version__", "Unknown"),
+            inline=True,
+        )
 
         if self.bot.user is not None:
             embed.set_thumbnail(url=self.bot.user.display_avatar.url)
@@ -164,7 +171,9 @@ class Utilities(commands.Cog):
 
     @commands.hybrid_command(name="avatar", description="Show a user's avatar")
     @app_commands.describe(user="User to view (defaults to you)")
-    async def avatar(self, ctx: commands.Context, user: discord.User | None = None) -> None:
+    async def avatar(
+        self, ctx: commands.Context, user: discord.User | None = None
+    ) -> None:
         """Display avatar for a user."""
         target = user or ctx.author
         embed = discord.Embed(
@@ -174,9 +183,13 @@ class Utilities(commands.Cog):
         embed.set_image(url=target.display_avatar.url)
         await send(ctx, embed=embed)
 
-    @commands.hybrid_command(name="userinfo", description="Show information about a user")
+    @commands.hybrid_command(
+        name="userinfo", description="Show information about a user"
+    )
     @app_commands.describe(user="User to view (defaults to you)")
-    async def userinfo(self, ctx: commands.Context, user: discord.Member | None = None) -> None:
+    async def userinfo(
+        self, ctx: commands.Context, user: discord.Member | None = None
+    ) -> None:
         """Display basic info about a member."""
         if ctx.guild is None:
             await send(
@@ -234,7 +247,9 @@ class Utilities(commands.Cog):
         embed.add_field(name="Roles", value=roles_display, inline=False)
         await send(ctx, embed=embed)
 
-    @commands.hybrid_command(name="serverinfo", description="Show information about this server")
+    @commands.hybrid_command(
+        name="serverinfo", description="Show information about this server"
+    )
     async def serverinfo(self, ctx: commands.Context) -> None:
         """Display server information."""
         if ctx.guild is None:
@@ -260,12 +275,26 @@ class Utilities(commands.Cog):
             embed.set_thumbnail(url=guild.icon.url)
 
         embed.add_field(name="ID", value=str(guild.id), inline=True)
-        embed.add_field(name="Owner", value=str(guild.owner) if guild.owner else "Unknown", inline=True)
-        embed.add_field(name="Created", value=f"<t:{int(guild.created_at.timestamp())}:F>", inline=True)
+        embed.add_field(
+            name="Owner",
+            value=str(guild.owner) if guild.owner else "Unknown",
+            inline=True,
+        )
+        embed.add_field(
+            name="Created",
+            value=f"<t:{int(guild.created_at.timestamp())}:F>",
+            inline=True,
+        )
 
-        embed.add_field(name="Members", value=str(guild.member_count or "Unknown"), inline=True)
-        embed.add_field(name="Text Channels", value=str(len(guild.text_channels)), inline=True)
-        embed.add_field(name="Voice Channels", value=str(len(guild.voice_channels)), inline=True)
+        embed.add_field(
+            name="Members", value=str(guild.member_count or "Unknown"), inline=True
+        )
+        embed.add_field(
+            name="Text Channels", value=str(len(guild.text_channels)), inline=True
+        )
+        embed.add_field(
+            name="Voice Channels", value=str(len(guild.voice_channels)), inline=True
+        )
 
         await send(ctx, embed=embed)
 

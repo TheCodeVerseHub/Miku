@@ -103,8 +103,6 @@ class GitHub(commands.Cog):
 
     # -- hybrid-command helpers (same pattern as leveling cog) ---------------
 
-
-
     # -- shared error handler ------------------------------------------------
 
     async def _handle_error(self, ctx: commands.Context, exc: GitHubAPIError) -> None:
@@ -158,7 +156,9 @@ class GitHub(commands.Cog):
     # -- /github repo -------------------------------------------------------
 
     @github.command(name="repo", description="View GitHub repository information")
-    @app_commands.describe(repository="Repository in owner/repo format (or a GitHub URL)")
+    @app_commands.describe(
+        repository="Repository in owner/repo format (or a GitHub URL)"
+    )
     async def github_repo(self, ctx: commands.Context, *, repository: str) -> None:
         """Display detailed information about a GitHub repository."""
         parsed = _parse_repo(repository)
@@ -192,27 +192,42 @@ class GitHub(commands.Cog):
         embed = discord.Embed(
             title=full_name,
             url=html_url,
-            description=_trunc(data.get("description"), 300) or "No description provided",
+            description=_trunc(data.get("description"), 300)
+            or "No description provided",
             color=EMBED_COLOR,
         )
 
         if data.get("owner", {}).get("avatar_url"):
             embed.set_thumbnail(url=data["owner"]["avatar_url"])
 
-        embed.add_field(name="Language", value=data.get("language") or "N/A", inline=True)
-        embed.add_field(name="Stars", value=_fmt(data.get("stargazers_count")), inline=True)
+        embed.add_field(
+            name="Language", value=data.get("language") or "N/A", inline=True
+        )
+        embed.add_field(
+            name="Stars", value=_fmt(data.get("stargazers_count")), inline=True
+        )
         embed.add_field(name="Forks", value=_fmt(data.get("forks_count")), inline=True)
 
-        embed.add_field(name="Open Issues", value=_fmt(data.get("open_issues_count")), inline=True)
+        embed.add_field(
+            name="Open Issues", value=_fmt(data.get("open_issues_count")), inline=True
+        )
 
         license_info = data.get("license")
-        license_name = license_info.get("spdx_id") or license_info.get("name") if license_info else None
+        license_name = (
+            license_info.get("spdx_id") or license_info.get("name")
+            if license_info
+            else None
+        )
         embed.add_field(name="License", value=license_name or "None", inline=True)
 
-        embed.add_field(name="Default Branch", value=data.get("default_branch", "N/A"), inline=True)
+        embed.add_field(
+            name="Default Branch", value=data.get("default_branch", "N/A"), inline=True
+        )
 
         embed.add_field(name="Created", value=_ts(data.get("created_at")), inline=True)
-        embed.add_field(name="Last Updated", value=_ts(data.get("updated_at")), inline=True)
+        embed.add_field(
+            name="Last Updated", value=_ts(data.get("updated_at")), inline=True
+        )
 
         topics = data.get("topics")
         if topics:
@@ -227,7 +242,9 @@ class GitHub(commands.Cog):
 
     # -- /github user -------------------------------------------------------
 
-    @github.command(name="user", description="View a GitHub user or organisation profile")
+    @github.command(
+        name="user", description="View a GitHub user or organisation profile"
+    )
     @app_commands.describe(username="GitHub username")
     async def github_user(self, ctx: commands.Context, *, username: str) -> None:
         """Display a GitHub user or organisation profile."""
@@ -254,11 +271,17 @@ class GitHub(commands.Cog):
             embed.set_thumbnail(url=data["avatar_url"])
 
         embed.add_field(name="Username", value=data.get("login", "N/A"), inline=True)
-        embed.add_field(name="Public Repos", value=_fmt(data.get("public_repos")), inline=True)
+        embed.add_field(
+            name="Public Repos", value=_fmt(data.get("public_repos")), inline=True
+        )
 
         followers = _fmt(data.get("followers"))
         following = _fmt(data.get("following"))
-        embed.add_field(name="Followers / Following", value=f"{followers} / {following}", inline=True)
+        embed.add_field(
+            name="Followers / Following",
+            value=f"{followers} / {following}",
+            inline=True,
+        )
 
         if data.get("location"):
             embed.add_field(name="Location", value=data["location"], inline=True)
