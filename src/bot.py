@@ -87,22 +87,13 @@ class MikuBot(commands.Bot):
     async def load_cogs(self):
         """Load all cogs"""
         cogs = [
-<<<<<<< HEAD
             "cogs.leveling",
             "cogs.help",
             "cogs.github",
             "cogs.utilities",
             "cogs.fun",
             "cogs.info",
-=======
-            'cogs.leveling',
-            'cogs.help',
-            'cogs.github',
-            'cogs.utilities',
-            'cogs.fun',
-            'cogs.info',
-            'cogs.command_handler',  # 👈 global cooldown handler
->>>>>>> b56951483db8ea9c63cf6c799051b8ff9d854bce
+            "cogs.command_handler",
         ]
 
         for cog in cogs:
@@ -208,11 +199,5 @@ async def main():
     finally:
         await bot.close()
 
-<<<<<<< HEAD
-
 if __name__ == "__main__":
     asyncio.run(main())
-=======
-if __name__ == '__main__':
-    asyncio.run(main())
->>>>>>> b56951483db8ea9c63cf6c799051b8ff9d854bce

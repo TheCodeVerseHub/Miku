@@ -5,8 +5,7 @@ The `LevelingProfile` table stores per-guild/per-user XP, level, and the last
 message timestamp used for cooldown checks.
 """
 
-from datetime import datetime, timezone
-from typing import Any
+from datetime import datetime
 from sqlalchemy import BigInteger, DateTime, Double
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 

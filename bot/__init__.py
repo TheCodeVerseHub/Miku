@@ -13,7 +13,6 @@ Note: The repository also contains a newer `src/` implementation; depending on
 how you start the project, you may be using either architecture.
 """
 
-import importlib
 import logging
 import pathlib
 
@@ -21,7 +20,6 @@ import discord
 from discord.ext import commands
 
 from .config import settings
-from .database import engine
 
 intents = discord.Intents.default()
 intents.message_content = True
