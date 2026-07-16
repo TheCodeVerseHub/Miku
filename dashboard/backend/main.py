@@ -62,10 +62,6 @@ logger = logging.getLogger("dashboard")
 _user_cache: TTLCache = TTLCache(maxsize=256, ttl=60)
 _guild_cache: TTLCache = TTLCache(maxsize=256, ttl=30)
 
-# Auth rate limiter (also handled by security middleware)
-_auth_attempts: TTLCache = TTLCache(maxsize=256, ttl=300)  # 5 min window
-
-
 async def get_current_user(access_token: str) -> dict | None:
     if access_token in _user_cache:
         return _user_cache[access_token]
