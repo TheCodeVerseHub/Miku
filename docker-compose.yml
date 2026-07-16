@@ -1,0 +1,87 @@
+# Miku - Docker Compose
+# Spins up PostgreSQL, the Discord bot, and the web dashboard.
+#
+# Usage:
+#   docker-compose up -d              # Start all services
+#   docker-compose logs -f bot        # Tail bot logs
+#   docker-compose down               # Stop everything
+#
+# Before running, copy .env.example to .env and fill in your values.
+
+version: "3.9"
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    container_name: miku-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-miku}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-miku_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-miku}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-miku}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    logging: *default-logging
+
+  # ── Discord Bot ─────────────────────────────────────────────────────
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: miku-bot
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:?err}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-miku}:${POSTGRES_PASSWORD:-miku_secret}@postgres:5432/${POSTGRES_DB:-miku}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      TZ: UTC
+    command: ["python", "main.py"]
+    logging: *default-logging
+
+  # ── Web Dashboard ───────────────────────────────────────────────────
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: miku-dashboard
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${DASHBOARD_PORT:-8000}:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-miku}:${POSTGRES_PASSWORD:-miku_secret}@postgres:5432/${POSTGRES_DB:-miku}
+      DASHBOARD_CLIENT_ID: ${DASHBOARD_CLIENT_ID:?err}
+      DASHBOARD_CLIENT_SECRET: ${DASHBOARD_CLIENT_SECRET:?err}
+      DASHBOARD_REDIRECT_URI: ${DASHBOARD_REDIRECT_URI:-http://localhost:8000/auth/callback}
+      DASHBOARD_SESSION_SECRET: ${DASHBOARD_SESSION_SECRET:?err}
+      DASHBOARD_HOST: "0.0.0.0"
+      DASHBOARD_PORT: "8000"
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:?err}
+      TZ: UTC
+    command: >
+      sh -c "cd /app && uvicorn dashboard.backend.main:app --host 0.0.0.0 --port 8000"
+    logging: *default-logging
+
+volumes:
+  pgdata:
+    driver: local

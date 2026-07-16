@@ -1,0 +1,64 @@
+# Miku - Deployment Pipeline
+#
+# Triggered manually (workflow_dispatch) or automatically when a new
+# release is published. Deploys to the configured target.
+
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+      version:
+        description: "Docker image tag to deploy"
+        required: false
+        default: "latest"
+        type: string
+
+  release:
+    types: [published]
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment || 'production' }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'production' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          cat >> ~/.ssh/config << EOF
+          Host deploy-host
+            HostName ${{ secrets.DEPLOY_HOST }}
+            User ${{ secrets.DEPLOY_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+
+      - name: Deploy with docker-compose
+        run: |
+          ssh deploy-host << 'EOF'
+            cd /opt/miku
+            docker-compose pull
+            docker-compose up -d --remove-orphans
+            docker system prune -f --filter "until=24h"
+          EOF
+
+      - name: Health check
+        run: |
+          sleep 10
+          curl -f --retry 5 --retry-delay 5 \
+            "http://${{ secrets.DEPLOY_HOST }}:8000/health" || exit 1

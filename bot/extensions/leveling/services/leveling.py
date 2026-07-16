@@ -102,6 +102,7 @@ EXPERIENCE_GAIN_COOLDOWN = datetime.timedelta(minutes=1)
 
 
 from math import sqrt
+from shared.formula import calculate_level as shared_calculate_level, calculate_xp_for_level as shared_calculate_xp_for_level
 
 
 class MessageEvaluationService:
@@ -112,25 +113,11 @@ class MessageEvaluationService:
 
     @staticmethod
     def calculate_level(xp: float) -> int:
-        # Using the inverse of: XP = 5(L-1)^2 + 50(L-1)
-        # Simplified quadratic solution: L = (-40 + sqrt(2500 + 20 * xp)) / 10
-        if xp <= 0:
-            return 1
-
-        level = int((-40 + sqrt(2500 + 20 * xp)) / 10)
-
-        # Safety check for floating point rounding errors
-        while MessageEvaluationService.calculate_experience_for_level(level + 1) <= xp:
-            level += 1
-
-        return max(1, level)
+        return shared_calculate_level(int(xp))
 
     @staticmethod
     def calculate_experience_for_level(level: int) -> float:
-        if level <= 1:
-            return 0.0
-        # This shifts the curve so Level 1 requires 0 XP
-        return 5 * (level - 1) ** 2 + 50 * (level - 1)
+        return float(shared_calculate_xp_for_level(level))
 
     async def process_message(
         self, profile: LevelingProfile, message: Message

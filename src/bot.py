@@ -91,7 +91,10 @@ class MikuBot(commands.Bot):
             'cogs.utilities',
             'cogs.fun',
             'cogs.info',
-            'cogs.command_handler',  # 👈 global cooldown handler
+            'cogs.command_handler',  # global cooldown handler
+            'cogs.voice_xp',  # voice XP tracking
+            'cogs.achievements',  # achievement system
+            'cogs.quests',  # daily/weekly quests
         ]
         
         for cog in cogs:

@@ -1,4 +1,21 @@
-"""FastAPI dashboard backend for Miku Discord bot."""
+"""
+FastAPI dashboard backend for Miku Discord bot.
+
+Security features:
+- CSRF protection on state-changing requests
+- Rate limiting on auth and API endpoints
+- Security headers (CSP, HSTS, XSS, etc.)
+- Input validation and sanitization
+- Secure session cookies (HTTP-only, SameSite=Strict)
+- Session rotation on login
+
+Improvements:
+- Shared formula module eliminates duplication with bot
+- Health check endpoints for monitoring
+- Pagination limits enforced
+- Better error handling
+- Graceful connection pooling
+"""
 
 import json
 import logging
@@ -14,12 +31,13 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import URLSafeTimedSerializer
 from jinja2 import Environment, FileSystemLoader
-import asyncpg
 
-# Add bot src/ to path so we can reuse the bot's database module
+# Add bot src/ and shared/ to path so we can reuse modules
 BOT_SRC = str((Path(__file__).parent.parent.parent / "src").resolve())
-if BOT_SRC not in sys.path:
-    sys.path.insert(0, BOT_SRC)
+SHARED_DIR = str((Path(__file__).parent.parent.parent).resolve())
+for p in [BOT_SRC, SHARED_DIR]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
 from cachetools import TTLCache
 
@@ -31,12 +49,21 @@ from .auth import (
     get_user_guilds as _get_user_guilds,
     get_oauth_url,
 )
+from .security import setup_security, sanitize_search_query, validate_guild_id, validate_level, validate_user_id, validate_xp_amount
+from .health import router as health_router
+from .database import get_db, close_db
+
+# Import shared formula (single source of truth)
+from shared.formula import calculate_level, calculate_xp_for_level
 
 logger = logging.getLogger("dashboard")
 
 # Cache Discord API responses to avoid rate limits
 _user_cache: TTLCache = TTLCache(maxsize=256, ttl=60)
 _guild_cache: TTLCache = TTLCache(maxsize=256, ttl=30)
+
+# Auth rate limiter (also handled by security middleware)
+_auth_attempts: TTLCache = TTLCache(maxsize=256, ttl=300)  # 5 min window
 
 
 async def get_current_user(access_token: str) -> dict | None:
@@ -60,9 +87,20 @@ async def get_user_guilds(access_token: str) -> list[dict]:
 # FastAPI app
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="Miku Dashboard")
+app = FastAPI(
+    title="Miku Dashboard",
+    version="0.2.0",
+    docs_url=None,  # Disable Swagger in production
+    redoc_url=None,
+)
 
-# Templates (using raw Jinja2 to avoid Starlette 1.x compat issues)
+# Setup security middleware (CSRF, rate limiting, headers)
+setup_security(app, config.session_secret)
+
+# Register health check routes
+app.include_router(health_router)
+
+# Templates (using raw Jinja2)
 _templates_dir = str(Path(__file__).parent / "templates")
 _jinja_env = Environment(loader=FileSystemLoader(_templates_dir))
 
@@ -72,6 +110,7 @@ def render(name: str, **context) -> HTMLResponse:
     html = template.render(**context)
     return HTMLResponse(html)
 
+
 # Static files
 static_dir = str(Path(__file__).parent.parent / "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -79,23 +118,7 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 # Session serializer
 serializer = URLSafeTimedSerializer(config.session_secret, salt="session")
 
-# Database pool (lazy-init, same style as bot)
-_pool: Optional[asyncpg.Pool] = None
-
-
-async def get_db() -> asyncpg.Pool:
-    global _pool
-    if _pool is None:
-        if not config.database_url:
-            raise RuntimeError("DATABASE_URL not configured")
-        _pool = await asyncpg.create_pool(
-            config.database_url,
-            min_size=1,
-            max_size=5,
-            command_timeout=30,
-            statement_cache_size=0,
-        )
-    return _pool
+# Database pool is managed by .database module (imported above)
 
 
 # ---------------------------------------------------------------------------
@@ -146,29 +169,47 @@ async def require_guild_access(request: Request, guild_id: int) -> tuple[dict, d
 
 @app.get("/auth/login")
 async def login():
+    """Initiate OAuth2 login with Discord."""
     state = os.urandom(16).hex()
     url = get_oauth_url(state)
     response = RedirectResponse(url=url)
-    response.set_cookie("oauth_state", state, max_age=300, httponly=True)
+    response.set_cookie("oauth_state", state, max_age=300, httponly=True, secure=True, samesite="lax")
     return response
 
 
 @app.get("/auth/callback")
 async def callback(request: Request, code: str, state: str):
+    """Handle OAuth2 callback from Discord."""
+    # Validate state to prevent CSRF on OAuth
     stored_state = request.cookies.get("oauth_state")
-    if stored_state and stored_state != state:
-        return HTMLResponse("State mismatch", status_code=400)
+    if not stored_state or stored_state != state:
+        return HTMLResponse(
+            "<h1>Authentication failed</h1><p>State mismatch. Please try logging in again.</p>",
+            status_code=400,
+        )
+
     token_data = await exchange_code(code)
     if not token_data:
-        return HTMLResponse("Token exchange failed", status_code=400)
+        return HTMLResponse(
+            "<h1>Authentication failed</h1><p>Token exchange with Discord failed. Please try again.</p>",
+            status_code=400,
+        )
+
+    # Session rotation: generate new session
     session_data = {
         "access_token": token_data["access_token"],
         "refresh_token": token_data.get("refresh_token", ""),
     }
     token = make_session(session_data)
+
     response = RedirectResponse(url="/dashboard")
     response.set_cookie(
-        "session", token, max_age=86400 * 7, httponly=True, samesite="lax"
+        "session",
+        token,
+        max_age=86400 * 7,
+        httponly=True,
+        secure=True,
+        samesite="strict",
     )
     response.delete_cookie("oauth_state")
     return response
@@ -176,17 +217,21 @@ async def callback(request: Request, code: str, state: str):
 
 @app.get("/auth/logout")
 async def logout():
+    """Clear session and redirect to home."""
     response = RedirectResponse(url="/")
     response.delete_cookie("session")
+    response.delete_cookie("oauth_state")
     return response
 
 
 @app.get("/api/me")
 async def api_me(request: Request):
+    """Get current user info and manageable guilds."""
     try:
         session_data = await require_auth(request)
     except HTTPException:
         return JSONResponse({"authenticated": False}, status_code=401)
+
     user = await get_current_user(session_data["access_token"])
     guilds = await get_user_guilds(session_data["access_token"])
     manageable = [
@@ -208,6 +253,9 @@ async def api_me(request: Request):
 
 @app.get("/api/guilds/{guild_id}/settings")
 async def get_guild_settings(request: Request, guild_id: int):
+    """Get guild XP settings."""
+    if not validate_guild_id(guild_id):
+        raise HTTPException(400, "Invalid guild ID")
     _, _ = await require_guild_access(request, guild_id)
 
     db = await get_db()
@@ -229,8 +277,17 @@ async def get_guild_settings(request: Request, guild_id: int):
 
 @app.post("/api/guilds/{guild_id}/settings")
 async def update_guild_settings(request: Request, guild_id: int):
+    """Update guild XP settings."""
+    if not validate_guild_id(guild_id):
+        raise HTTPException(400, "Invalid guild ID")
     _, _ = await require_guild_access(request, guild_id)
+
     body = await request.json()
+    # Validate input
+    min_xp = max(1, min(100, int(body.get("min_xp", 15))))
+    max_xp = max(min_xp, min(100, int(body.get("max_xp", 25))))
+    cooldown = max(1, min(3600, int(body.get("cooldown_seconds", 60))))
+
     db = await get_db()
     async with db.acquire() as conn:
         await conn.execute(
@@ -247,17 +304,21 @@ async def update_guild_settings(request: Request, guild_id: int):
             """,
             guild_id,
             body.get("levelup_channel_id"),
-            body.get("xp_enabled", True),
-            body.get("min_xp", 15),
-            body.get("max_xp", 25),
-            body.get("cooldown_seconds", 60),
+            bool(body.get("xp_enabled", True)),
+            min_xp,
+            max_xp,
+            cooldown,
         )
         return {"ok": True}
 
 
 @app.get("/api/guilds/{guild_id}/rewards")
 async def get_role_rewards(request: Request, guild_id: int):
+    """Get all role rewards for a guild."""
+    if not validate_guild_id(guild_id):
+        raise HTTPException(400, "Invalid guild ID")
     _, _ = await require_guild_access(request, guild_id)
+
     db = await get_db()
     async with db.acquire() as conn:
         rows = await conn.fetch(
@@ -269,15 +330,20 @@ async def get_role_rewards(request: Request, guild_id: int):
 
 @app.post("/api/guilds/{guild_id}/rewards")
 async def add_role_reward(request: Request, guild_id: int):
+    """Add or update a role reward."""
+    if not validate_guild_id(guild_id):
+        raise HTTPException(400, "Invalid guild ID")
     _, _ = await require_guild_access(request, guild_id)
+
     body = await request.json()
     level = int(body["level"])
-    raw_role_id = body["role_id"]
-    role_id = int(raw_role_id)
-    logger.info(
-        "add_role_reward: guild_id=%s level=%s raw_role_id=%s (type=%s) role_id=%s",
-        guild_id, level, raw_role_id, type(raw_role_id).__name__, role_id,
-    )
+    if not validate_level(level):
+        raise HTTPException(400, "Invalid level (must be 0-100000)")
+
+    role_id = int(body["role_id"])
+    if not validate_user_id(role_id):
+        raise HTTPException(400, "Invalid role ID")
+
     db = await get_db()
     async with db.acquire() as conn:
         await conn.execute(
@@ -295,7 +361,11 @@ async def add_role_reward(request: Request, guild_id: int):
 
 @app.delete("/api/guilds/{guild_id}/rewards/{level}")
 async def remove_role_reward(request: Request, guild_id: int, level: int):
+    """Remove a role reward."""
+    if not validate_guild_id(guild_id) or not validate_level(level):
+        raise HTTPException(400, "Invalid parameters")
     _, _ = await require_guild_access(request, guild_id)
+
     db = await get_db()
     async with db.acquire() as conn:
         result = await conn.execute(
@@ -314,10 +384,24 @@ async def get_leaderboard(
     offset: int = 0,
     search: str = "",
 ):
+    """Get paginated leaderboard with optional search."""
+    if not validate_guild_id(guild_id):
+        raise HTTPException(400, "Invalid guild ID")
+
+    # Enforce pagination limits
+    limit = max(1, min(100, limit))
+    offset = max(0, offset)
+
     _, _ = await require_guild_access(request, guild_id)
     db = await get_db()
+
+    # Sanitize search input to prevent injection
+    search_clean = sanitize_search_query(search) if search else ""
+
     async with db.acquire() as conn:
-        if search:
+        if search_clean:
+            # Use safe parameterized query with sanitized input
+            search_param = f"%{search_clean}%"
             rows = await conn.fetch(
                 """
                 SELECT user_id, xp, level, messages
@@ -327,14 +411,14 @@ async def get_leaderboard(
                 LIMIT $3 OFFSET $4
                 """,
                 guild_id,
-                f"%{search}%",
+                search_param,
                 limit,
                 offset,
             )
             count_row = await conn.fetchrow(
                 "SELECT COUNT(*) as c FROM user_levels WHERE guild_id = $1 AND user_id::text LIKE $2",
                 guild_id,
-                f"%{search}%",
+                search_param,
             )
         else:
             rows = await conn.fetch(
@@ -353,6 +437,7 @@ async def get_leaderboard(
                 "SELECT COUNT(*) as c FROM user_levels WHERE guild_id = $1",
                 guild_id,
             )
+
         raw_users = [dict(r) for r in rows]
         users = await enrich_leaderboard(guild_id, raw_users)
         return {
@@ -363,6 +448,9 @@ async def get_leaderboard(
 
 @app.get("/api/guilds/{guild_id}/roles")
 async def list_guild_roles(request: Request, guild_id: int):
+    """Get all assignable roles for a guild."""
+    if not validate_guild_id(guild_id):
+        raise HTTPException(400, "Invalid guild ID")
     _, _ = await require_guild_access(request, guild_id)
     roles = await get_assignable_roles(guild_id)
     return roles
@@ -370,7 +458,11 @@ async def list_guild_roles(request: Request, guild_id: int):
 
 @app.get("/api/guilds/{guild_id}/users/{user_id}")
 async def get_user_profile(request: Request, guild_id: int, user_id: int):
+    """Get a user's detailed leveling profile."""
+    if not validate_guild_id(guild_id) or not validate_user_id(user_id):
+        raise HTTPException(400, "Invalid IDs")
     _, _ = await require_guild_access(request, guild_id)
+
     db = await get_db()
     async with db.acquire() as conn:
         row = await conn.fetchrow(
@@ -380,6 +472,7 @@ async def get_user_profile(request: Request, guild_id: int, user_id: int):
         )
         if not row:
             raise HTTPException(404, "User not found")
+
         rank_row = await conn.fetchrow(
             """
             SELECT COUNT(*) + 1 as rank
@@ -389,8 +482,10 @@ async def get_user_profile(request: Request, guild_id: int, user_id: int):
             guild_id,
             user_id,
         )
+
         data = dict(row)
         data["rank"] = rank_row["rank"] if rank_row else 0
+
         members = await get_guild_members(guild_id)
         member = members.get(str(user_id)) or default_user(user_id)
         data["username"] = member["username"]
@@ -402,7 +497,11 @@ async def get_user_profile(request: Request, guild_id: int, user_id: int):
 
 @app.get("/api/guilds/{guild_id}/analytics")
 async def get_analytics(request: Request, guild_id: int):
+    """Get server analytics and statistics."""
+    if not validate_guild_id(guild_id):
+        raise HTTPException(400, "Invalid guild ID")
     _, _ = await require_guild_access(request, guild_id)
+
     db = await get_db()
     async with db.acquire() as conn:
         total_users = await conn.fetchval(
@@ -436,8 +535,10 @@ async def get_analytics(request: Request, guild_id: int):
             """,
             guild_id,
         )
+
         raw_users = [dict(r) for r in top_users]
         enriched_users = await enrich_leaderboard(guild_id, raw_users)
+
         return {
             "total_users": total_users or 0,
             "total_xp": total_xp or 0,
@@ -449,15 +550,14 @@ async def get_analytics(request: Request, guild_id: int):
 
 @app.get("/api/bot/stats")
 async def bot_stats():
+    """Get global bot statistics."""
     db = await get_db()
     async with db.acquire() as conn:
         guild_count = await conn.fetchval(
             "SELECT COUNT(DISTINCT guild_id) FROM guild_settings"
         )
         user_count = await conn.fetchval("SELECT COUNT(*) FROM user_levels")
-        total_xp = await conn.fetchval(
-            "SELECT COALESCE(SUM(xp), 0) FROM user_levels"
-        )
+        total_xp = await conn.fetchval("SELECT COALESCE(SUM(xp), 0) FROM user_levels")
         total_messages = await conn.fetchval(
             "SELECT COALESCE(SUM(messages), 0) FROM user_levels"
         )
@@ -476,9 +576,16 @@ async def bot_stats():
 
 @app.post("/api/guilds/{guild_id}/users/{user_id}/setlevel")
 async def api_set_level(request: Request, guild_id: int, user_id: int):
+    """Set a user's level (admin only)."""
+    if not validate_guild_id(guild_id) or not validate_user_id(user_id):
+        raise HTTPException(400, "Invalid IDs")
     _, _ = await require_guild_access(request, guild_id)
+
     body = await request.json()
     level = int(body["level"])
+    if not validate_level(level):
+        raise HTTPException(400, "Invalid level (must be 0-100000)")
+
     db = await get_db()
     async with db.acquire() as conn:
         user_row = await conn.fetchrow(
@@ -487,7 +594,8 @@ async def api_set_level(request: Request, guild_id: int, user_id: int):
             guild_id,
         )
         messages = user_row["messages"] if user_row else 0
-        xp = _calc_xp_for_level(level)
+        # Use shared formula module
+        xp = calculate_xp_for_level(level)
         await conn.execute(
             """
             INSERT INTO user_levels (user_id, guild_id, xp, level, messages, updated_at)
@@ -506,9 +614,16 @@ async def api_set_level(request: Request, guild_id: int, user_id: int):
 
 @app.post("/api/guilds/{guild_id}/users/{user_id}/addxp")
 async def api_add_xp(request: Request, guild_id: int, user_id: int):
+    """Add XP to a user (admin only)."""
+    if not validate_guild_id(guild_id) or not validate_user_id(user_id):
+        raise HTTPException(400, "Invalid IDs")
     _, _ = await require_guild_access(request, guild_id)
+
     body = await request.json()
     amount = int(body["amount"])
+    if not validate_xp_amount(amount):
+        raise HTTPException(400, "Invalid XP amount (must be between -10M and 10M)")
+
     db = await get_db()
     async with db.acquire() as conn:
         user_row = await conn.fetchrow(
@@ -517,12 +632,13 @@ async def api_add_xp(request: Request, guild_id: int, user_id: int):
             guild_id,
         )
         if user_row:
-            new_xp = user_row["xp"] + amount
+            new_xp = max(0, user_row["xp"] + amount)
             messages = user_row["messages"]
         else:
             new_xp = max(0, amount)
             messages = 0
-        new_level = _calc_level(new_xp)
+        # Use shared formula module
+        new_level = calculate_level(new_xp)
         await conn.execute(
             """
             INSERT INTO user_levels (user_id, guild_id, xp, level, messages, updated_at)
@@ -541,7 +657,11 @@ async def api_add_xp(request: Request, guild_id: int, user_id: int):
 
 @app.delete("/api/guilds/{guild_id}/users/{user_id}")
 async def api_reset_user(request: Request, guild_id: int, user_id: int):
+    """Reset a user's leveling data (admin only)."""
+    if not validate_guild_id(guild_id) or not validate_user_id(user_id):
+        raise HTTPException(400, "Invalid IDs")
     _, _ = await require_guild_access(request, guild_id)
+
     db = await get_db()
     async with db.acquire() as conn:
         await conn.execute(
@@ -554,7 +674,11 @@ async def api_reset_user(request: Request, guild_id: int, user_id: int):
 
 @app.delete("/api/guilds/{guild_id}/levels")
 async def api_reset_all(request: Request, guild_id: int):
+    """Reset ALL leveling data for a guild (admin only, dangerous)."""
+    if not validate_guild_id(guild_id):
+        raise HTTPException(400, "Invalid guild ID")
     _, _ = await require_guild_access(request, guild_id)
+
     db = await get_db()
     async with db.acquire() as conn:
         await conn.execute(
@@ -564,33 +688,13 @@ async def api_reset_all(request: Request, guild_id: int):
 
 
 # ---------------------------------------------------------------------------
-# Level formula helpers (mirrors bot's logic)
-# ---------------------------------------------------------------------------
-
-
-def _calc_level(xp: int) -> int:
-    level = 0
-    needed = 0
-    while needed <= xp:
-        level += 1
-        needed += 5 * (level**2) + (50 * level) + 100
-    return max(0, level - 1)
-
-
-def _calc_xp_for_level(level: int) -> int:
-    total = 0
-    for lvl in range(1, level + 1):
-        total += 5 * (lvl**2) + (50 * lvl) + 100
-    return total
-
-
-# ---------------------------------------------------------------------------
 # Page routes
 # ---------------------------------------------------------------------------
 
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
+    """Landing page."""
     token = request.cookies.get("session")
     user = None
     if token:
@@ -602,6 +706,7 @@ async def index(request: Request):
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(request: Request):
+    """Dashboard home with server list."""
     try:
         await require_auth(request)
     except HTTPException:
@@ -611,6 +716,7 @@ async def dashboard_page(request: Request):
 
 @app.get("/guilds/{guild_id}", response_class=HTMLResponse)
 async def guild_overview(request: Request, guild_id: int):
+    """Guild overview page."""
     try:
         _, guild = await require_guild_access(request, guild_id)
     except HTTPException:
@@ -618,11 +724,15 @@ async def guild_overview(request: Request, guild_id: int):
     gid = str(guild_id)
     guild_name = guild.get("name", "")
     guild_icon = guild.get("icon", "")
-    return render("dashboard.html", request=request, page="overview", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
+    return render(
+        "dashboard.html", request=request, page="overview",
+        guild_id=gid, guild_name=guild_name, guild_icon=guild_icon,
+    )
 
 
 @app.get("/guilds/{guild_id}/leveling", response_class=HTMLResponse)
 async def guild_leveling(request: Request, guild_id: int):
+    """Leveling configuration page."""
     try:
         _, guild = await require_guild_access(request, guild_id)
     except HTTPException:
@@ -630,11 +740,15 @@ async def guild_leveling(request: Request, guild_id: int):
     gid = str(guild_id)
     guild_name = guild.get("name", "")
     guild_icon = guild.get("icon", "")
-    return render("leveling.html", request=request, page="leveling", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
+    return render(
+        "leveling.html", request=request, page="leveling",
+        guild_id=gid, guild_name=guild_name, guild_icon=guild_icon,
+    )
 
 
 @app.get("/guilds/{guild_id}/rewards", response_class=HTMLResponse)
 async def guild_rewards(request: Request, guild_id: int):
+    """Role rewards management page."""
     try:
         _, guild = await require_guild_access(request, guild_id)
     except HTTPException:
@@ -642,11 +756,15 @@ async def guild_rewards(request: Request, guild_id: int):
     gid = str(guild_id)
     guild_name = guild.get("name", "")
     guild_icon = guild.get("icon", "")
-    return render("rewards.html", request=request, page="rewards", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
+    return render(
+        "rewards.html", request=request, page="rewards",
+        guild_id=gid, guild_name=guild_name, guild_icon=guild_icon,
+    )
 
 
 @app.get("/guilds/{guild_id}/leaderboard", response_class=HTMLResponse)
 async def guild_leaderboard(request: Request, guild_id: int):
+    """Leaderboard page."""
     try:
         _, guild = await require_guild_access(request, guild_id)
     except HTTPException:
@@ -654,11 +772,15 @@ async def guild_leaderboard(request: Request, guild_id: int):
     gid = str(guild_id)
     guild_name = guild.get("name", "")
     guild_icon = guild.get("icon", "")
-    return render("leaderboard.html", request=request, page="leaderboard", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
+    return render(
+        "leaderboard.html", request=request, page="leaderboard",
+        guild_id=gid, guild_name=guild_name, guild_icon=guild_icon,
+    )
 
 
 @app.get("/guilds/{guild_id}/users/{user_id}", response_class=HTMLResponse)
 async def guild_user(request: Request, guild_id: int, user_id: int):
+    """User profile page."""
     try:
         _, guild = await require_guild_access(request, guild_id)
     except HTTPException:
@@ -666,11 +788,16 @@ async def guild_user(request: Request, guild_id: int, user_id: int):
     gid = str(guild_id)
     guild_name = guild.get("name", "")
     guild_icon = guild.get("icon", "")
-    return render("users.html", request=request, page="users", guild_id=gid, user_id=user_id, guild_name=guild_name, guild_icon=guild_icon)
+    return render(
+        "users.html", request=request, page="users",
+        guild_id=gid, user_id=user_id,
+        guild_name=guild_name, guild_icon=guild_icon,
+    )
 
 
 @app.get("/guilds/{guild_id}/analytics", response_class=HTMLResponse)
 async def guild_analytics(request: Request, guild_id: int):
+    """Analytics dashboard page."""
     try:
         _, guild = await require_guild_access(request, guild_id)
     except HTTPException:
@@ -678,11 +805,15 @@ async def guild_analytics(request: Request, guild_id: int):
     gid = str(guild_id)
     guild_name = guild.get("name", "")
     guild_icon = guild.get("icon", "")
-    return render("analytics.html", request=request, page="analytics", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
+    return render(
+        "analytics.html", request=request, page="analytics",
+        guild_id=gid, guild_name=guild_name, guild_icon=guild_icon,
+    )
 
 
 @app.get("/guilds/{guild_id}/settings", response_class=HTMLResponse)
 async def guild_settings_page(request: Request, guild_id: int):
+    """Server settings page."""
     try:
         _, guild = await require_guild_access(request, guild_id)
     except HTTPException:
@@ -690,7 +821,10 @@ async def guild_settings_page(request: Request, guild_id: int):
     gid = str(guild_id)
     guild_name = guild.get("name", "")
     guild_icon = guild.get("icon", "")
-    return render("settings.html", request=request, page="settings", guild_id=gid, guild_name=guild_name, guild_icon=guild_icon)
+    return render(
+        "settings.html", request=request, page="settings",
+        guild_id=gid, guild_name=guild_name, guild_icon=guild_icon,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -700,6 +834,7 @@ async def guild_settings_page(request: Request, guild_id: int):
 
 @app.on_event("startup")
 async def startup():
+    """Initialize logging and ensure DB schema is up to date."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -708,15 +843,16 @@ async def startup():
     try:
         db = await get_db()
         async with db.acquire() as conn:
-            for col_sql in [
+            migrations = [
                 "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS xp_enabled BOOLEAN DEFAULT TRUE",
                 "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS min_xp INTEGER DEFAULT 15",
                 "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS max_xp INTEGER DEFAULT 25",
                 "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS cooldown_seconds INTEGER DEFAULT 60",
                 "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()",
-            ]:
+            ]
+            for sql in migrations:
                 try:
-                    await conn.execute(col_sql)
+                    await conn.execute(sql)
                 except Exception:
                     pass
     except Exception:
@@ -725,7 +861,5 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
-    global _pool
-    if _pool:
-        await _pool.close()
-        _pool = None
+    """Clean up database connections on shutdown."""
+    await close_db()

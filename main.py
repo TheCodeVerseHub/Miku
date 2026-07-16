@@ -5,6 +5,7 @@ Main entry point
 Why does this file exist?
 - It keeps the repo root clean: we run `python main.py` from the `Miku/` folder.
 - It adds `Miku/src/` to Python's import path so `src/bot.py` can be imported as `bot`.
+- It also adds the project root so `shared/` modules are importable.
 
 If you're new:
 - Most code you will edit lives in `src/` (cogs, utils, bot startup).
@@ -18,10 +19,16 @@ import inspect
 from pathlib import Path
 from typing import Any, Callable, Coroutine, cast
 
+PROJECT_ROOT = Path(__file__).parent.resolve()
+
+# Add project root so `shared/` modules are importable
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 # Add src directory to path so `import bot` resolves to `Miku/src/bot.py`.
 # Note: there is also a legacy `Miku/bot/` package in this repo, so we insert
 # `src/` at the front to make the intended module win.
-src_path = str((Path(__file__).parent / "src").resolve())
+src_path = str(PROJECT_ROOT / "src")
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
@@ -44,4 +51,3 @@ if __name__ == "__main__":
 
     async_main = cast(Callable[[], Coroutine[Any, Any, None]], main_attr)
     asyncio.run(async_main())
-

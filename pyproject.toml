@@ -1,10 +1,23 @@
 [project]
 name = "miku"
-version = "0.1.0"
-description = "A feature-rich Discord leveling bot inspired by Arcane."
+version = "0.2.0"
+description = "A feature-rich Discord leveling bot with web dashboard — inspired by Arcane."
 license = { file = "./LICENSE" }
 readme = "README.md"
 requires-python = ">=3.14"
+authors = [
+    { name = "The CodeVerse Hub" },
+]
+keywords = ["discord", "bot", "leveling", "xp", "dashboard"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Communications :: Chat",
+    "Framework :: Discord.py",
+]
+
 dependencies = [
     "asyncpg>=0.31.0",
     "cachetools>=7.0.5",
@@ -15,4 +28,90 @@ dependencies = [
     "pydantic-settings>=2.13.1",
     "python-dotenv>=1.2.2",
     "sqlalchemy>=2.0.48",
+    "aiohttp>=3.11.0",
 ]
+
+[project.optional-dependencies]
+dashboard = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "jinja2>=3.1.0",
+    "python-multipart>=0.0.12",
+    "httpx>=0.28.0",
+    "itsdangerous>=2.2.0",
+]
+
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.9.0",
+    "mypy>=1.10.0",
+    "bandit>=1.8.0",
+    "aioresponses>=0.7.6",
+    "alembic>=1.14.0",
+]
+
+all = [
+    "miku[dashboard,dev]",
+]
+
+[project.urls]
+Homepage = "https://github.com/TheCodeVerseHub/Miku"
+Issues = "https://github.com/TheCodeVerseHub/Miku/issues"
+Changelog = "https://github.com/TheCodeVerseHub/Miku/blob/main/CHANGELOG.md"
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "N",        # pep8-naming
+    "UP",       # pyupgrade
+    "B",        # flake8-bugbear
+    "SIM",      # flake8-simplify
+    "T20",      # flake8-print
+    "RUF",      # ruff-specific
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["N802", "N803", "N806"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.14"
+ignore_missing_imports = true
+warn_unused_ignores = false
+warn_redundant_casts = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_any_unimported = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["src", "dashboard"]
+omit = ["tests/*", "bot/extensions/example/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 60
+
+[tool.bandit]
+exclude_dirs = ["tests", "docs", ".venv"]
+skips = ["B101", "B311"]
+
+[build-system]
+requires = ["setuptools>=78.0"]
+build-backend = "setuptools.build_meta"
