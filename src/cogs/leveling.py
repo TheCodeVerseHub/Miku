@@ -18,6 +18,7 @@ from discord.ext import commands
 
 from services.level_service import LevelService, XpSource
 from utils import database as db
+from utils.db_cache import LevelingCache
 from utils.rank_card import RankCardGenerator
 
 logger = logging.getLogger("miku.leveling")
@@ -129,12 +130,24 @@ class Leveling(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.rank_card_generator = RankCardGenerator()
+        # Service created without cache; cache is attached in cog_load.
         self.service = LevelService(bot)
+        self._cache: Optional[LevelingCache] = None
 
     async def cog_load(self):
-        logger.info("Leveling cog loaded")
+        # Create and start the leveling cache (eliminates per-message DB queries).
+        self._cache = LevelingCache(self.bot)
+        self.service.cache = self._cache
+        await self._cache.start()
+        # Expose the shared service on the bot so voice_xp (and any future cog)
+        # can reuse the same cache instead of creating a duplicate LevelService.
+        self.bot.leveling_service = self.service  # type: ignore[attr-defined]
+        logger.info("Leveling cog loaded (cache enabled)")
 
     async def cog_unload(self):
+        # Flush pending data before unloading.
+        if self._cache is not None:
+            await self._cache.shutdown()
         logger.info("Leveling cog unloaded")
         try:
             close = getattr(self.rank_card_generator, "close", None)
@@ -213,6 +226,9 @@ class Leveling(commands.Cog):
             return
         try:
             await db.delete_user_leveling_data(member.id, member.guild.id)
+            # Invalidate cache so stale data is not served.
+            if self._cache is not None:
+                self._cache.invalidate_user(member.id, member.guild.id)
             logger.info(
                 "Cleaned up leveling data for departed member %s in guild %s",
                 member.id, member.guild.id,
@@ -534,6 +550,10 @@ class Leveling(commands.Cog):
         active_ids = {m.id for m in ctx.guild.members}
         stats = await db.clean_departed_users(ctx.guild.id, active_ids)
 
+        # Invalidate cache for departed users so stale entries are evicted.
+        if self._cache is not None:
+            self._cache.clear_all()  # safe: rare admin action
+
         embed = discord.Embed(
             title="\u2705 Leaderboard cleaned successfully.",
             color=discord.Color.green(),
@@ -569,6 +589,9 @@ class Leveling(commands.Cog):
                 description="Level-up announcements will be sent in the same channel as messages",
                 color=self.EMBED_COLOR,
             )
+        # Invalidate guild config cache so next message picks up the change.
+        if self._cache is not None:
+            self._cache.invalidate_guild_config(ctx.guild.id)
         await self._send(ctx, embed=embed)
 
     @commands.hybrid_command(name="addrole", description="Add a role reward for a level (Admin only)")

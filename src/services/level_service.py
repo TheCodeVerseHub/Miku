@@ -13,6 +13,10 @@ High-level responsibilities:
 - Admin XP mutation (set level, add/remove XP, reset)
 - Audit logging for all admin changes
 - XP log for analytics/time-series
+
+The ``award_message_xp`` path (called on every Discord message) is optimized
+to use an in-memory cache (:class:`LevelingCache`) so that no PostgreSQL
+connection is acquired per message under normal operation.
 """
 
 from __future__ import annotations
@@ -34,12 +38,14 @@ logger = logging.getLogger("miku.level_service")
 # Enums / constants for restriction types and XP sources
 # ──────────────────────────────────────────────────────────────────────
 
+
 class RestrictionType:
     IGNORE_ROLE = "IGNORE_ROLE"
     ALLOW_CHANNEL = "ALLOW_CHANNEL"
     BLOCK_CHANNEL = "BLOCK_CHANNEL"
     IGNORE_CATEGORY = "IGNORE_CATEGORY"
     ALLOW_CATEGORY = "ALLOW_CATEGORY"
+
 
 _VALID_RESTRICTIONS = {
     RestrictionType.IGNORE_ROLE,
@@ -74,12 +80,19 @@ class TargetType:
 class LevelService:
     """Central service for XP/leveling operations."""
 
-    def __init__(self, bot: commands.Bot, formula_registry: Optional[FormulaRegistry] = None) -> None:
+    def __init__(
+        self,
+        bot: commands.Bot,
+        formula_registry: Optional[FormulaRegistry] = None,
+        cache=None,  # Optional[LevelingCache] — avoid hard import for tests
+    ) -> None:
         self.bot = bot
         self.formula_registry = formula_registry or FormulaRegistry()
         self.formula_registry.load_defaults()
         # In-memory cooldown tracking (cleared on bot restart).
         self._cooldowns: Dict[str, float] = {}
+        # Optional in-memory cache for XP hot path.
+        self.cache = cache
 
     # ══════════════════════════════════════════════════════════════════
     # Formula helpers (delegated to current formula)
@@ -118,7 +131,15 @@ class LevelService:
     # ══════════════════════════════════════════════════════════════════
 
     async def _load_guild_config(self, guild_id: int) -> dict:
-        """Load XP-related settings with defaults."""
+        """Load XP-related settings with defaults.
+
+        Uses the in-memory cache when available to avoid a DB query on
+        every message.
+        """
+        if self.cache is not None:
+            return await self.cache.get_guild_config(guild_id)
+
+        # Fallback: direct DB query (no cache)
         settings = await db.get_guild_settings(guild_id)
         return {
             "xp_enabled": settings.get("xp_enabled", True) if settings else True,
@@ -145,6 +166,10 @@ class LevelService:
     async def award_message_xp(self, message: discord.Message) -> Optional[Dict[str, Any]]:
         """Handle a message for XP awarding.
 
+        Uses the in-memory cache when available so that no PostgreSQL
+        connection is acquired under normal operation.  Only falls back
+        to DB queries when the cache is unavailable.
+
         Returns a dict with keys ``xp_gained``, ``old_level``, ``new_level``
         and ``leveled_up``, or ``None`` if no XP was awarded.
         """
@@ -153,6 +178,8 @@ class LevelService:
 
         guild_id = message.guild.id
         user_id = message.author.id
+
+        # Load guild config (cached)
         config = await self._load_guild_config(guild_id)
 
         if not config["xp_enabled"]:
@@ -173,7 +200,14 @@ class LevelService:
         multiplier = await self._resolve_multipliers(guild_id, message.author, message.channel)
         xp_gain = max(1, round(base_xp * multiplier))
 
-        user_data = await db.get_user_data(user_id, guild_id)
+        # ── Cache-first user data (no DB query under normal operation) ──
+        if self.cache is not None:
+            user_data = await self.cache.get_user_data(user_id, guild_id)
+            if user_data and not user_data.get("_exists", True):
+                user_data = None
+        else:
+            user_data = await db.get_user_data(user_id, guild_id)
+
         if user_data:
             current_xp = user_data["xp"]
             current_level = user_data["level"]
@@ -187,9 +221,16 @@ class LevelService:
         new_level = self.calculate_level(new_xp, guild_id)
         messages += 1
 
-        await db.update_user_xp(user_id, guild_id, new_xp, new_level, messages, time.time())
-
-        await self._log_xp(guild_id, user_id, xp_gain, XpSource.MESSAGE)
+        # ── Cache write (no DB query, batched later) ────────────────────
+        now = time.time()
+        if self.cache is not None:
+            await self.cache.update_user_xp(
+                user_id, guild_id, new_xp, new_level, messages, now
+            )
+            await self.cache.insert_xp_log(guild_id, user_id, xp_gain, XpSource.MESSAGE)
+        else:
+            await db.update_user_xp(user_id, guild_id, new_xp, new_level, messages, now)
+            await self._log_xp(guild_id, user_id, xp_gain, XpSource.MESSAGE)
 
         leveled_up = new_level > current_level
 
@@ -277,7 +318,7 @@ class LevelService:
             logger.warning("Missing Manage Roles (guild=%s)", guild.id)
             return
         if bot_member.top_role <= role:
-            logger.warning("Bot role too low for role reward (guild=%s level=%s)", guild.id, level)
+            logger.warning("Bot role too low for role reward (guild=%s level=%s role=%s)", guild.id, level, role.id)
             return
 
         try:
@@ -290,7 +331,13 @@ class LevelService:
 
     async def refresh_rewards(self, guild: discord.Guild, member: discord.Member) -> None:
         """Assign any role rewards the member is missing for their current level."""
-        user_data = await db.get_user_data(member.id, guild.id)
+        # Use cache if available, otherwise fall back to DB
+        if self.cache is not None:
+            user_data = await self.cache.get_user_data(member.id, guild.id)
+            if user_data and not user_data.get("_exists", True):
+                user_data = None
+        else:
+            user_data = await db.get_user_data(member.id, guild.id)
         if not user_data:
             return
         level = user_data["level"]
@@ -314,6 +361,10 @@ class LevelService:
 
         await db.set_user_level(user_id, guild_id, level, xp)
 
+        # Invalidate cache after admin mutation
+        if self.cache is not None:
+            self.cache.invalidate_user(user_id, guild_id)
+
         await self._log_xp(guild_id, user_id, xp - (user_data["xp"] if user_data else 0), XpSource.ADMIN, reason)
         await self._log_audit(guild_id, user_id, admin_id, "set_level", {"old_level": old_level, "new_level": level, "reason": reason})
 
@@ -330,6 +381,10 @@ class LevelService:
         old_level = user_data["level"] if user_data else 0
 
         await db.update_user_xp(user_id, guild_id, xp, new_level, messages, time.time())
+
+        # Invalidate cache after admin mutation
+        if self.cache is not None:
+            self.cache.invalidate_user(user_id, guild_id)
 
         await self._log_xp(guild_id, user_id, xp - old_xp, XpSource.ADMIN, reason)
         await self._log_audit(guild_id, user_id, admin_id, "set_xp", {"old_xp": old_xp, "new_xp": xp, "old_level": old_level, "new_level": new_level, "reason": reason})
@@ -353,6 +408,10 @@ class LevelService:
 
         await db.update_user_xp(user_id, guild_id, new_xp, new_level, messages, time.time())
 
+        # Invalidate cache after admin mutation
+        if self.cache is not None:
+            self.cache.invalidate_user(user_id, guild_id)
+
         await self._log_xp(guild_id, user_id, amount, source, reason)
         if source == XpSource.ADMIN:
             await self._log_audit(guild_id, user_id, admin_id, "add_xp", {"amount": amount, "reason": reason})
@@ -366,11 +425,17 @@ class LevelService:
     async def reset_member(self, guild_id: int, user_id: int, admin_id: int, reason: str = "") -> None:
         """Reset a user's XP data entirely."""
         await db.reset_user_data(user_id, guild_id)
+        # Invalidate cache after admin mutation
+        if self.cache is not None:
+            self.cache.invalidate_user(user_id, guild_id)
         await self._log_audit(guild_id, user_id, admin_id, "reset_member", {"reason": reason})
 
     async def reset_guild(self, guild_id: int, admin_id: int, reason: str = "") -> None:
         """Reset all XP data for a guild."""
         await db.reset_guild_data(guild_id)
+        # Invalidate cache after admin mutation
+        if self.cache is not None:
+            self.cache.clear_all()
         await self._log_audit(guild_id, 0, admin_id, "reset_guild", {"reason": reason})
 
     # ══════════════════════════════════════════════════════════════════
@@ -380,7 +445,10 @@ class LevelService:
     async def _log_xp(self, guild_id: int, user_id: int, amount: int, source: str, reason: str = "") -> None:
         """Record an XP change in the xp_log."""
         try:
-            await db.insert_xp_log(guild_id, user_id, amount, source, reason)
+            if self.cache is not None:
+                await self.cache.insert_xp_log(guild_id, user_id, amount, source, reason)
+            else:
+                await db.insert_xp_log(guild_id, user_id, amount, source, reason)
         except Exception:
             logger.exception("Failed to log XP entry")
 
@@ -396,7 +464,13 @@ class LevelService:
     # ══════════════════════════════════════════════════════════════════
 
     async def get_member_stats(self, guild_id: int, user_id: int) -> Optional[Dict[str, Any]]:
-        user_data = await db.get_user_data(user_id, guild_id)
+        """Get member stats. Uses cache when available."""
+        if self.cache is not None:
+            user_data = await self.cache.get_user_data(user_id, guild_id)
+            if user_data and not user_data.get("_exists", True):
+                user_data = None
+        else:
+            user_data = await db.get_user_data(user_id, guild_id)
         if not user_data:
             return None
         rank = await db.get_user_rank(user_id, guild_id)

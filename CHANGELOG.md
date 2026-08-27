@@ -12,6 +12,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CONTRIBUTING.md with contribution guidelines
 - SECURITY.md with security policy and reporting instructions
 - CHANGELOG.md for tracking project changes
+- In-memory leveling cache (`src/utils/db_cache.py`) that eliminates per-message
+  PostgreSQL queries.  User data is cached with a 5-minute TTL and XP changes
+  are flushed to the database in batches every 30 seconds (configurable).
+- Per-user asyncio locks to prevent concurrent message XP mutations from
+  corrupting cached state.
+- Exponential backoff with rate-limited logging when the database is
+  temporarily unreachable.
+- Periodic observability metrics (cache hits/misses, DB writes, errors)
+  logged every 120 seconds.
+- Voice XP cog now shares the same `LevelService` and cache from the
+  Leveling cog instead of creating a duplicate instance.
+
+### Changed
+
+- `on_message` no longer acquires a PostgreSQL connection under normal
+  operation.  Guild config is cached (2-minute TTL) and user data is
+  served from cache, with dirty writes batched for later persistence.
+- Admin commands (`setlevel`, `addxp`, `removexp`, `resetlevel`,
+  `resetalllevels`, `clean-lb`, `setlevelchannel`) now invalidate the
+  relevant cache entries after writing to the database.
+- Bot shutdown (`close()`) flushes the leveling cache before closing
+  the database pool to prevent data loss.
+- `LevelService` accepts an optional `cache` parameter; when absent it
+  falls back to direct database queries for backward compatibility.
 
 ## [1.0.0] - 2026-03-06
 

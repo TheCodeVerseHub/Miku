@@ -172,8 +172,11 @@ main.py                 # Entrypoint (adds src/ to path and runs the bot)
    │   ├── utilities.py   # Utility commands
    │   ├── fun.py         # Fun commands
    │   └── info.py        # Info commands
+   ├── services/
+   │   └── level_service.py # XP business logic (delegates to cache)
    └── utils/
       ├── database.py     # PostgreSQL (asyncpg) DB layer
+      ├── db_cache.py     # In-memory leveling cache + batched persistence
       ├── github_client.py # GitHub API client
       └── rank_card.py     # Rank card generator
 ```
@@ -185,6 +188,9 @@ main.py                 # Entrypoint (adds src/ to path and runs the bot)
 - 60-second cooldown per user per guild
 - Random XP gain (15-25) to prevent farming
 - Level-up notifications with embeds
+- In-memory cache with periodic PostgreSQL flush (no DB query per message)
+- Batched writes reduce connection-pool pressure on active servers
+- Graceful degradation when PostgreSQL is temporarily unavailable
 
 ### Rank Card
 Shows:
@@ -205,6 +211,10 @@ Shows:
 - Tracks: user_id, guild_id, xp, level, messages, last_message_time
 - Auto-creates tables on first run
 - Data persists across restarts
+- In-memory cache layer (`LevelingCache`) eliminates per-message DB queries
+- Periodic background flush (default 30 s) batches dirty writes
+- Exponential backoff on repeated DB failures
+- Rate-limited observability metrics (cache hits, misses, DB writes, errors)
 
 ## Customization
 

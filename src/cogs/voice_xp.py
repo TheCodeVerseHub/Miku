@@ -25,6 +25,7 @@ import discord
 from discord.ext import commands
 
 from services.level_service import LevelService, XpSource
+from utils import database as db
 
 logger = logging.getLogger("miku.voice_xp")
 
@@ -58,9 +59,25 @@ class VoiceXP(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.service = LevelService(bot)
         self._sessions: Dict[int, VoiceSession] = {}  # keyed by user_id
         self._task: Optional[asyncio.Task] = None
+        self._service: Optional[LevelService] = None  # resolved in cog_load
+
+    @property
+    def service(self) -> LevelService:
+        """Get the shared LevelService (with cache) from the Leveling cog.
+
+        Falls back to creating a standalone instance if the Leveling cog
+        is not loaded.  The shared instance uses the in-memory cache,
+        eliminating per-message DB queries.
+        """
+        if self._service is None:
+            shared = getattr(self.bot, "leveling_service", None)
+            if shared is not None:
+                self._service = shared
+            else:
+                self._service = LevelService(self.bot)
+        return self._service
 
     async def cog_load(self) -> None:
         """Start the background XP ticker."""
@@ -134,23 +151,32 @@ class VoiceXP(commands.Cog):
             self._sessions.pop(user_id, None)
 
     async def _award_voice_xp(self, member: discord.Member, guild_id: int) -> Optional[int]:
-        """Award XP for voice activity."""
+        """Award XP for voice activity.
+
+        Uses the shared LevelService cache when available so that no
+        PostgreSQL connection is acquired under normal operation.
+        """
         import random
 
-        # Load guild config for voice XP settings
-        from src.utils import database as db
-        settings = await db.get_guild_settings(guild_id)
+        cache = self.service.cache
 
-        xp_enabled = settings.get("xp_enabled", True) if settings else True
-        if not xp_enabled:
+        # Load guild config (cached via LevelService)
+        config = await self.service._load_guild_config(guild_id)
+        if not config.get("xp_enabled", True):
             return None
 
-        min_xp = settings.get("min_xp", VOICE_XP_MIN) if settings else VOICE_XP_MIN
-        max_xp = settings.get("max_xp", VOICE_XP_MAX) if settings else VOICE_XP_MAX
-
+        min_xp = config.get("min_xp", VOICE_XP_MIN)
+        max_xp = config.get("max_xp", VOICE_XP_MAX)
         xp_gain = random.randint(min_xp, max_xp)
 
-        user_data = await db.get_user_data(member.id, guild_id)
+        # Read user data from cache when available
+        if cache is not None:
+            user_data = await cache.get_user_data(member.id, guild_id)
+            if user_data and not user_data.get("_exists", True):
+                user_data = None
+        else:
+            user_data = await db.get_user_data(member.id, guild_id)
+
         current_xp = user_data["xp"] if user_data else 0
         current_level = user_data["level"] if user_data else 0
         messages = user_data["messages"] if user_data else 0
@@ -158,13 +184,20 @@ class VoiceXP(commands.Cog):
         new_xp = current_xp + xp_gain
         new_level = self.service.calculate_level(new_xp, guild_id)
 
-        await db.update_user_xp(member.id, guild_id, new_xp, new_level, messages, time.time())
-        await db.insert_xp_log(guild_id, member.id, xp_gain, XpSource.VOICE)
+        # Write XP to cache (batched) or directly to DB
+        now = time.time()
+        if cache is not None:
+            await cache.update_user_xp(
+                member.id, guild_id, new_xp, new_level, messages, now
+            )
+            await cache.insert_xp_log(guild_id, member.id, xp_gain, XpSource.VOICE)
+        else:
+            await db.update_user_xp(member.id, guild_id, new_xp, new_level, messages, now)
+            await db.insert_xp_log(guild_id, member.id, xp_gain, XpSource.VOICE)
 
         if new_level > current_level:
-            guild = member.guild
             await self.service.handle_level_up(
-                guild=guild,
+                guild=member.guild,
                 member=member,
                 old_level=current_level,
                 new_level=new_level,

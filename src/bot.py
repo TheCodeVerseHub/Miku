@@ -173,8 +173,19 @@ class MikuBot(commands.Bot):
         )
     
     async def close(self):
-        """Cleanup when bot shuts down"""
+        """Cleanup when bot shuts down.
+
+        Flush the leveling cache (if loaded) before closing the database
+        pool so that no pending XP / XP-log writes are lost.
+        """
         logger.info("Shutting down...")
+        # Flush leveling cache before closing the DB pool.
+        leveling_svc = getattr(self, "leveling_service", None)
+        if leveling_svc is not None:
+            cache = getattr(leveling_svc, "cache", None)
+            if cache is not None:
+                logger.info("Flushing leveling cache before shutdown...")
+                await cache.shutdown()
         await database.close_pool()
         await super().close()
 
