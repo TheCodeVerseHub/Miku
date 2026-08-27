@@ -21,9 +21,10 @@ Usage (in LevelService.__init__ or cog_load):
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from utils import database as db
 
@@ -38,17 +39,17 @@ class _Metrics:
     """Lightweight counters flushed periodically to the log."""
 
     __slots__ = (
-        "user_cache_hits",
-        "user_cache_misses",
+        "_last_log",
+        "db_errors",
+        "db_guild_writes",
+        "db_user_writes",
+        "db_xp_logs_flushed",
         "guild_cache_hits",
         "guild_cache_misses",
-        "db_user_writes",
-        "db_guild_writes",
-        "db_xp_logs_flushed",
-        "db_errors",
-        "retry_attempts",
         "pending_updates",
-        "_last_log",
+        "retry_attempts",
+        "user_cache_hits",
+        "user_cache_misses",
     )
 
     def __init__(self) -> None:
@@ -97,7 +98,7 @@ class _Metrics:
         self.db_guild_writes = 0
         self.db_xp_logs_flushed = 0
 
-    def snapshot(self, cache_size: int) -> Dict[str, Any]:
+    def snapshot(self, cache_size: int) -> dict[str, Any]:
         """Return a copy of counters without resetting them."""
         return {
             "cache_size": cache_size,
@@ -120,11 +121,11 @@ class _Metrics:
 class _UserCacheEntry:
     """Cached user leveling data with dirty-tracking."""
 
-    __slots__ = ("data", "loaded_at", "dirty", "new_user")
+    __slots__ = ("data", "dirty", "loaded_at", "new_user")
 
     def __init__(
         self,
-        data: Dict[str, Any],
+        data: dict[str, Any],
         *,
         new_user: bool = False,
     ) -> None:
@@ -139,7 +140,7 @@ class _GuildConfigEntry:
 
     __slots__ = ("data", "loaded_at")
 
-    def __init__(self, data: Dict[str, Any]) -> None:
+    def __init__(self, data: dict[str, Any]) -> None:
         self.data = data
         self.loaded_at = time.time()
 
@@ -172,18 +173,18 @@ class LevelingCache:
         self._flush_interval = flush_interval
 
         # ── User data cache: (guild_id, user_id) -> _UserCacheEntry ──
-        self._user_cache: Dict[Tuple[int, int], _UserCacheEntry] = {}
-        self._user_locks: Dict[Tuple[int, int], asyncio.Lock] = {}
+        self._user_cache: dict[tuple[int, int], _UserCacheEntry] = {}
+        self._user_locks: dict[tuple[int, int], asyncio.Lock] = {}
         self._user_locks_lock = asyncio.Lock()  # protects the locks dict
 
         # ── Guild config cache: guild_id -> _GuildConfigEntry ────────
-        self._guild_cache: Dict[int, _GuildConfigEntry] = {}
+        self._guild_cache: dict[int, _GuildConfigEntry] = {}
 
         # ── XP log buffer ────────────────────────────────────────────
-        self._pending_xp_logs: List[Tuple[int, int, int, str, str]] = []
+        self._pending_xp_logs: list[tuple[int, int, int, str, str]] = []
 
         # ── Background task ──────────────────────────────────────────
-        self._flush_task: Optional[asyncio.Task] = None
+        self._flush_task: asyncio.Task | None = None
 
         # ── Error handling ───────────────────────────────────────────
         self._backoff_until = 0.0  # timestamp: skip flush if currently in backoff
@@ -209,10 +210,8 @@ class LevelingCache:
         """Cancel background task and flush all pending data."""
         if self._flush_task is not None and not self._flush_task.done():
             self._flush_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._flush_task
-            except asyncio.CancelledError:
-                pass
         await self.flush_all()
         logger.info("LevelingCache shut down")
 
@@ -234,7 +233,7 @@ class LevelingCache:
 
     async def get_user_data(
         self, user_id: int, guild_id: int
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get user leveling data, using cache when available."""
         key = (guild_id, user_id)
         entry = self._user_cache.get(key)
@@ -322,7 +321,7 @@ class LevelingCache:
 
     # ── Guild config cache ──────────────────────────────────────────
 
-    async def get_guild_config(self, guild_id: int) -> Dict[str, Any]:
+    async def get_guild_config(self, guild_id: int) -> dict[str, Any]:
         """Get guild XP settings with defaults, using cache."""
         entry = self._guild_cache.get(guild_id)
 
@@ -434,7 +433,7 @@ class LevelingCache:
     async def _flush_dirty_users(self) -> None:
         """Batch-write all dirty user entries to PostgreSQL."""
         # Snapshot dirty entries under their individual locks (fast)
-        dirty: List[Tuple[int, _UserCacheEntry]] = []
+        dirty: list[tuple[int, _UserCacheEntry]] = []
         async with self._user_locks_lock:
             keys = list(self._user_cache.keys())
 
@@ -472,20 +471,20 @@ class LevelingCache:
             self._reset_backoff()
 
             # Mark flushed entries as no longer new
-            for key, entry in dirty:
+            for _key, entry in dirty:
                 entry.new_user = False
 
         except Exception:
             self._record_error()
             # Re-mark as dirty so we retry next flush
-            for key, entry in dirty:
+            for _key, entry in dirty:
                 entry.dirty = True
             logger.exception("Failed to flush %d user entries", len(dirty))
 
     async def _batch_insert_users(
         self,
         conn,
-        entries: List[Tuple[Tuple[int, int], _UserCacheEntry]],
+        entries: list[tuple[tuple[int, int], _UserCacheEntry]],
     ) -> None:
         """Batch INSERT new users using a single executemany."""
         if not entries:
@@ -519,7 +518,7 @@ class LevelingCache:
     async def _batch_update_users(
         self,
         conn,
-        entries: List[Tuple[Tuple[int, int], _UserCacheEntry]],
+        entries: list[tuple[tuple[int, int], _UserCacheEntry]],
     ) -> None:
         """Batch UPDATE existing users using a single executemany."""
         if not entries:
@@ -617,7 +616,7 @@ class LevelingCache:
 
     # ── Observability ───────────────────────────────────────────────
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Return a snapshot of cache metrics."""
         return self.metrics.snapshot(len(self._user_cache))
 

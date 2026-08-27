@@ -17,9 +17,9 @@ Features:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
-from typing import Dict, Optional
 
 import discord
 from discord.ext import commands
@@ -59,9 +59,9 @@ class VoiceXP(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self._sessions: Dict[int, VoiceSession] = {}  # keyed by user_id
-        self._task: Optional[asyncio.Task] = None
-        self._service: Optional[LevelService] = None  # resolved in cog_load
+        self._sessions: dict[int, VoiceSession] = {}  # keyed by user_id
+        self._task: asyncio.Task | None = None
+        self._service: LevelService | None = None  # resolved in cog_load
 
     @property
     def service(self) -> LevelService:
@@ -88,10 +88,8 @@ class VoiceXP(commands.Cog):
         """Cancel the background task and save state."""
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         logger.info("Voice XP cog unloaded (total sessions: %d)", len(self._sessions))
 
     async def _xp_ticker(self) -> None:
@@ -150,7 +148,7 @@ class VoiceXP(commands.Cog):
         for user_id in expired:
             self._sessions.pop(user_id, None)
 
-    async def _award_voice_xp(self, member: discord.Member, guild_id: int) -> Optional[int]:
+    async def _award_voice_xp(self, member: discord.Member, guild_id: int) -> int | None:
         """Award XP for voice activity.
 
         Uses the shared LevelService cache when available so that no

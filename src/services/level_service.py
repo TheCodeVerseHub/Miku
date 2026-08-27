@@ -21,10 +21,11 @@ connection is acquired per message under normal operation.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import random
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import discord
 from discord.ext import commands
@@ -83,14 +84,14 @@ class LevelService:
     def __init__(
         self,
         bot: commands.Bot,
-        formula_registry: Optional[FormulaRegistry] = None,
+        formula_registry: FormulaRegistry | None = None,
         cache=None,  # Optional[LevelingCache] — avoid hard import for tests
     ) -> None:
         self.bot = bot
         self.formula_registry = formula_registry or FormulaRegistry()
         self.formula_registry.load_defaults()
         # In-memory cooldown tracking (cleared on bot restart).
-        self._cooldowns: Dict[str, float] = {}
+        self._cooldowns: dict[str, float] = {}
         # Optional in-memory cache for XP hot path.
         self.cache = cache
 
@@ -109,7 +110,9 @@ class LevelService:
     def calculate_xp_for_level(self, level: int, guild_id: int = 0) -> int:
         return self._get_formula(guild_id).xp_for_level(level)
 
-    def calculate_xp_to_next_level(self, current_xp: int, current_level: int, guild_id: int = 0) -> Tuple[int, int, int]:
+    def calculate_xp_to_next_level(
+        self, current_xp: int, current_level: int, guild_id: int = 0
+    ) -> tuple[int, int, int]:
         return self._get_formula(guild_id).xp_to_next_level(current_xp, current_level)
 
     # ══════════════════════════════════════════════════════════════════
@@ -163,7 +166,7 @@ class LevelService:
         # For now, always allow.
         return True
 
-    async def award_message_xp(self, message: discord.Message) -> Optional[Dict[str, Any]]:
+    async def award_message_xp(self, message: discord.Message) -> dict[str, Any] | None:
         """Handle a message for XP awarding.
 
         Uses the in-memory cache when available so that no PostgreSQL
@@ -245,7 +248,11 @@ class LevelService:
     # Level-up handling
     # ══════════════════════════════════════════════════════════════════
 
-    async def handle_level_up(self, guild: discord.Guild, member: discord.Member, old_level: int, new_level: int, fallback_channel: Optional[discord.abc.Messageable] = None) -> None:
+    async def handle_level_up(
+        self, guild: discord.Guild, member: discord.Member,
+        old_level: int, new_level: int,
+        fallback_channel: discord.abc.Messageable | None = None,
+    ) -> None:
         """Post level-up announcement and assign role rewards."""
         embed = discord.Embed(
             title=" Level Up!",
@@ -277,10 +284,8 @@ class LevelService:
                 await target_channel.send(embed=embed)
         except Exception:
             if fallback_channel is not None and target_channel != fallback_channel:
-                try:
+                with contextlib.suppress(Exception):
                     await fallback_channel.send(embed=embed, delete_after=random.uniform(3, 5))
-                except Exception:
-                    pass
 
         for reached_level in range(old_level + 1, new_level + 1):
             await self.assign_role_reward(guild, member, reached_level)
@@ -350,13 +355,15 @@ class LevelService:
     # Admin XP mutations
     # ══════════════════════════════════════════════════════════════════
 
-    async def set_level(self, guild_id: int, user_id: int, level: int, admin_id: int, reason: str = "") -> Dict[str, Any]:
+    async def set_level(
+        self, guild_id: int, user_id: int, level: int,
+        admin_id: int, reason: str = "",
+    ) -> dict[str, Any]:
         """Set a user's level (recalculates XP)."""
         if level < 0:
             raise ValueError("Level must be 0 or higher")
         xp = self.calculate_xp_for_level(level, guild_id)
         user_data = await db.get_user_data(user_id, guild_id)
-        messages = user_data["messages"] if user_data else 0
         old_level = user_data["level"] if user_data else 0
 
         await db.set_user_level(user_id, guild_id, level, xp)
@@ -366,11 +373,14 @@ class LevelService:
             self.cache.invalidate_user(user_id, guild_id)
 
         await self._log_xp(guild_id, user_id, xp - (user_data["xp"] if user_data else 0), XpSource.ADMIN, reason)
-        await self._log_audit(guild_id, user_id, admin_id, "set_level", {"old_level": old_level, "new_level": level, "reason": reason})
+        await self._log_audit(
+            guild_id, user_id, admin_id, "set_level",
+            {"old_level": old_level, "new_level": level, "reason": reason},
+        )
 
         return {"old_level": old_level, "new_level": level, "xp": xp}
 
-    async def set_xp(self, guild_id: int, user_id: int, xp: int, admin_id: int, reason: str = "") -> Dict[str, Any]:
+    async def set_xp(self, guild_id: int, user_id: int, xp: int, admin_id: int, reason: str = "") -> dict[str, Any]:
         """Set a user's XP directly (recalculates level)."""
         if xp < 0:
             raise ValueError("XP must be 0 or higher")
@@ -387,11 +397,18 @@ class LevelService:
             self.cache.invalidate_user(user_id, guild_id)
 
         await self._log_xp(guild_id, user_id, xp - old_xp, XpSource.ADMIN, reason)
-        await self._log_audit(guild_id, user_id, admin_id, "set_xp", {"old_xp": old_xp, "new_xp": xp, "old_level": old_level, "new_level": new_level, "reason": reason})
+        await self._log_audit(
+            guild_id, user_id, admin_id, "set_xp",
+            {"old_xp": old_xp, "new_xp": xp, "old_level": old_level,
+             "new_level": new_level, "reason": reason},
+        )
 
         return {"old_xp": old_xp, "new_xp": xp, "old_level": old_level, "new_level": new_level}
 
-    async def add_xp(self, guild_id: int, user_id: int, amount: int, admin_id: int, source: str = XpSource.ADMIN, reason: str = "") -> Dict[str, Any]:
+    async def add_xp(
+        self, guild_id: int, user_id: int, amount: int,
+        admin_id: int, source: str = XpSource.ADMIN, reason: str = "",
+    ) -> dict[str, Any]:
         """Add XP to a user."""
         user_data = await db.get_user_data(user_id, guild_id)
         if user_data:
@@ -418,7 +435,10 @@ class LevelService:
 
         return {"old_xp": current_xp, "new_xp": new_xp, "old_level": current_level, "new_level": new_level}
 
-    async def remove_xp(self, guild_id: int, user_id: int, amount: int, admin_id: int, reason: str = "") -> Dict[str, Any]:
+    async def remove_xp(
+        self, guild_id: int, user_id: int, amount: int,
+        admin_id: int, reason: str = "",
+    ) -> dict[str, Any]:
         """Remove XP from a user."""
         return await self.add_xp(guild_id, user_id, -amount, admin_id, XpSource.ADMIN, reason)
 
@@ -463,7 +483,7 @@ class LevelService:
     # Queries for dashboard / analytics
     # ══════════════════════════════════════════════════════════════════
 
-    async def get_member_stats(self, guild_id: int, user_id: int) -> Optional[Dict[str, Any]]:
+    async def get_member_stats(self, guild_id: int, user_id: int) -> dict[str, Any] | None:
         """Get member stats. Uses cache when available."""
         if self.cache is not None:
             user_data = await self.cache.get_user_data(user_id, guild_id)
@@ -488,10 +508,10 @@ class LevelService:
             "progress_pct": round((xp_progress / xp_required * 100) if xp_required > 0 else 0, 1),
         }
 
-    async def get_leaderboard(self, guild_id: int, limit: int = 10, offset: int = 0) -> List[Dict[str, Any]]:
+    async def get_leaderboard(self, guild_id: int, limit: int = 10, offset: int = 0) -> list[dict[str, Any]]:
         return await db.get_leaderboard(guild_id, limit, offset)
 
-    async def get_guild_stats(self, guild_id: int) -> Dict[str, Any]:
+    async def get_guild_stats(self, guild_id: int) -> dict[str, Any]:
         total_users = await db.get_total_users(guild_id)
         leaderboard = await db.get_leaderboard(guild_id, limit=5)
         return {

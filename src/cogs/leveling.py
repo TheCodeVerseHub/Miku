@@ -6,17 +6,15 @@ Discord presentation layer (commands, listeners, embed formatting).
 
 from __future__ import annotations
 
+import contextlib
 import logging
-import random
-import time
 from io import BytesIO
-from typing import Optional
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
-from services.level_service import LevelService, XpSource
+from services.level_service import LevelService
 from utils import database as db
 from utils.db_cache import LevelingCache
 from utils.rank_card import RankCardGenerator
@@ -30,7 +28,7 @@ class _LeaderboardView(discord.ui.View):
     def __init__(
         self,
         *,
-        cog: "Leveling",
+        cog: Leveling,
         author_id: int,
         guild_id: int,
         page: int,
@@ -53,14 +51,10 @@ class _LeaderboardView(discord.ui.View):
             try:
                 await interaction.response.send_message(msg, ephemeral=True)
             except discord.InteractionResponded:
-                try:
+                with contextlib.suppress(Exception):
                     await interaction.followup.send(msg, ephemeral=True)
-                except Exception:
-                    pass
             return False
-        if interaction.guild is None or interaction.guild.id != self._guild_id:
-            return False
-        return True
+        return interaction.guild is not None and interaction.guild.id == self._guild_id
 
     def _sync_button_state(self) -> None:
         prev_button = getattr(self, "prev_page", None)
@@ -106,10 +100,8 @@ class _LeaderboardView(discord.ui.View):
             item.disabled = True
         message = getattr(self, "message", None)
         if message is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await message.edit(view=self)
-            except Exception:
-                pass
 
     @discord.ui.button(label="◀ Prev", style=discord.ButtonStyle.secondary)
     async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -132,7 +124,7 @@ class Leveling(commands.Cog):
         self.rank_card_generator = RankCardGenerator()
         # Service created without cache; cache is attached in cog_load.
         self.service = LevelService(bot)
-        self._cache: Optional[LevelingCache] = None
+        self._cache: LevelingCache | None = None
 
     async def cog_load(self):
         # Create and start the leveling cache (eliminates per-message DB queries).
@@ -166,7 +158,9 @@ class Leveling(commands.Cog):
         try:
             return await ctx.send(*args, **kwargs)
         except discord.NotFound as e:
-            if interaction is not None and getattr(e, "code", None) == 10062 and getattr(ctx, "channel", None) is not None:
+            code = getattr(e, "code", None)
+            channel = getattr(ctx, "channel", None)
+            if interaction is not None and code == 10062 and channel is not None:
                 kwargs.pop("ephemeral", None)
                 return await ctx.channel.send(*args, **kwargs)
             raise
@@ -286,7 +280,7 @@ class Leveling(commands.Cog):
     @commands.hybrid_command(name="rank", aliases=["level", "lvl"], description="View your or another user's rank card")
     @commands.guild_only()
     @app_commands.describe(user="The user to check (leave empty for yourself)")
-    async def rank(self, ctx: commands.Context, user: Optional[discord.Member] = None):
+    async def rank(self, ctx: commands.Context, user: discord.Member | None = None):
         if ctx.guild is None:
             return
         target = user or ctx.author
@@ -366,7 +360,7 @@ class Leveling(commands.Cog):
     @commands.hybrid_command(name="xp", description="View detailed XP information")
     @commands.guild_only()
     @app_commands.describe(user="The user to check")
-    async def xp(self, ctx: commands.Context, user: Optional[discord.Member] = None):
+    async def xp(self, ctx: commands.Context, user: discord.Member | None = None):
         if ctx.guild is None:
             return
         target = user or ctx.author
@@ -457,7 +451,11 @@ class Leveling(commands.Cog):
 
         embed = discord.Embed(
             title="\u2795 XP Added",
-            description=f"Added {amount:,} XP to {user.mention}\nNew Level: **{result['new_level']}** | Total XP: {result['new_xp']:,}",
+            description=(
+                f"Added {amount:,} XP to {user.mention}\n"
+                f"New Level: **{result['new_level']}** | "
+                f"Total XP: {result['new_xp']:,}"
+            ),
             color=self.EMBED_COLOR,
         )
         await self._send(ctx, embed=embed)
@@ -480,7 +478,11 @@ class Leveling(commands.Cog):
 
         embed = discord.Embed(
             title="\u2796 XP Removed",
-            description=f"Removed {amount:,} XP from {user.mention}\nNew Level: **{result['new_level']}** | Total XP: {result['new_xp']:,}",
+            description=(
+                f"Removed {amount:,} XP from {user.mention}\n"
+                f"New Level: **{result['new_level']}** | "
+                f"Total XP: {result['new_xp']:,}"
+            ),
             color=self.EMBED_COLOR,
         )
         await self._send(ctx, embed=embed)
@@ -510,7 +512,7 @@ class Leveling(commands.Cog):
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     @app_commands.describe(confirm="Type CONFIRM to proceed")
-    async def resetalllevels(self, ctx: commands.Context, confirm: Optional[str] = None):
+    async def resetalllevels(self, ctx: commands.Context, confirm: str | None = None):
         if ctx.guild is None:
             return
         await self._maybe_defer(ctx)
@@ -571,7 +573,7 @@ class Leveling(commands.Cog):
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     @app_commands.describe(channel="The channel for level-up announcements")
-    async def setlevelchannel(self, ctx: commands.Context, channel: Optional[discord.TextChannel] = None):
+    async def setlevelchannel(self, ctx: commands.Context, channel: discord.TextChannel | None = None):
         if ctx.guild is None:
             return
         await self._maybe_defer(ctx)
@@ -607,10 +609,12 @@ class Leveling(commands.Cog):
             return
         me = ctx.guild.me
         if me is None or role >= me.top_role:
-            await self._send(ctx, "\u274c I cannot assign this role! It's higher than or equal to my highest role.", ephemeral=True)
+            msg = "\u274c I cannot assign this role! It's higher than or equal to my highest role."
+            await self._send(ctx, msg, ephemeral=True)
             return
         if role.managed:
-            await self._send(ctx, "\u274c This role is managed by an integration and cannot be assigned!", ephemeral=True)
+            msg = "\u274c This role is managed by an integration and cannot be assigned!"
+            await self._send(ctx, msg, ephemeral=True)
             return
         await db.add_role_reward(ctx.guild.id, level, role.id)
         embed = discord.Embed(
