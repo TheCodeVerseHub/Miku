@@ -5,7 +5,7 @@ These are unit tests with mocked asyncpg pool. For integration tests
 that require a real database, see tests/test_integration.py.
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -29,7 +29,11 @@ def mock_pool():
     conn.transaction.return_value.__aenter__ = AsyncMock()
     conn.transaction.return_value.__aexit__ = AsyncMock()
 
-    pool.acquire = AsyncMock(return_value=conn)
+    # pool.acquire() must return an async context manager
+    acquire_ctx = AsyncMock()
+    acquire_ctx.__aenter__ = AsyncMock(return_value=conn)
+    acquire_ctx.__aexit__ = AsyncMock(return_value=None)
+    pool.acquire = MagicMock(return_value=acquire_ctx)
     return pool
 
 
@@ -51,10 +55,8 @@ async def test_get_user_rank(mock_pool):
     with patch("src.utils.database._pool", mock_pool):
         from src.utils import database as db
 
-        # Mock row with rank
-        mock_pool.acquire.return_value.fetchrow = AsyncMock(
-            return_value={"rank": 5}
-        )
+        conn = mock_pool.acquire.return_value.__aenter__.return_value
+        conn.fetchrow = AsyncMock(return_value={"rank": 5})
         rank = await db.get_user_rank(123, 456)
         assert rank == 5
 
@@ -76,9 +78,8 @@ async def test_get_total_users(mock_pool):
     with patch("src.utils.database._pool", mock_pool):
         from src.utils import database as db
 
-        mock_pool.acquire.return_value.fetchrow = AsyncMock(
-            return_value={"count": 42}
-        )
+        conn = mock_pool.acquire.return_value.__aenter__.return_value
+        conn.fetchrow = AsyncMock(return_value={"count": 42})
         count = await db.get_total_users(456)
         assert count == 42
 
@@ -89,11 +90,11 @@ async def test_update_user_xp(mock_pool):
     with patch("src.utils.database._pool", mock_pool):
         from src.utils import database as db
 
+        conn = mock_pool.acquire.return_value.__aenter__.return_value
         await db.update_user_xp(123, 456, 1000, 10, 50, 1234567890.0)
 
-        # Verify the execute was called with the right parameters
-        mock_pool.acquire.return_value.execute.assert_called_once()
-        call_args = mock_pool.acquire.return_value.execute.call_args
+        conn.execute.assert_called_once()
+        call_args = conn.execute.call_args
         sql = call_args[0][0]
         assert "INSERT INTO user_levels" in sql
         assert "ON CONFLICT" in sql
@@ -105,7 +106,8 @@ async def test_get_guild_settings(mock_pool):
     with patch("src.utils.database._pool", mock_pool):
         from src.utils import database as db
 
-        mock_pool.acquire.return_value.fetchrow = AsyncMock(
+        conn = mock_pool.acquire.return_value.__aenter__.return_value
+        conn.fetchrow = AsyncMock(
             return_value={"guild_id": 456, "xp_enabled": True}
         )
         settings = await db.get_guild_settings(456)
@@ -119,7 +121,8 @@ async def test_get_role_rewards(mock_pool):
     with patch("src.utils.database._pool", mock_pool):
         from src.utils import database as db
 
-        mock_pool.acquire.return_value.fetch = AsyncMock(
+        conn = mock_pool.acquire.return_value.__aenter__.return_value
+        conn.fetch = AsyncMock(
             return_value=[
                 {"level": 5, "role_id": 111},
                 {"level": 10, "role_id": 222},
