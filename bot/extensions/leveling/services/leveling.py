@@ -14,6 +14,9 @@ import random
 from discord import Member, Message
 from sqlalchemy.exc import IntegrityError
 
+from shared.formula import calculate_level as shared_calculate_level
+from shared.formula import calculate_xp_for_level as shared_calculate_xp_for_level
+
 from ..errors.leveling import MemberAlreadyHasLevelingProfile
 from ..models.domain import MessageResult
 from ..models.sql import LevelingProfile
@@ -101,10 +104,6 @@ XP_MAX = 25
 EXPERIENCE_GAIN_COOLDOWN = datetime.timedelta(minutes=1)
 
 
-from shared.formula import calculate_level as shared_calculate_level
-from shared.formula import calculate_xp_for_level as shared_calculate_xp_for_level
-
-
 class MessageEvaluationService:
     _logger: logging.Logger
 
@@ -147,7 +146,8 @@ class MessageEvaluationService:
 
 
 class MessageService:
-    # The sole purpose of this class is to bridge the gap between the MessageEvaluationService and the LevelingProfileService
+    # The sole purpose of this class is to bridge the gap between the
+    # MessageEvaluationService and the LevelingProfileService
 
     def __init__(
         self,

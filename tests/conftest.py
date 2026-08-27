@@ -79,7 +79,12 @@ async def clean_db(db_pool):
         await db.init_db()
 
         # Clean all tables
-        for table in ("user_levels", "guild_settings", "role_rewards", "xp_log", "audit_log", "xp_settings", "xp_multipliers", "xp_restrictions"):
+        tables = (
+            "user_levels", "guild_settings", "role_rewards",
+            "xp_log", "audit_log", "xp_settings",
+            "xp_multipliers", "xp_restrictions",
+        )
+        for table in tables:
             await conn.execute(f"DELETE FROM {table}")
 
         yield

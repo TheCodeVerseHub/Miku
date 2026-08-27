@@ -65,7 +65,11 @@ def validate_config() -> None:
     if not config.discord_redirect_uri:
         errors.append("DASHBOARD_REDIRECT_URI is not set")
     if not config.session_secret:
-        errors.append("DASHBOARD_SESSION_SECRET is not set. Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\"")
+        errors.append(
+            "DASHBOARD_SESSION_SECRET is not set. "
+            "Generate one with: python -c \"import secrets; "
+            "print(secrets.token_hex(32))\""
+        )
     elif len(config.session_secret) < 32:
         # Short secrets weaken session signing — this is a hard requirement.
         errors.append(

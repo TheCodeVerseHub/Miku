@@ -39,11 +39,14 @@ The reason? If we ever get into a situation where the bot needs to process thous
 it will literally die on the spot and wither away.
 
 The proposed solution? A queue.
-By enforcing a set limit on how many messages can be processed at a time, we can for the most part avoid unbounded concurrency
-and ensure that the bot can still handle other tasks while it's crying over the sheer amount of messages.
+By enforcing a set limit on how many messages can be processed at a time,
+we can for the most part avoid unbounded concurrency and ensure that the
+bot can still handle other tasks while it's crying over the sheer amount
+of messages.
 
-Now, I can't stress this enough, but we HAVE to log whenever the queue runs out of capacity, otherwise, the next person to
-visit this file for the purpose of debugging will have a very, VERY long weekend.
+Now, I can't stress this enough, but we HAVE to log whenever the queue
+runs out of capacity, otherwise, the next person to visit this file for
+the purpose of debugging will have a very, VERY long weekend.
 """
 
 
@@ -95,8 +98,10 @@ class LevelingCog(commands.Cog):
     async def get_message_service(self) -> AsyncGenerator[MessageService]:
         """
         Returns a context manager that yields a MessageService instance.
-        ! The instance is bound to a database session that is **committed** when the context manager is exited.
-        The MessageService instance is created with the LevelingProfileService instance yielded by get_profile_service and the MessageEvaluationService instance.
+        ! The instance is bound to a database session that is **committed**
+        when the context manager is exited. The MessageService instance is
+        created with the LevelingProfileService instance yielded by
+        get_profile_service and the MessageEvaluationService instance.
         """
         async with self.get_profile_service() as profile_service:
             yield MessageService(profile_service, self.message_evaluation_service)
@@ -138,7 +143,8 @@ class LevelingCog(commands.Cog):
         try:
             self._queue.put_nowait(message)
         except asyncio.QueueFull:
-            # If we ever decide to add live monitoring with Prometheus, this is where we'll implement queue capacity metrics
+            # If we ever decide to add live monitoring with Prometheus,
+            # this is where we'll implement queue capacity metrics
             self._logger.warning("Leveling queue full, dropping message %d", message.id)
 
     @commands.hybrid_command(

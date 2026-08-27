@@ -9,5 +9,5 @@ to catch and handle them cleanly.
 class LevelingError(Exception):
     pass
 
-class MemberAlreadyHasLevelingProfile(LevelingError):
+class MemberAlreadyHasLevelingProfileError(LevelingError):
     pass

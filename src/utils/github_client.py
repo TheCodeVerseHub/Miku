@@ -142,9 +142,9 @@ class GitHubClient:
         except (GitHubAPIError, GitHubNotFoundError, GitHubRateLimitError):
             raise
         except TimeoutError:
-            raise GitHubAPIError("Request to GitHub timed out", status=0)
+            raise GitHubAPIError("Request to GitHub timed out", status=0) from None
         except aiohttp.ClientError as exc:
-            raise GitHubAPIError(f"HTTP error: {exc}", status=0)
+            raise GitHubAPIError(f"HTTP error: {exc}", status=0) from exc
 
     # -- high-level methods --------------------------------------------------
 

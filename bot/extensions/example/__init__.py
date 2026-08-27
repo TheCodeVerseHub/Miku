@@ -1,8 +1,9 @@
 """
 This file is an example of how you can create a discord.py extension in this codebase.
 
-You can practically put all of this into a single file - There is no need to make an entire directory.
-I just wanted to show that it is possible to make a module in which you can use relative importing for the sake of better code organization.
+You can practically put all of this into a single file - There is no need to make
+an entire directory. I just wanted to show that it is possible to make a module in
+which you can use relative importing for the sake of better code organization.
 
 When making a discord.py extension, the only important thing is that it must have an asynchronous setup function:
 
@@ -33,11 +34,10 @@ Example layout you might want to use:
 ```
 Again, remember that this is over exaggerated. You most likely won't need a separate file for each stereotype.
 
-If you REALLY want to go overboard with this, you can use alembic for managing your migrations, but the exact setup will be
-quite convoluted.
+If you REALLY want to go overboard with this, you can use alembic for managing
+your migrations, but the exact setup will be quite convoluted.
 """
 
-import discord
 from discord.ext import commands
 from sqlalchemy import BigInteger, String
 from sqlalchemy.ext.asyncio.session import AsyncSession

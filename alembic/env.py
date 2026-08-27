@@ -27,7 +27,7 @@ if config.config_file_name is not None:
 
 # Import our declarative Base and all models so autogenerate can detect them
 # (This imports from the legacy bot/ codebase which uses SQLAlchemy)
-from bot.extensions.leveling.models.sql import Base as LegacyBase
+from bot.extensions.leveling.models.sql import Base as LegacyBase  # noqa: E402
 
 target_metadata = LegacyBase.metadata
 

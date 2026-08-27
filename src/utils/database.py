@@ -20,6 +20,7 @@ When adding a new feature that needs data:
 3) Call that helper from your cog/service
 """
 
+import contextlib
 import logging
 import os
 from typing import Any
@@ -116,12 +117,9 @@ async def init_db() -> None:
                 return
 
             logger.info("Migrating %s.%s from DOUBLE PRECISION to TIMESTAMP", table, column)
-            try:
+            with contextlib.suppress(Exception):
                 # Drop default first (often `0`) to avoid cast errors.
                 await conn.execute(f'ALTER TABLE {table} ALTER COLUMN {column} DROP DEFAULT')
-            except Exception:
-                # Default might not exist; continue.
-                pass
 
             await conn.execute(
                 f"ALTER TABLE {table} ALTER COLUMN {column} TYPE TIMESTAMP USING to_timestamp({column})"

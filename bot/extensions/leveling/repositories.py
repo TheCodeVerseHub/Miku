@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio.session import AsyncSession
 from .models.sql import LevelingProfile
 
 
-# We're doing some hacky stuff with the timezones here because SQLAlchemy and the message eval service are complaining otherwise.
+# We're doing some hacky stuff with the timezones here because SQLAlchemy
+# and the message eval service are complaining otherwise.
 class LevelingProfileRepository:
     session: AsyncSession
 

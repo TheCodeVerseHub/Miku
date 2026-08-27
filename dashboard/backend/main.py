@@ -35,28 +35,28 @@ for p in [BOT_SRC, SHARED_DIR]:
     if p not in sys.path:
         sys.path.insert(0, p)
 
-import contextlib
+import contextlib  # noqa: E402
 
-from cachetools import TTLCache
+from cachetools import TTLCache  # noqa: E402
 
 # Import shared formula (single source of truth)
-from shared.formula import calculate_level, calculate_xp_for_level
+from shared.formula import calculate_level, calculate_xp_for_level  # noqa: E402
 
-from .auth import (
+from .auth import (  # noqa: E402
     exchange_code,
     get_oauth_url,
 )
-from .auth import (
+from .auth import (  # noqa: E402
     get_current_user as _get_current_user,
 )
-from .auth import (
+from .auth import (  # noqa: E402
     get_user_guilds as _get_user_guilds,
 )
-from .config import config
-from .database import close_db, get_db
-from .discord_api import default_user, enrich_leaderboard, get_assignable_roles, get_guild_members
-from .health import router as health_router
-from .security import (
+from .config import config  # noqa: E402
+from .database import close_db, get_db  # noqa: E402
+from .discord_api import default_user, enrich_leaderboard, get_assignable_roles, get_guild_members  # noqa: E402
+from .health import router as health_router  # noqa: E402
+from .security import (  # noqa: E402
     sanitize_search_query,
     setup_security,
     validate_guild_id,
@@ -297,7 +297,9 @@ async def update_guild_settings(request: Request, guild_id: int):
     async with db.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO guild_settings (guild_id, levelup_channel_id, xp_enabled, min_xp, max_xp, cooldown_seconds, updated_at)
+            INSERT INTO guild_settings
+                (guild_id, levelup_channel_id, xp_enabled,
+                 min_xp, max_xp, cooldown_seconds, updated_at)
             VALUES ($1, $2, $3, $4, $5, $6, NOW())
             ON CONFLICT (guild_id) DO UPDATE SET
                 levelup_channel_id = EXCLUDED.levelup_channel_id,

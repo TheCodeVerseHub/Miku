@@ -77,20 +77,53 @@ ACHIEVEMENTS: list[Achievement] = [
     Achievement("level_200", "Legendary", "Reach Level 200", "\U0001F3C5", "Leveling", "level", 200, 2000),
 
     # ── Message Achievements ──
-    Achievement("msg_100", "Chatter", "Send 100 messages", "\U0001F4AC", "Activity", "messages", 100, 10),
-    Achievement("msg_500", "Talkative", "Send 500 messages", "\U0001F4AD", "Activity", "messages", 500, 50),
-    Achievement("msg_1000", "Conversationalist", "Send 1,000 messages", "\U0001F5E8", "Activity", "messages", 1000, 100),
-    Achievement("msg_5000", "Chat Monster", "Send 5,000 messages", "\U0001F4E3", "Activity", "messages", 5000, 500),
-    Achievement("msg_10000", "Chat Lord", "Send 10,000 messages", "\U0001F3A4", "Activity", "messages", 10000, 1000),
+    Achievement(
+        "msg_100", "Chatter", "Send 100 messages",
+        "\U0001F4AC", "Activity", "messages", 100, 10,
+    ),
+    Achievement(
+        "msg_500", "Talkative", "Send 500 messages",
+        "\U0001F4AD", "Activity", "messages", 500, 50,
+    ),
+    Achievement(
+        "msg_1000", "Conversationalist", "Send 1,000 messages",
+        "\U0001F5E8", "Activity", "messages", 1000, 100,
+    ),
+    Achievement(
+        "msg_5000", "Chat Monster", "Send 5,000 messages",
+        "\U0001F4E3", "Activity", "messages", 5000, 500,
+    ),
+    Achievement(
+        "msg_10000", "Chat Lord", "Send 10,000 messages",
+        "\U0001F3A4", "Activity", "messages", 10000, 1000,
+    ),
 
     # ── Voice Achievements ──
-    Achievement("voice_1h", "First Call", "Spend 1 hour in voice chat", "\U0001F50A", "Voice", "voice_hours", 1, 20),
-    Achievement("voice_10h", "Regular Caller", "Spend 10 hours in voice chat", "\U0001F50B", "Voice", "voice_hours", 10, 100),
-    Achievement("voice_50h", "Voice Veteran", "Spend 50 hours in voice chat", "\U0001F3A7", "Voice", "voice_hours", 50, 500),
-    Achievement("voice_100h", "Voice Overlord", "Spend 100 hours in voice chat", "\U0001F399", "Voice", "voice_hours", 100, 1000),
+    Achievement(
+        "voice_1h", "First Call", "Spend 1 hour in voice chat",
+        "\U0001F50A", "Voice", "voice_hours", 1, 20,
+    ),
+    Achievement(
+        "voice_10h", "Regular Caller",
+        "Spend 10 hours in voice chat",
+        "\U0001F50B", "Voice", "voice_hours", 10, 100,
+    ),
+    Achievement(
+        "voice_50h", "Voice Veteran",
+        "Spend 50 hours in voice chat",
+        "\U0001F3A7", "Voice", "voice_hours", 50, 500,
+    ),
+    Achievement(
+        "voice_100h", "Voice Overlord",
+        "Spend 100 hours in voice chat",
+        "\U0001F399", "Voice", "voice_hours", 100, 1000,
+    ),
 
     # ── XP Achievements ──
-    Achievement("xp_10k", "XP Apprentice", "Accumulate 10,000 XP", "\U0001F4B0", "Wealth", "total_xp", 10000, 50),
+    Achievement(
+        "xp_10k", "XP Apprentice", "Accumulate 10,000 XP",
+        "\U0001F4B0", "Wealth", "total_xp", 10000, 50,
+    ),
     Achievement("xp_50k", "XP Master", "Accumulate 50,000 XP", "\U0001F4B8", "Wealth", "total_xp", 50000, 200),
     Achievement("xp_100k", "XP Millionaire", "Accumulate 100,000 XP", "\U0001F4B5", "Wealth", "total_xp", 100000, 500),
     Achievement("xp_500k", "XP Tycoon", "Accumulate 500,000 XP", "\U0001F48E", "Wealth", "total_xp", 500000, 2000),

@@ -129,18 +129,24 @@ async def test_error_handling():
     client = GitHubClient()
 
     # Test 404
-    with patch.object(client, "_request", AsyncMock(side_effect=GitHubNotFoundError("Not found", status=404))):
-        with pytest.raises(GitHubNotFoundError):
-            await client.get_repo("nonexistent", "repo")
+    with (
+        patch.object(client, "_request", AsyncMock(side_effect=GitHubNotFoundError("Not found", status=404))),
+        pytest.raises(GitHubNotFoundError),
+    ):
+        await client.get_repo("nonexistent", "repo")
 
     # Test rate limit
-    with patch.object(client, "_request", AsyncMock(side_effect=GitHubRateLimitError("Rate limited", status=403))):
-        with pytest.raises(GitHubRateLimitError):
-            await client.get_user("test")
+    with (
+        patch.object(client, "_request", AsyncMock(side_effect=GitHubRateLimitError("Rate limited", status=403))),
+        pytest.raises(GitHubRateLimitError),
+    ):
+        await client.get_user("test")
 
     # Test generic error
-    with patch.object(client, "_request", AsyncMock(side_effect=GitHubAPIError("Server error", status=500))):
-        with pytest.raises(GitHubAPIError):
-            await client.search_repos("test")
+    with (
+        patch.object(client, "_request", AsyncMock(side_effect=GitHubAPIError("Server error", status=500))),
+        pytest.raises(GitHubAPIError),
+    ):
+        await client.search_repos("test")
 
     await client.close()
