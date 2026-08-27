@@ -18,11 +18,11 @@ Select option gotcha:
     `emoji=` field entirely.
 """
 
-import discord
-from discord.ext import commands
-from discord import app_commands
-from typing import Optional
 import logging
+
+import discord
+from discord import app_commands
+from discord.ext import commands
 
 logger = logging.getLogger('miku.help')
 
@@ -39,13 +39,13 @@ def create_main_help_embed(bot: commands.Bot) -> discord.Embed:
         description="A feature-rich Discord leveling bot with XP tracking and customizable rewards",
         color=EMBED_COLOR
     )
-    
+
     embed.add_field(
         name=" Command Prefix",
         value="**Text:** `&` (e.g., `&help`)\n**Slash:** `/` (e.g., `/help`)",
         inline=False
     )
-    
+
     embed.add_field(
         name=" Available Categories",
         value=(
@@ -59,15 +59,15 @@ def create_main_help_embed(bot: commands.Bot) -> discord.Embed:
         ),
         inline=False
     )
-    
+
     embed.add_field(
         name=" Support",
         value="Need help? Found a bug? Contact the bot owner!",
         inline=False
     )
-    
+
     embed.set_footer(text=f"Connected to {len(bot.guilds)} servers | Made with ")
-    
+
     return embed
 
 def create_utility_help_embed() -> discord.Embed:
@@ -185,7 +185,7 @@ def create_leveling_help_embed() -> discord.Embed:
         description="Commands for checking ranks, XP, leaderboards, and progression",
         color=EMBED_COLOR
     )
-    
+
     commands = [
         {
             "name": "rank",
@@ -212,7 +212,7 @@ def create_leveling_help_embed() -> discord.Embed:
             "description": "View all configured role rewards for leveling up"
         }
     ]
-    
+
     for cmd in commands:
         alias_text = f"\n**Aliases:** {cmd['aliases']}" if cmd['aliases'] else ""
         embed.add_field(
@@ -220,9 +220,9 @@ def create_leveling_help_embed() -> discord.Embed:
             value=f"**Usage:** `{cmd['usage']}`{alias_text}\n{cmd['description']}",
             inline=False
         )
-    
+
     embed.set_footer(text=" Tip: Both prefix (&) and slash (/) commands work!")
-    
+
     return embed
 
 def create_admin_help_embed() -> discord.Embed:
@@ -232,7 +232,7 @@ def create_admin_help_embed() -> discord.Embed:
         description="Server administration commands (requires Administrator permission)",
         color=EMBED_COLOR
     )
-    
+
     commands = [
         {
             "name": "setlevel",
@@ -270,14 +270,14 @@ def create_admin_help_embed() -> discord.Embed:
             "description": "Remove a role reward from a specific level"
         }
     ]
-    
+
     for cmd in commands:
         embed.add_field(
             name=f"{'&' if cmd['usage'].startswith('&') else '/'}{cmd['name']}",
             value=f"**Usage:** `{cmd['usage']}`\n{cmd['description']}",
             inline=False
         )
-    
+
     embed.set_footer(text=" All admin commands require Administrator permission")
 
     return embed
@@ -335,10 +335,10 @@ def create_github_help_embed() -> discord.Embed:
 
 class CategorySelect(discord.ui.Select):
     """Dropdown menu for selecting help categories"""
-    
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        
+
         options = [
             discord.SelectOption(
                 label="Home",
@@ -376,18 +376,18 @@ class CategorySelect(discord.ui.Select):
                 value="github"
             )
         ]
-        
+
         super().__init__(
             placeholder="Select a category...",
             options=options,
             min_values=1,
             max_values=1
         )
-    
+
     async def callback(self, interaction: discord.Interaction):
         """Handle category selection"""
         category = self.values[0]
-        
+
         if category == "home":
             embed = create_main_help_embed(self.bot)
         elif category == "leveling":
@@ -404,18 +404,18 @@ class CategorySelect(discord.ui.Select):
             embed = create_github_help_embed()
         else:
             embed = create_main_help_embed(self.bot)
-        
+
         await interaction.response.edit_message(embed=embed)
 
 class HelpView(discord.ui.View):
     """Interactive view for help menu"""
-    
+
     def __init__(self, bot: commands.Bot, author_id: int):
         super().__init__(timeout=180)
         self.bot = bot
         self.author_id = author_id
         self.add_item(CategorySelect(bot))
-    
+
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Only allow the command author to interact"""
         if interaction.user.id != self.author_id:
@@ -425,13 +425,13 @@ class HelpView(discord.ui.View):
             )
             return False
         return True
-    
+
     async def on_timeout(self):
         """Called when the view times out"""
         # Disable all components
         for item in self.children:
             if hasattr(item, "disabled"):
-                setattr(item, "disabled", True)
+                item.disabled = True
 
 # ============================================================================
 # Help Cog
@@ -439,20 +439,20 @@ class HelpView(discord.ui.View):
 
 class Help(commands.Cog):
     """Interactive help command system"""
-    
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-    
+
     async def cog_load(self):
         """Called when cog is loaded"""
         logger.info("Help cog loaded")
-    
+
     @commands.hybrid_command(
         name='help',
         description='Display bot commands and information'
     )
     @app_commands.describe(command='Get help for a specific command')
-    async def help_command(self, ctx: commands.Context, command: Optional[str] = None):
+    async def help_command(self, ctx: commands.Context, command: str | None = None):
         """Display interactive help menu or help for a specific command"""
 
         async def send(*args, **kwargs):
@@ -460,11 +460,11 @@ class Help(commands.Cog):
             if getattr(ctx, "interaction", None) is None:
                 kwargs.pop("ephemeral", None)
             return await ctx.send(*args, **kwargs)
-        
+
         if command:
             # Show help for specific command
             cmd = self.bot.get_command(command)
-            
+
             if not cmd:
                 embed = discord.Embed(
                     title=" Command Not Found",
@@ -473,14 +473,14 @@ class Help(commands.Cog):
                 )
                 await send(embed=embed, ephemeral=True)
                 return
-            
+
             # Build specific command help
             embed = discord.Embed(
                 title=f"Command: {cmd.name}",
                 description=cmd.description or cmd.help or "No description available",
                 color=EMBED_COLOR
             )
-            
+
             # Add aliases
             if hasattr(cmd, 'aliases') and cmd.aliases:
                 embed.add_field(
@@ -488,29 +488,28 @@ class Help(commands.Cog):
                     value=", ".join(f"`{alias}`" for alias in cmd.aliases),
                     inline=False
                 )
-            
+
             # Add usage
             usage = f"`&{cmd.name}`"
             if cmd.signature:
                 usage = f"`&{cmd.name} {cmd.signature}`"
             embed.add_field(name="Usage", value=usage, inline=False)
-            
+
             # Add permissions if any
             if hasattr(cmd, 'checks') and cmd.checks:
                 perms = []
                 for check in cmd.checks:
-                    if hasattr(check, '__name__'):
-                        if 'administrator' in check.__name__:
-                            perms.append("Administrator")
+                    if hasattr(check, '__name__') and 'administrator' in check.__name__:
+                        perms.append("Administrator")
                 if perms:
                     embed.add_field(
                         name="Required Permissions",
                         value=", ".join(perms),
                         inline=False
                     )
-            
+
             await send(embed=embed)
-        
+
         else:
             # Show interactive help menu
             embed = create_main_help_embed(self.bot)

@@ -6,6 +6,7 @@ They are *not* database models.
 
 from dataclasses import dataclass
 
+
 @dataclass
 class MessageResult:
     """Result of processing a message

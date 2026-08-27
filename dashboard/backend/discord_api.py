@@ -7,8 +7,9 @@ to avoid hitting rate limits.
 
 import logging
 from typing import Any
-from cachetools import TTLCache
+
 import httpx
+from cachetools import TTLCache
 
 from .config import config
 
@@ -156,7 +157,7 @@ async def get_guild_members(guild_id: int) -> dict[str, dict[str, Any]]:
     after = None
 
     while True:
-        params = f"?limit=1000"
+        params = "?limit=1000"
         if after:
             params += f"&after={after}"
 

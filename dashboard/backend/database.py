@@ -6,7 +6,6 @@ and health.py can import it without circular import errors.
 """
 
 import logging
-from typing import Optional
 
 import asyncpg
 
@@ -14,7 +13,7 @@ from .config import config
 
 logger = logging.getLogger("dashboard.db")
 
-_pool: Optional[asyncpg.Pool] = None
+_pool: asyncpg.Pool | None = None
 
 
 async def get_db() -> asyncpg.Pool:

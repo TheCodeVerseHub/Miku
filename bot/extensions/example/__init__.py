@@ -39,8 +39,8 @@ quite convoluted.
 
 import discord
 from discord.ext import commands
-from sqlalchemy.ext.asyncio.session import AsyncSession
 from sqlalchemy import BigInteger, String
+from sqlalchemy.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from bot.database import get_session

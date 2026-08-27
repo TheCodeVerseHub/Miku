@@ -6,7 +6,6 @@ All commands are hybrid (prefix + slash).
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import discord
 from discord import app_commands
@@ -80,7 +79,7 @@ class Info(commands.Cog):
 
     @commands.hybrid_command(name="channelinfo", description="Show information about a channel")
     @app_commands.describe(channel="Channel to inspect (defaults to current)")
-    async def channelinfo(self, ctx: commands.Context, channel: Optional[discord.abc.GuildChannel] = None) -> None:
+    async def channelinfo(self, ctx: commands.Context, channel: discord.abc.GuildChannel | None = None) -> None:
         if ctx.guild is None:
             await self._send(
                 ctx,

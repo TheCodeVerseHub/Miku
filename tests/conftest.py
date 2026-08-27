@@ -10,12 +10,11 @@ Provides:
 
 import asyncio
 import os
-from typing import AsyncGenerator, Dict, Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
-
 
 # ──────────────────────────────────────────────────────────────────────
 # Configuration
@@ -170,7 +169,7 @@ def mock_bot():
 
 
 @pytest.fixture
-def sample_formula_data() -> Dict[str, Any]:
+def sample_formula_data() -> dict[str, Any]:
     """Sample XP/level data for formula tests."""
     return {
         "quadratic": {

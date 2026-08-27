@@ -8,17 +8,12 @@ Important: call `await RankCardGenerator.close()` during shutdown to close the
 aiohttp session.
 """
 
-import asyncio
 import io
 import logging
-from typing import Optional, Tuple
 
 import aiohttp
 from cachetools import TTLCache
-from discord import Member
 from PIL import Image, ImageDraw, ImageFont
-
-from ..models.sql import LevelingProfile
 
 
 class RankCardGenerator:
@@ -26,7 +21,7 @@ class RankCardGenerator:
 
     def __init__(
         self,
-        font_paths: Optional[list[str]] = None,
+        font_paths: list[str] | None = None,
         avatar_cache_size: int = 512,
         avatar_cache_ttl: int = 600,
         card_cache_size: int = 256,
@@ -66,7 +61,7 @@ class RankCardGenerator:
     async def close(self) -> None:
         await self._http.close()
 
-    async def fetch_avatar(self, avatar_url: str) -> Optional[Image.Image]:
+    async def fetch_avatar(self, avatar_url: str) -> Image.Image | None:
         """
         Fetch an avatar from the given URL and store it in the cache.
 
@@ -96,7 +91,7 @@ class RankCardGenerator:
 
                 return avatar
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._logger.warning("Avatar fetch timeout: %s", avatar_url)
 
         except aiohttp.ClientError:
@@ -192,7 +187,7 @@ class RankCardGenerator:
         required_xp: int,
         total_xp: int,
         messages: int,
-        accent_color: Tuple[int, int, int] = (88, 101, 242),
+        accent_color: tuple[int, int, int] = (88, 101, 242),
     ) -> bytes:
         """
         Generates a rank card image for a given user.

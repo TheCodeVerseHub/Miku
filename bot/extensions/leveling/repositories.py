@@ -6,10 +6,12 @@ If you're new to the "repo/service" split:
 - Services (see `services/`) build higher-level behavior on top.
 """
 
-from datetime import timezone
+from datetime import UTC
+
 from sqlalchemy.ext.asyncio.session import AsyncSession
 
 from .models.sql import LevelingProfile
+
 
 # We're doing some hacky stuff with the timezones here because SQLAlchemy and the message eval service are complaining otherwise.
 class LevelingProfileRepository:
@@ -23,12 +25,12 @@ class LevelingProfileRepository:
     ) -> LevelingProfile | None:
         profile = await self.session.get(LevelingProfile, (guild_id, member_id))
         if profile and profile.last_message_timestamp:
-            profile.last_message_timestamp = profile.last_message_timestamp.replace(tzinfo=timezone.utc)
+            profile.last_message_timestamp = profile.last_message_timestamp.replace(tzinfo=UTC)
         return profile
 
     async def save(self, profile: LevelingProfile) -> LevelingProfile:
         if profile.last_message_timestamp:
-            profile.last_message_timestamp = profile.last_message_timestamp.replace(tzinfo=timezone.utc)
+            profile.last_message_timestamp = profile.last_message_timestamp.replace(tzinfo=UTC)
         self.session.add(profile)
         await self.session.flush()
         await self.session.refresh(profile)

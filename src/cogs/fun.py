@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import Optional
 
 import discord
 from discord import app_commands
@@ -67,7 +66,7 @@ class Fun(commands.Cog):
 
     @commands.hybrid_command(name="roll", description="Roll a dice (default d6)")
     @app_commands.describe(sides="Number of sides on the dice (2-1000)")
-    async def roll(self, ctx: commands.Context, sides: Optional[int] = 6) -> None:
+    async def roll(self, ctx: commands.Context, sides: int | None = 6) -> None:
         sides = sides or 6
         if sides < 2 or sides > 1000:
             await self._send(

@@ -8,15 +8,15 @@ This module intentionally separates responsibilities:
 """
 
 import datetime
-import random
 import logging
+import random
 
 from discord import Member, Message
-
 from sqlalchemy.exc import IntegrityError
+
 from ..errors.leveling import MemberAlreadyHasLevelingProfile
-from ..models.sql import LevelingProfile
 from ..models.domain import MessageResult
+from ..models.sql import LevelingProfile
 from ..repositories import LevelingProfileRepository
 
 
@@ -79,7 +79,7 @@ class LevelingProfileService:
 
     async def delete_profile(self, member_profile: LevelingProfile) -> None:
         self._logger.debug(
-            f"Deleting leveling profile for %d on %d",
+            "Deleting leveling profile for %d on %d",
             member_profile.user_id,
             member_profile.guild_id,
         )
@@ -101,8 +101,8 @@ XP_MAX = 25
 EXPERIENCE_GAIN_COOLDOWN = datetime.timedelta(minutes=1)
 
 
-from math import sqrt
-from shared.formula import calculate_level as shared_calculate_level, calculate_xp_for_level as shared_calculate_xp_for_level
+from shared.formula import calculate_level as shared_calculate_level
+from shared.formula import calculate_xp_for_level as shared_calculate_xp_for_level
 
 
 class MessageEvaluationService:

@@ -9,10 +9,11 @@ Keeping DB wiring centralized makes it easier to manage connections and cleanly
 shut everything down when the bot exits.
 """
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
 from .config import settings
 
 DATABASE_URL = str(settings.database_url)
@@ -33,7 +34,7 @@ AsyncSessionFactory = async_sessionmaker(
 
 
 @asynccontextmanager
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_session() -> AsyncGenerator[AsyncSession]:
     """
     Async context manager that yields an async database session.
     The session is properly rolled back and closed when an exception occurs.

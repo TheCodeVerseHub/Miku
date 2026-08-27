@@ -14,7 +14,7 @@ Hybrid command notes (same as leveling cog):
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 
 import discord
 from discord import app_commands

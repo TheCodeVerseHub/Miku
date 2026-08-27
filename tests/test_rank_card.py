@@ -2,7 +2,7 @@
 Tests for the RankCardGenerator (src/utils/rank_card.py).
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -103,8 +103,9 @@ async def test_avatar_fetch_caching():
 @pytest.mark.asyncio
 async def test_save_to_bytes():
     """Test the backwards-compatible save_to_bytes method."""
-    from src.utils.rank_card import RankCardGenerator
     from PIL import Image
+
+    from src.utils.rank_card import RankCardGenerator
 
     generator = RankCardGenerator()
     img = Image.new("RGB", (100, 100), (255, 0, 0))

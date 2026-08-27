@@ -7,7 +7,7 @@ with their own @commands.cooldown decorator.
 
 from discord.ext import commands
 
-from utils.cooldowns import cooldown_manager, GlobalCommandCooldown
+from utils.cooldowns import GlobalCommandCooldown, cooldown_manager
 
 
 class CommandHandler(commands.Cog):

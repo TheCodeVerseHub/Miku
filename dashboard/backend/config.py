@@ -5,9 +5,10 @@ All sensitive values should be set via environment variables or .env file.
 The defaults here are intentionally insecure to prompt you to set real values.
 """
 
-import os
 import logging
+import os
 from dataclasses import dataclass, field
+
 from dotenv import load_dotenv
 
 load_dotenv()

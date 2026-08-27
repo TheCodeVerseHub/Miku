@@ -17,11 +17,9 @@ Achievement Types:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import discord
-from discord import app_commands
 from discord.ext import commands
 
 logger = logging.getLogger("miku.achievements")
@@ -55,7 +53,7 @@ class Achievement:
         self.threshold = threshold
         self.xp_reward = xp_reward
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "name": self.name,
@@ -69,7 +67,7 @@ class Achievement:
 
 
 # Full list of achievements
-ACHIEVEMENTS: List[Achievement] = [
+ACHIEVEMENTS: list[Achievement] = [
     # ── Level Achievements ──
     Achievement("level_5", "Getting Started", "Reach Level 5", "\u2B50", "Leveling", "level", 5, 50),
     Achievement("level_10", "Getting Serious", "Reach Level 10", "\U0001F31F", "Leveling", "level", 10, 100),
@@ -134,8 +132,8 @@ class Achievements(commands.Cog):
         logger.info("Achievements cog loaded (%d achievements registered)", len(ACHIEVEMENTS))
 
     async def check_achievements(
-        self, guild_id: int, user_id: int, stats: Dict[str, Any]
-    ) -> List[Achievement]:
+        self, guild_id: int, user_id: int, stats: dict[str, Any]
+    ) -> list[Achievement]:
         """Check a user's stats against all achievements and unlock new ones."""
         from utils import database as db
 
@@ -148,7 +146,7 @@ class Achievements(commands.Cog):
             )
             unlocked_ids = {r["achievement_id"] for r in unlocked_rows}
 
-            newly_unlocked: List[Achievement] = []
+            newly_unlocked: list[Achievement] = []
 
             for achievement in ACHIEVEMENTS:
                 if achievement.id in unlocked_ids:
@@ -189,7 +187,7 @@ class Achievements(commands.Cog):
     )
     @commands.guild_only()
     async def achievements_command(
-        self, ctx: commands.Context, member: Optional[discord.Member] = None
+        self, ctx: commands.Context, member: discord.Member | None = None
     ):
         """Display a user's achievements."""
         if ctx.guild is None:
@@ -219,7 +217,7 @@ class Achievements(commands.Cog):
         embed.set_thumbnail(url=target.display_avatar.url)
 
         # Group by category
-        categories: Dict[str, List[Achievement]] = {}
+        categories: dict[str, list[Achievement]] = {}
         for ach in ACHIEVEMENTS:
             categories.setdefault(ach.category, []).append(ach)
 

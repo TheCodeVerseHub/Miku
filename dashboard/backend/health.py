@@ -10,7 +10,7 @@ Provides:
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter
 
@@ -46,7 +46,7 @@ async def health():
         "service": "miku-dashboard",
         "version": os.getenv("MIKU_VERSION", "0.1.0"),
         "uptime": _uptime(),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
@@ -97,5 +97,5 @@ async def health_ready():
         "service": "miku-dashboard",
         "uptime": _uptime(),
         "database": "connected",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }

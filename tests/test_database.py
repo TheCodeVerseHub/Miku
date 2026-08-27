@@ -5,7 +5,7 @@ These are unit tests with mocked asyncpg pool. For integration tests
 that require a real database, see tests/test_integration.py.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 

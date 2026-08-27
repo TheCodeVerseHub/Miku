@@ -18,11 +18,9 @@ Quest Types:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import random
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import UTC, datetime, timedelta
 
 import discord
 from discord import app_commands
@@ -151,7 +149,7 @@ class Quests(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.service = LevelService(bot)
-        self._user_quests: Dict[str, List[Quest]] = {}  # key: "{guild_id}:{user_id}:{period}"
+        self._user_quests: dict[str, list[Quest]] = {}  # key: "{guild_id}:{user_id}:{period}"
 
     async def cog_load(self) -> None:
         """Ensure quest tracking table exists."""
@@ -176,14 +174,14 @@ class Quests(commands.Cog):
             """)
         logger.info("Quests cog loaded")
 
-    def _get_random_quests(self, count: int = 3, period: str = "daily") -> List[Quest]:
+    def _get_random_quests(self, count: int = 3, period: str = "daily") -> list[Quest]:
         """Select random quests for a user."""
         templates = random.sample(QUEST_TEMPLATES, min(count, len(QUEST_TEMPLATES)))
         return [Quest(t, period) for t in templates]
 
     def _get_period_end(self, period: str) -> datetime:
         """Get the expiry timestamp for a quest period."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if period == "daily":
             return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         elif period == "weekly":
@@ -196,7 +194,7 @@ class Quests(commands.Cog):
             )
         return now + timedelta(days=1)
 
-    async def _load_quests(self, guild_id: int, user_id: int, period: str) -> List[Quest]:
+    async def _load_quests(self, guild_id: int, user_id: int, period: str) -> list[Quest]:
         """Load a user's quests from the database."""
         from src.utils import database as db
 
@@ -211,9 +209,9 @@ class Quests(commands.Cog):
             )
 
         quests = []
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for row in rows:
-            if row["expires_at"].replace(tzinfo=timezone.utc) < now:
+            if row["expires_at"].replace(tzinfo=UTC) < now:
                 continue
             q = Quest({"type": row["quest_type"], "name": row["quest_name"],
                        "description": "", "icon": "", "amount": 0, "xp_reward": 0}, period)
@@ -269,7 +267,7 @@ class Quests(commands.Cog):
         """Track quest progress for a user."""
         await self._ensure_quests(guild_id, user_id)
 
-        for key_prefix, period in [("daily", "daily"), ("weekly", "weekly")]:
+        for _key_prefix, period in [("daily", "daily"), ("weekly", "weekly")]:
             key = f"{guild_id}:{user_id}:{period}"
             quests = self._user_quests.get(key, [])
             for quest in quests:
@@ -301,7 +299,7 @@ class Quests(commands.Cog):
         # Award XP
         user_data = await db.get_user_data(user_id, guild_id)
         current_xp = user_data["xp"] if user_data else 0
-        current_level = user_data["level"] if user_data else 0
+        user_data["level"] if user_data else 0
         messages = user_data["messages"] if user_data else 0
         new_xp = current_xp + quest.xp_reward
         new_level = self.service.calculate_level(new_xp, guild_id)

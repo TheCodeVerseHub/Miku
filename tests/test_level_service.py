@@ -2,11 +2,11 @@
 Tests for the LevelService (src/services/level_service.py).
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.services.level_service import LevelService, XpSource, RestrictionType
+from src.services.level_service import LevelService, RestrictionType, XpSource
 
 
 class TestLevelService:
@@ -29,7 +29,7 @@ class TestLevelService:
 
     def test_calculate_xp_to_next_level(self, service):
         """Test XP-to-next-level calculation."""
-        xp_needed, xp_progress, xp_required = service.calculate_xp_to_next_level(0, 1)
+        _xp_needed, xp_progress, xp_required = service.calculate_xp_to_next_level(0, 1)
         assert xp_required == 220
         assert xp_progress == 0
 

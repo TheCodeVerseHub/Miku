@@ -2,7 +2,7 @@
 Tests for the GitHub API client (src/utils/github_client.py).
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -120,10 +120,10 @@ async def test_search_repos():
 async def test_error_handling():
     """Test error handling for API failures."""
     from src.utils.github_client import (
+        GitHubAPIError,
         GitHubClient,
         GitHubNotFoundError,
         GitHubRateLimitError,
-        GitHubAPIError,
     )
 
     client = GitHubClient()

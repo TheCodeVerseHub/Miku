@@ -12,12 +12,13 @@ If you're new:
 - This file should stay tiny and boring.
 """
 
-import sys
 import asyncio
 import importlib
 import inspect
+import sys
+from collections.abc import Callable, Coroutine
 from pathlib import Path
-from typing import Any, Callable, Coroutine, cast
+from typing import Any, cast
 
 PROJECT_ROOT = Path(__file__).parent.resolve()
 

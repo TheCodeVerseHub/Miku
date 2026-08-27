@@ -14,8 +14,6 @@ Usage:
 
 from __future__ import annotations
 
-from typing import Tuple
-
 
 def calculate_level(xp: int) -> int:
     """Calculate the level from cumulative XP.
@@ -60,7 +58,7 @@ def calculate_xp_for_level(level: int) -> int:
     return total
 
 
-def calculate_xp_to_next_level(current_xp: int, current_level: int) -> Tuple[int, int, int]:
+def calculate_xp_to_next_level(current_xp: int, current_level: int) -> tuple[int, int, int]:
     """Calculate progress toward the next level.
 
     Args:

@@ -2,7 +2,6 @@
 Tests for the FastAPI dashboard backend.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 

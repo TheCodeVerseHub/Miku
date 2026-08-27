@@ -8,11 +8,11 @@ High-level idea:
 This architecture avoids spawning unbounded tasks during high message volume.
 """
 
-from io import BytesIO
 import asyncio
 import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from io import BytesIO
 
 import discord
 from discord.ext import commands
@@ -28,7 +28,6 @@ from .services.leveling import (
     MessageService,
 )
 from .services.rank_card import RankCardGenerator
-
 
 WORKER_COUNT = 4
 QUEUE_SIZE = 10000

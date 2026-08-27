@@ -17,17 +17,13 @@ Improvements:
 - Graceful connection pooling
 """
 
-import json
 import logging
 import os
 import sys
-import time
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import URLSafeTimedSerializer
 from jinja2 import Environment, FileSystemLoader
@@ -39,22 +35,35 @@ for p in [BOT_SRC, SHARED_DIR]:
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from cachetools import TTLCache
+import contextlib
 
-from .config import config
-from .discord_api import enrich_leaderboard, get_assignable_roles, get_guild_members, default_user
-from .auth import (
-    exchange_code,
-    get_current_user as _get_current_user,
-    get_user_guilds as _get_user_guilds,
-    get_oauth_url,
-)
-from .security import setup_security, sanitize_search_query, validate_guild_id, validate_level, validate_user_id, validate_xp_amount
-from .health import router as health_router
-from .database import get_db, close_db
+from cachetools import TTLCache
 
 # Import shared formula (single source of truth)
 from shared.formula import calculate_level, calculate_xp_for_level
+
+from .auth import (
+    exchange_code,
+    get_oauth_url,
+)
+from .auth import (
+    get_current_user as _get_current_user,
+)
+from .auth import (
+    get_user_guilds as _get_user_guilds,
+)
+from .config import config
+from .database import close_db, get_db
+from .discord_api import default_user, enrich_leaderboard, get_assignable_roles, get_guild_members
+from .health import router as health_router
+from .security import (
+    sanitize_search_query,
+    setup_security,
+    validate_guild_id,
+    validate_level,
+    validate_user_id,
+    validate_xp_amount,
+)
 
 logger = logging.getLogger("dashboard")
 
@@ -126,7 +135,7 @@ def make_session(data: dict) -> str:
     return serializer.dumps(data)
 
 
-def read_session(token: str) -> Optional[dict]:
+def read_session(token: str) -> dict | None:
     try:
         return serializer.loads(token, max_age=86400 * 7)
     except Exception:
@@ -847,10 +856,8 @@ async def startup():
                 "ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()",
             ]
             for sql in migrations:
-                try:
+                with contextlib.suppress(Exception):
                     await conn.execute(sql)
-                except Exception:
-                    pass
     except Exception:
         logger.warning("Could not run guild_settings migrations (DB not ready yet)")
 

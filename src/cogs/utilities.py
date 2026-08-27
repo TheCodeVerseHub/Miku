@@ -11,8 +11,7 @@ from __future__ import annotations
 
 import logging
 import platform
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import discord
 from discord import app_commands
@@ -103,7 +102,7 @@ class Utilities(commands.Cog):
     @commands.hybrid_command(name="uptime", description="Show how long the bot has been online")
     async def uptime(self, ctx: commands.Context) -> None:
         """Show bot uptime."""
-        started_at: Optional[datetime] = getattr(self.bot, "start_time", None)
+        started_at: datetime | None = getattr(self.bot, "start_time", None)
         if started_at is None:
             embed = discord.Embed(
                 title="Uptime",
@@ -113,7 +112,7 @@ class Utilities(commands.Cog):
             await self._send(ctx, embed=embed, ephemeral=True)
             return
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         delta_s = (now - started_at).total_seconds()
 
         embed = discord.Embed(
@@ -132,9 +131,9 @@ class Utilities(commands.Cog):
         guild_count = len(getattr(self.bot, "guilds", []))
         command_count = len(list(getattr(self.bot, "walk_commands", lambda: [])()))
 
-        started_at: Optional[datetime] = getattr(self.bot, "start_time", None)
+        started_at: datetime | None = getattr(self.bot, "start_time", None)
         if started_at is not None:
-            uptime = _format_timedelta((datetime.now(timezone.utc) - started_at).total_seconds())
+            uptime = _format_timedelta((datetime.now(UTC) - started_at).total_seconds())
         else:
             uptime = "N/A"
 
@@ -195,7 +194,7 @@ class Utilities(commands.Cog):
 
     @commands.hybrid_command(name="avatar", description="Show a user's avatar")
     @app_commands.describe(user="User to view (defaults to you)")
-    async def avatar(self, ctx: commands.Context, user: Optional[discord.User] = None) -> None:
+    async def avatar(self, ctx: commands.Context, user: discord.User | None = None) -> None:
         """Display avatar for a user."""
         target = user or ctx.author
         embed = discord.Embed(
@@ -207,7 +206,7 @@ class Utilities(commands.Cog):
 
     @commands.hybrid_command(name="userinfo", description="Show information about a user")
     @app_commands.describe(user="User to view (defaults to you)")
-    async def userinfo(self, ctx: commands.Context, user: Optional[discord.Member] = None) -> None:
+    async def userinfo(self, ctx: commands.Context, user: discord.Member | None = None) -> None:
         """Display basic info about a member."""
         if ctx.guild is None:
             await self._send(

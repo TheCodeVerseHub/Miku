@@ -14,12 +14,11 @@ import logging
 import os
 import time
 from collections import defaultdict
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp
 
 logger = logging.getLogger("dashboard.security")
 
@@ -89,9 +88,7 @@ def validate_csrf_token(token: str, secret: str, max_age: int = 3600) -> bool:
         if not hmac.compare_digest(parts[2], expected_sig):
             return False
         timestamp = int(parts[1])
-        if time.time() - timestamp > max_age:
-            return False
-        return True
+        return not time.time() - timestamp > max_age
     except (ValueError, IndexError):
         return False
 
@@ -208,15 +205,14 @@ def setup_security(app: FastAPI, session_secret: str) -> None:
     @app.middleware("http")
     async def csrf_observability_middleware(request: Request, call_next: Callable) -> Response:
         """Log when state-changing requests are made without CSRF headers (informational)."""
-        if request.method in ("POST", "PUT", "PATCH", "DELETE"):
-            if not request.url.path.startswith("/auth/"):
-                csrf_token = request.headers.get("X-CSRF-Token") or request.headers.get("X-XSRF-Token")
-                if not csrf_token:
-                    logger.debug(
-                        "State-changing request without CSRF header: %s %s",
-                        request.method,
-                        request.url.path,
-                    )
+        if request.method in ("POST", "PUT", "PATCH", "DELETE") and not request.url.path.startswith("/auth/"):
+            csrf_token = request.headers.get("X-CSRF-Token") or request.headers.get("X-XSRF-Token")
+            if not csrf_token:
+                logger.debug(
+                    "State-changing request without CSRF header: %s %s",
+                    request.method,
+                    request.url.path,
+                )
         return await call_next(request)
 
     logger.info("Security middleware configured: CSRF, rate limiting, security headers")

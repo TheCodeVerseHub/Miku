@@ -57,13 +57,14 @@ class TestCSRFProtection:
         assert validate_csrf_token(token, "secret2") is False
 
     def test_expired_token(self, secret):
-        from dashboard.backend.security import generate_csrf_token, validate_csrf_token
+        import hashlib
 
         # We can't easily travel in time, but we can test with a very short
         # max_age by manipulating the token
         import hmac
-        import hashlib
         import os
+
+        from dashboard.backend.security import validate_csrf_token
 
         data = f"{os.urandom(32).hex()}:{int(time.time()) - 7200}"  # 2 hours old
         sig = hmac.new(secret.encode(), data.encode(), hashlib.sha256).hexdigest()[:16]

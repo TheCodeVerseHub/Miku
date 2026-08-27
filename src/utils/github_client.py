@@ -10,9 +10,7 @@ Usage inside a cog:
     await client.close()
 """
 
-import asyncio
 import logging
-import os
 import time
 from typing import Any
 
@@ -143,7 +141,7 @@ class GitHubClient:
 
         except (GitHubAPIError, GitHubNotFoundError, GitHubRateLimitError):
             raise
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise GitHubAPIError("Request to GitHub timed out", status=0)
         except aiohttp.ClientError as exc:
             raise GitHubAPIError(f"HTTP error: {exc}", status=0)
