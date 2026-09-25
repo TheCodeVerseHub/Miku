@@ -30,6 +30,81 @@ class _AsyncCM:
         return False
 
 
+class _FakeUserLevels:
+    """Tiny stand-in for the `user_levels` table.
+
+    It understands just enough of the two statements the flush issues to model
+    the optimistic-concurrency guard: an UPDATE only lands when the row still
+    carries the token the caller passed.
+    """
+
+    def __init__(self):
+        self.rows: dict[tuple[int, int], dict] = {}  # (guild_id, user_id) -> row
+        self.executemany = AsyncMock(side_effect=self._executemany)
+        self.fetch = AsyncMock(side_effect=self._fetch)
+        self.raise_on_write: Exception | None = None
+
+    def seed(self, guild_id: int, user_id: int, *, updated_at, **values):
+        self.rows[(guild_id, user_id)] = {
+            "guild_id": guild_id,
+            "user_id": user_id,
+            "updated_at": updated_at,
+            **values,
+        }
+
+    def acquire(self):
+        return _AsyncCM(self)
+
+    async def _executemany(self, sql, records):
+        if self.raise_on_write is not None:
+            raise self.raise_on_write
+
+        if "INSERT INTO user_levels" in sql:
+            for user_id, guild_id, xp, level, messages, last_message_time, stamp in records:
+                self.rows.setdefault(
+                    (guild_id, user_id),
+                    {
+                        "guild_id": guild_id,
+                        "user_id": user_id,
+                        "xp": xp,
+                        "level": level,
+                        "messages": messages,
+                        "last_message_time": last_message_time,
+                        "updated_at": stamp,
+                    },
+                )
+            return
+
+        if "UPDATE user_levels" in sql:
+            for (
+                xp,
+                level,
+                messages,
+                last_message_time,
+                user_id,
+                guild_id,
+                stamp,
+                token,
+            ) in records:
+                row = self.rows.get((guild_id, user_id))
+                if row is None or row["updated_at"] != token:
+                    continue  # the concurrency guard rejected this write
+                row.update(
+                    xp=xp,
+                    level=level,
+                    messages=messages,
+                    last_message_time=last_message_time,
+                    updated_at=stamp,
+                )
+            return
+
+        raise AssertionError(f"unexpected statement: {sql}")
+
+    async def _fetch(self, sql, guild_ids, user_ids):
+        wanted = set(zip(guild_ids, user_ids, strict=True))
+        return [dict(row) for key, row in self.rows.items() if key in wanted]
+
+
 @pytest.fixture
 def bot() -> MagicMock:
     """A bot mock good enough for a cache that is constructed but never started."""
@@ -45,14 +120,15 @@ def cache(bot) -> LevelingCache:
 
 
 @pytest.fixture
-def fake_pool():
-    """A pool mock whose `acquire()` yields a connection with batch methods."""
-    conn = MagicMock()
-    conn.executemany = AsyncMock()
+def fake_db() -> _FakeUserLevels:
+    return _FakeUserLevels()
 
-    pool = MagicMock()
-    pool.acquire = MagicMock(return_value=_AsyncCM(conn))
-    return pool, conn
+
+@pytest.fixture
+def patched_db(fake_db):
+    """Route the cache's database calls at the fake table."""
+    with patch("utils.database.get_pool", AsyncMock(return_value=fake_db)):
+        yield fake_db
 
 
 class TestUserWritePath:
@@ -154,41 +230,113 @@ class TestFlush:
     """Dirty entries are persisted in batches, then marked clean."""
 
     @pytest.mark.asyncio
-    async def test_flush_persists_dirty_users_in_one_batch(self, cache, fake_pool):
-        pool, conn = fake_pool
+    async def test_flush_persists_dirty_users_in_one_batch(self, cache, patched_db):
         await cache.update_user_xp(USER_ID, GUILD_ID, 20, 0, 1, 1_000.0)
 
-        with patch("utils.database.get_pool", AsyncMock(return_value=pool)):
-            await cache.flush_all()
+        await cache.flush_all()
 
-        conn.executemany.assert_awaited_once()
-        sql, records = conn.executemany.await_args.args
+        patched_db.executemany.assert_awaited_once()
+        sql, records = patched_db.executemany.await_args.args
         assert "INSERT INTO user_levels" in sql
-        assert records == [(USER_ID, GUILD_ID, 20, 0, 1, 1_000.0)]
+        assert records[0][:6] == (USER_ID, GUILD_ID, 20, 0, 1, 1_000.0)
+        assert patched_db.rows[(GUILD_ID, USER_ID)]["xp"] == 20
         assert cache.get_metrics()["db_user_writes"] == 1
 
     @pytest.mark.asyncio
-    async def test_clean_entries_are_not_written_again(self, cache, fake_pool):
-        pool, conn = fake_pool
+    async def test_clean_entries_are_not_written_again(self, cache, patched_db):
         await cache.update_user_xp(USER_ID, GUILD_ID, 20, 0, 1, 1_000.0)
 
-        with patch("utils.database.get_pool", AsyncMock(return_value=pool)):
-            await cache.flush_all()
-            await cache.flush_all()
+        await cache.flush_all()
+        await cache.flush_all()
 
-        assert conn.executemany.await_count == 1, "a clean entry must not be re-flushed"
+        assert patched_db.executemany.await_count == 1, "a clean entry must not be re-flushed"
 
     @pytest.mark.asyncio
-    async def test_failed_flush_keeps_entries_dirty_for_retry(self, cache, fake_pool):
-        pool, conn = fake_pool
-        conn.executemany = AsyncMock(side_effect=RuntimeError("database is down"))
+    async def test_second_flush_updates_the_existing_row(self, cache, patched_db):
         await cache.update_user_xp(USER_ID, GUILD_ID, 20, 0, 1, 1_000.0)
+        await cache.flush_all()
 
-        with patch("utils.database.get_pool", AsyncMock(return_value=pool)):
-            await cache.flush_all()  # must not raise
-            assert cache.get_metrics()["db_errors"] == 1
+        await cache.update_user_xp(USER_ID, GUILD_ID, 45, 0, 2, 1_060.0)
+        await cache.flush_all()
 
-            conn.executemany = AsyncMock()
+        sql, _records = patched_db.executemany.await_args.args
+        assert "UPDATE user_levels" in sql
+        assert "AND updated_at = $8" in sql, "the write must be guarded by its token"
+        assert patched_db.rows[(GUILD_ID, USER_ID)]["xp"] == 45
+
+    @pytest.mark.asyncio
+    async def test_failed_flush_keeps_entries_dirty_for_retry(self, cache, patched_db):
+        await cache.update_user_xp(USER_ID, GUILD_ID, 20, 0, 1, 1_000.0)
+        patched_db.raise_on_write = RuntimeError("database is down")
+
+        await cache.flush_all()  # must not raise
+        assert cache.get_metrics()["db_errors"] == 1
+
+        patched_db.raise_on_write = None
+        await cache.flush_all()
+
+        assert patched_db.executemany.await_count == 2
+        assert patched_db.rows[(GUILD_ID, USER_ID)]["xp"] == 20
+
+
+class TestConcurrentWriters:
+    """A flush must never revert a write made outside the bot."""
+
+    @pytest.mark.asyncio
+    async def test_external_change_wins_over_stale_cached_xp(self, cache, patched_db):
+        """Regression: an admin action used to be overwritten by the flush.
+
+        The dashboard writes `user_levels` directly. The cache held older values
+        for up to 30s and then wrote them unconditionally, silently reverting the
+        admin's change.
+        """
+        loaded = {"user_id": USER_ID, "guild_id": GUILD_ID, "xp": 100, "level": 0,
+                  "messages": 5, "updated_at": 1_000}
+        with patch("utils.database.get_user_data", AsyncMock(return_value=loaded)):
+            await cache.get_user_data(USER_ID, GUILD_ID)
+
+        # An admin sets the level through the dashboard while the member chats.
+        patched_db.seed(GUILD_ID, USER_ID, updated_at=2_000, xp=5_675, level=10, messages=5)
+        await cache.update_user_xp(USER_ID, GUILD_ID, 120, 0, 6, 1_060.0)
+
+        with patch("utils.database.get_user_data", AsyncMock(return_value=dict(patched_db.rows[(GUILD_ID, USER_ID)]))):
             await cache.flush_all()
 
-        conn.executemany.assert_awaited_once()
+        row = patched_db.rows[(GUILD_ID, USER_ID)]
+        assert row["xp"] == 5_675, "the admin's XP was overwritten"
+        assert row["level"] == 10
+
+        reloaded = await cache.get_user_data(USER_ID, GUILD_ID)
+        assert reloaded["xp"] == 5_675
+
+    @pytest.mark.asyncio
+    async def test_our_write_lands_when_the_row_is_unchanged(self, cache, patched_db):
+        loaded = {"user_id": USER_ID, "guild_id": GUILD_ID, "xp": 100, "level": 0,
+                  "messages": 5, "updated_at": 1_000}
+        patched_db.seed(GUILD_ID, USER_ID, updated_at=1_000, xp=100, level=0, messages=5)
+        with patch("utils.database.get_user_data", AsyncMock(return_value=loaded)):
+            await cache.get_user_data(USER_ID, GUILD_ID)
+
+        await cache.update_user_xp(USER_ID, GUILD_ID, 120, 0, 6, 1_060.0)
+        await cache.flush_all()
+
+        row = patched_db.rows[(GUILD_ID, USER_ID)]
+        assert row["xp"] == 120
+        assert row["messages"] == 6
+
+    @pytest.mark.asyncio
+    async def test_deleted_row_is_not_resurrected(self, cache, patched_db):
+        """A guild-wide reset deletes rows; the cache must not re-create them."""
+        loaded = {"user_id": USER_ID, "guild_id": GUILD_ID, "xp": 100, "level": 0,
+                  "messages": 5, "updated_at": 1_000}
+        patched_db.seed(GUILD_ID, USER_ID, updated_at=1_000, xp=100, level=0, messages=5)
+        with patch("utils.database.get_user_data", AsyncMock(return_value=loaded)):
+            await cache.get_user_data(USER_ID, GUILD_ID)
+
+        await cache.update_user_xp(USER_ID, GUILD_ID, 120, 0, 6, 1_060.0)
+        del patched_db.rows[(GUILD_ID, USER_ID)]  # the reset happened
+
+        await cache.flush_all()
+
+        assert (GUILD_ID, USER_ID) not in patched_db.rows
+        assert await cache.get_user_data(USER_ID, GUILD_ID) is None

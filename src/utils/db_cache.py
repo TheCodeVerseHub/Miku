@@ -24,6 +24,7 @@ import asyncio
 import contextlib
 import logging
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 from utils import database as db
@@ -119,20 +120,29 @@ class _Metrics:
 
 
 class _UserCacheEntry:
-    """Cached user leveling data with dirty-tracking."""
+    """Cached user leveling data with dirty-tracking.
 
-    __slots__ = ("data", "dirty", "loaded_at", "new_user")
+    ``token`` is the ``user_levels.updated_at`` value this entry was loaded from
+    (or the one this cache last wrote). It is the concurrency token used by the
+    flush: if the stored value no longer matches, somebody else (the dashboard,
+    a reset command, another process) has changed the row and our cached copies
+    must not overwrite theirs.
+    """
+
+    __slots__ = ("data", "dirty", "loaded_at", "new_user", "token")
 
     def __init__(
         self,
         data: dict[str, Any],
         *,
         new_user: bool = False,
+        token: Any = None,
     ) -> None:
         self.data = data
         self.loaded_at = time.time()
         self.dirty = False
         self.new_user = new_user
+        self.token = token
 
 
 class _GuildConfigEntry:
@@ -265,7 +275,7 @@ class LevelingCache:
             return None
 
         if data is not None:
-            self._user_cache[key] = _UserCacheEntry(data)
+            self._user_cache[key] = _UserCacheEntry(data, token=data.get("updated_at"))
             # Evict oldest if over max
             if len(self._user_cache) > self.MAX_USER_CACHE:
                 self._evict_oldest_users()
@@ -462,28 +472,34 @@ class LevelingCache:
         self.metrics.pending_updates = len(dirty)
         logger.debug("Flushing %d dirty user entries", len(dirty))
 
+        # One timestamp identifies this flush. Writing it explicitly (instead of
+        # NOW()) means we know the token our rows carry without a RETURNING, and
+        # `updated_at` is only ever compared for equality, so app/DB clock skew
+        # is irrelevant.
+        stamp = datetime.now(UTC).replace(tzinfo=None)
+
         try:
             pool = await db.get_pool()
             async with pool.acquire() as conn:
                 new_entries = []
                 existing_entries = []
                 for key, entry in dirty:
-                    if entry.new_user:
+                    if entry.new_user or entry.token is None:
                         new_entries.append((key, entry))
                     else:
                         existing_entries.append((key, entry))
 
                 if new_entries:
-                    await self._batch_insert_users(conn, new_entries)
+                    await self._batch_insert_users(conn, new_entries, stamp)
                 if existing_entries:
-                    await self._batch_update_users(conn, existing_entries)
+                    await self._batch_update_users(conn, existing_entries, stamp)
+
+                stored = await self._fetch_stored_tokens(conn, [key for key, _ in dirty])
+
+            await self._reconcile_flushed(dirty, stored, stamp)
 
             self.metrics.db_user_writes += len(dirty)
             self._reset_backoff()
-
-            # Mark flushed entries as no longer new
-            for _key, entry in dirty:
-                entry.new_user = False
 
         except Exception:
             self._record_error()
@@ -492,12 +508,103 @@ class LevelingCache:
                 entry.dirty = True
             logger.exception("Failed to flush %d user entries", len(dirty))
 
+    async def _reconcile_flushed(
+        self,
+        dirty: list[tuple[tuple[int, int], _UserCacheEntry]],
+        stored: dict[tuple[int, int], Any],
+        stamp: datetime,
+    ) -> None:
+        """Work out what actually happened to each flushed entry.
+
+        Three outcomes:
+
+        * the row carries ``stamp`` - our write landed, keep the cached values;
+        * the row carries something else - another writer won (dashboard,
+          reset, another process). Their values stand and ours are dropped by
+          reloading the row, so a cache flush can never silently revert an
+          administrator's change;
+        * the row is gone - it was deleted (guild/member reset), so the cached
+          entry is dropped instead of being re-created.
+        """
+        for key, entry in dirty:
+            guild_id, user_id = key
+            if key not in stored:
+                logger.info(
+                    "LevelingCache: row for user=%s guild=%s disappeared (reset?), dropping cached XP",
+                    user_id,
+                    guild_id,
+                )
+                self._user_cache.pop(key, None)
+                continue
+
+            if stored[key] == stamp:
+                entry.token = stamp
+                entry.new_user = False
+                continue
+
+            logger.info(
+                "LevelingCache: user=%s guild=%s changed outside the bot (updated_at %s != %s); "
+                "discarding cached XP and reloading",
+                user_id,
+                guild_id,
+                stored[key],
+                stamp,
+            )
+            await self._reload_entry(key, entry)
+
+    async def _reload_entry(self, key: tuple[int, int], entry: _UserCacheEntry) -> None:
+        """Replace a cache entry with the current database row."""
+        guild_id, user_id = key
+        try:
+            row = await db.get_user_data(user_id, guild_id)
+        except Exception:
+            self.metrics.db_errors += 1
+            logger.exception("Failed to reload user=%s guild=%s after conflict", user_id, guild_id)
+            entry.dirty = True  # try again on the next flush
+            return
+
+        if row is None:
+            self._user_cache.pop(key, None)
+            return
+
+        # Mutate in place: callers may still hold a reference to this dict.
+        entry.data.clear()
+        entry.data.update(row)
+        entry.token = row.get("updated_at")
+        entry.new_user = False
+        entry.dirty = False
+        entry.loaded_at = time.time()
+
+    async def _fetch_stored_tokens(
+        self,
+        conn,
+        keys: list[tuple[int, int]],
+    ) -> dict[tuple[int, int], Any]:
+        """Return ``{(guild_id, user_id): updated_at}`` for the given keys."""
+        if not keys:
+            return {}
+        guild_ids = [key[0] for key in keys]
+        user_ids = [key[1] for key in keys]
+        rows = await conn.fetch(
+            "SELECT guild_id, user_id, updated_at FROM user_levels "
+            "WHERE guild_id = ANY($1::bigint[]) AND user_id = ANY($2::bigint[])",
+            guild_ids,
+            user_ids,
+        )
+        return {(row["guild_id"], row["user_id"]): row["updated_at"] for row in rows}
+
     async def _batch_insert_users(
         self,
         conn,
         entries: list[tuple[tuple[int, int], _UserCacheEntry]],
+        stamp: datetime,
     ) -> None:
-        """Batch INSERT new users using a single executemany."""
+        """Batch INSERT new users using a single executemany.
+
+        ``DO NOTHING`` rather than ``DO UPDATE``: if another writer created the
+        row while it was cached, their values win and ``_reconcile_flushed``
+        reloads it.
+        """
         if not entries:
             return
         records = []
@@ -509,19 +616,15 @@ class LevelingCache:
                 d.get("xp", 0),
                 d.get("level", 0),
                 d.get("messages", 0),
-                d.get("last_message_time", 0),
+                d.get("last_message_time", 0) or 0,
+                stamp,
             ))
         await conn.executemany(
             """
             INSERT INTO user_levels
                 (user_id, guild_id, xp, level, messages, last_message_time, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, NOW())
-            ON CONFLICT(user_id, guild_id) DO UPDATE SET
-                xp = EXCLUDED.xp,
-                level = EXCLUDED.level,
-                messages = EXCLUDED.messages,
-                last_message_time = EXCLUDED.last_message_time,
-                updated_at = NOW()
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (user_id, guild_id) DO NOTHING
             """,
             records,
         )
@@ -530,8 +633,13 @@ class LevelingCache:
         self,
         conn,
         entries: list[tuple[tuple[int, int], _UserCacheEntry]],
+        stamp: datetime,
     ) -> None:
-        """Batch UPDATE existing users using a single executemany."""
+        """Batch UPDATE existing users using a single executemany.
+
+        The ``updated_at = $8`` predicate is the optimistic-concurrency guard: a
+        row that changed since it was cached does not match and is left alone.
+        """
         if not entries:
             return
         records = []
@@ -541,16 +649,19 @@ class LevelingCache:
                 d.get("xp", 0),
                 d.get("level", 0),
                 d.get("messages", 0),
-                d.get("last_message_time", 0),
+                d.get("last_message_time", 0) or 0,
                 user_id,
                 guild_id,
+                stamp,
+                entry.token,
             ))
         await conn.executemany(
             """
             UPDATE user_levels
             SET xp = $1, level = $2, messages = $3,
-                last_message_time = $4, updated_at = NOW()
+                last_message_time = $4, updated_at = $7
             WHERE user_id = $5 AND guild_id = $6
+              AND updated_at = $8
             """,
             records,
         )
