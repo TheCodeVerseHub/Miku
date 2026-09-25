@@ -556,8 +556,14 @@ async def get_analytics(request: Request, guild_id: int):
 
 
 @app.get("/api/bot/stats")
-async def bot_stats():
-    """Get global bot statistics."""
+async def bot_stats(request: Request):
+    """Get global bot statistics (any logged-in dashboard user).
+
+    This used to be anonymous, so anyone who could reach the port could read
+    the bot's total user count, XP and message volume without a session.
+    """
+    await require_auth(request)
+
     db = await get_db()
     async with db.acquire() as conn:
         guild_count = await conn.fetchval(

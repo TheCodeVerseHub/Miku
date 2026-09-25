@@ -5,6 +5,10 @@ Provides:
 - /health — Basic health check (used by Docker healthcheck)
 - /health/db — Database connectivity check
 - /health/ready — Readiness probe (checks DB + Discord API)
+
+These routes are deliberately unauthenticated (a container healthcheck cannot
+hold a session), so they must never echo anything about the deployment back to
+the caller: failures return a generic reason and the real error goes to the log.
 """
 
 import logging
@@ -13,12 +17,16 @@ import time
 from datetime import UTC, datetime
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger("dashboard.health")
 
 router = APIRouter(prefix="/health", tags=["health"])
 
 START_TIME = time.time()
+
+#: Public failure text. Deliberately says nothing about host/credentials.
+DB_UNAVAILABLE = "database unavailable"
 
 
 def _uptime() -> str:
@@ -38,6 +46,27 @@ def _uptime() -> str:
     return " ".join(parts)
 
 
+async def probe_database() -> tuple[bool, str | None]:
+    """Run `SELECT 1` and report whether the database is reachable.
+
+    Returns ``(ok, public_reason)``. The exception's *type* is reported because
+    "connection refused" and "password authentication failed" are genuinely
+    useful to an operator, while its message (which can contain the DSN, host,
+    port and role) is only logged - these routes are public.
+    """
+    from .database import get_db
+
+    try:
+        db = await get_db()
+        async with db.acquire() as conn:
+            await conn.fetchval("SELECT 1")
+    except Exception as exc:
+        # `logger.exception` keeps the full traceback in the server log.
+        logger.exception("Health check DB failure")
+        return False, f"{DB_UNAVAILABLE} ({type(exc).__name__})"
+    return True, None
+
+
 @router.get("")
 async def health():
     """Basic health check — always responds unless the process is dying."""
@@ -52,42 +81,36 @@ async def health():
 
 @router.get("/db")
 async def health_db():
-    """Database connectivity check."""
-    from .database import get_db
+    """Database connectivity check.
 
-    db = None
-    try:
-        db = await get_db()
-        async with db.acquire() as conn:
-            await conn.fetchval("SELECT 1")
-        return {
-            "status": "ok",
-            "database": "connected",
-        }
-    except Exception as e:
-        logger.error("Health check DB failure: %s", e)
-        return {
-            "status": "error",
-            "database": "disconnected",
-            "error": str(e),
-        }
+    Returns 503 (not 200) when the database is down, so a plain HTTP status
+    check in a load balancer or monitor does the right thing.
+    """
+    ok, reason = await probe_database()
+    if not ok:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "error", "database": "disconnected", "reason": reason},
+        )
+    return {
+        "status": "ok",
+        "database": "connected",
+    }
 
 
 @router.get("/ready")
 async def health_ready():
     """Readiness probe — confirms DB is reachable and bot events are being processed.
 
-    Returns HTTP 503 if not healthy (handled by FastAPI exception handling).
+    Returns HTTP 503 if not healthy.
     """
-    db_status = await health_db()
-    if db_status.get("status") != "ok":
-        from fastapi.responses import JSONResponse
-
+    ok, _reason = await probe_database()
+    if not ok:
         return JSONResponse(
             status_code=503,
             content={
                 "status": "not_ready",
-                "database": db_status.get("database", "unknown"),
+                "database": "disconnected",
                 "uptime": _uptime(),
             },
         )
