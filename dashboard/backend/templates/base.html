@@ -156,7 +156,7 @@
                                 <img src="https://cdn.discordapp.com/icons/{{ guild_id }}/{{ guild_icon }}.png" alt="">
                             </span>
                             {% elif guild_id %}
-                            <span class="server-icon" style="background: var(--accent); color: white;" x-text="'{{ guild_name[:1] or 'S' }}'"></span>
+                            <span class="server-icon" style="background: var(--accent); color: white;">{{ guild_name[:1] or 'S' }}</span>
                             {% else %}
                             <span class="server-icon" style="background: var(--bg-elevated);">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px; color: var(--text-muted);">

@@ -26,7 +26,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import URLSafeTimedSerializer
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 # Add bot src/ and shared/ to path so we can reuse modules
 BOT_SRC = str((Path(__file__).parent.parent.parent / "src").resolve())
@@ -105,9 +105,15 @@ setup_security(app, config.session_secret)
 # Register health check routes
 app.include_router(health_router)
 
-# Templates (using raw Jinja2)
+# Templates (using raw Jinja2).
+# `autoescape` is not optional here: guild names come from Discord and are
+# attacker-controlled, and they are interpolated into these templates. Without
+# it a server named `<script>…</script>` executed in every member's dashboard.
 _templates_dir = str(Path(__file__).parent / "templates")
-_jinja_env = Environment(loader=FileSystemLoader(_templates_dir))
+_jinja_env = Environment(
+    loader=FileSystemLoader(_templates_dir),
+    autoescape=select_autoescape(["html", "htm", "xml"]),
+)
 
 
 def render(name: str, **context) -> HTMLResponse:
