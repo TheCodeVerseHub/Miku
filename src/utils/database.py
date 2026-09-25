@@ -21,6 +21,7 @@ When adding a new feature that needs data:
 """
 
 import contextlib
+import json
 import logging
 import os
 from typing import Any
@@ -740,20 +741,29 @@ async def insert_audit_log(
     action: str,
     details: dict[str, Any] | None = None,
 ) -> None:
-    """Record an admin action in the audit log."""
+    """Record an admin action in the audit log.
+
+    ``details`` must be serialised before it reaches asyncpg: there is no
+    implicit dict -> jsonb codec, so passing the dict directly raises
+    ``TypeError: expected str, got dict`` and the entry is never written.
+    """
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute('''
             INSERT INTO audit_log (guild_id, user_id, admin_id, action, details)
             VALUES ($1, $2, $3, $4, $5::jsonb)
-        ''', guild_id, user_id, admin_id, action, details or {})
+        ''', guild_id, user_id, admin_id, action, json.dumps(details or {}))
 
 async def get_audit_log(
     guild_id: int,
     limit: int = 100,
     offset: int = 0,
 ) -> list[dict[str, Any]]:
-    """Get recent audit log entries for a guild."""
+    """Get recent audit log entries for a guild.
+
+    ``details`` is decoded back into a dict so callers (and any future API)
+    do not have to know it is stored as jsonb.
+    """
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -762,5 +772,12 @@ async def get_audit_log(
             'ORDER BY created_at DESC LIMIT $2 OFFSET $3',
             guild_id, limit, offset
         )
-        return [dict(r) for r in rows]
+
+    entries = [dict(r) for r in rows]
+    for entry in entries:
+        details = entry.get("details")
+        if isinstance(details, str):
+            with contextlib.suppress(json.JSONDecodeError, TypeError):
+                entry["details"] = json.loads(details)
+    return entries
 

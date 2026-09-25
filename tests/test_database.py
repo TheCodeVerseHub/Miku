@@ -1,10 +1,11 @@
 """
-Tests for database operations (src/utils/database.py).
+Tests for database operations (utils/database.py).
 
 These are unit tests with mocked asyncpg pool. For integration tests
 that require a real database, see tests/test_integration.py.
 """
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -113,6 +114,54 @@ async def test_get_guild_settings(mock_pool):
         settings = await db.get_guild_settings(456)
         assert settings is not None
         assert settings["xp_enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_insert_audit_log_serializes_details(mock_pool):
+    """`details` must be a JSON string - asyncpg cannot encode a dict for jsonb.
+
+    Passing the dict straight through made every audit write raise
+    ``TypeError: expected str, got dict``, which the caller swallowed, so the
+    audit log was silently always empty.
+    """
+    with patch("utils.database._pool", mock_pool):
+        from utils import database as db
+
+        await db.insert_audit_log(1, 2, 3, "set_level", {"old_level": 1, "new_level": 7})
+
+    conn = mock_pool.acquire.return_value.__aenter__.return_value
+    params = conn.execute.call_args.args
+    assert len(params) == 6, "SQL statement + 5 bound parameters"
+
+    payload = params[-1]
+    assert isinstance(payload, str), "a dict here raises TypeError from asyncpg"
+    assert json.loads(payload) == {"old_level": 1, "new_level": 7}
+
+
+@pytest.mark.asyncio
+async def test_insert_audit_log_defaults_to_empty_json_object(mock_pool):
+    with patch("utils.database._pool", mock_pool):
+        from utils import database as db
+
+        await db.insert_audit_log(1, 2, 3, "reset_guild")
+
+    conn = mock_pool.acquire.return_value.__aenter__.return_value
+    assert conn.execute.call_args.args[-1] == "{}"
+
+
+@pytest.mark.asyncio
+async def test_get_audit_log_decodes_details(mock_pool):
+    """Rows come back with jsonb as a string; the helper decodes it."""
+    with patch("utils.database._pool", mock_pool):
+        from utils import database as db
+
+        conn = mock_pool.acquire.return_value.__aenter__.return_value
+        conn.fetch = AsyncMock(
+            return_value=[{"id": 1, "action": "add_xp", "details": '{"amount": 50}'}]
+        )
+        entries = await db.get_audit_log(1)
+
+    assert entries[0]["details"] == {"amount": 50}
 
 
 @pytest.mark.asyncio
