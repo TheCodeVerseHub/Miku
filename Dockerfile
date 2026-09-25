@@ -34,9 +34,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv (fast Python package installer)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Install Python dependencies
+# Install Python dependencies.
+#
+# The project must be installed as editable *after* its sources are present.
+# setuptools auto-discovers the `src/` layout, so installing with only
+# `pyproject.toml` in the build context discovers no packages and silently
+# produces an editable install with an empty module mapping. The container then
+# starts, but `import cogs/services/shared/utils` fails - which only `main.py`
+# hides via its own sys.path manipulation. The assertion below fails the build
+# loudly if that ever regresses.
 COPY pyproject.toml requirements.txt ./
-RUN uv pip install --system -e .
+COPY src/ ./src/
+RUN uv pip install --system -e . \
+    && python -c "import cogs, services, shared, utils; from shared.formula import calculate_level; calculate_level(1000)"
 
 # Dashboard dependencies
 COPY dashboard/requirements.txt dashboard/

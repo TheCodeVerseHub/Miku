@@ -21,17 +21,22 @@ from pathlib import Path
 from typing import Any, cast
 
 PROJECT_ROOT = Path(__file__).parent.resolve()
+SRC_PATH = str(PROJECT_ROOT / "src")
 
-# Add project root so `shared/` modules are importable
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-# Add src directory to path so `import bot` resolves to `Miku/src/bot.py`.
-# Note: there is also a legacy `Miku/bot/` package in this repo, so we insert
-# `src/` at the front to make the intended module win.
-src_path = str(PROJECT_ROOT / "src")
-if src_path not in sys.path:
-    sys.path.insert(0, src_path)
+# `import bot` must resolve to `Miku/src/bot.py`, not to the legacy `Miku/bot/`
+# package that also lives in this repository.
+#
+# This cannot use a simple `if path not in sys.path: sys.path.insert(0, path)`
+# guard. An editable install (`uv sync`, `pip install -e .`) already puts
+# `src/` on `sys.path`, but appends it *after* the project root - and the
+# project root (which holds the legacy `bot/` package) is always on the path
+# because it contains this file. The guard would then skip the insert and the
+# legacy package would win, crashing startup with a pydantic error from
+# `bot/config.py`. So always move both entries to the front, `src/` first.
+for path in (str(PROJECT_ROOT), SRC_PATH):
+    while path in sys.path:
+        sys.path.remove(path)
+    sys.path.insert(0, path)
 
 if __name__ == "__main__":
     bot_module = importlib.import_module("bot")
