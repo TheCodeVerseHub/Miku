@@ -45,8 +45,10 @@ async def db_pool():
 
     import asyncpg
 
+    from shared.db_url import to_asyncpg_dsn
+
     pool = await asyncpg.create_pool(
-        database_url,
+        to_asyncpg_dsn(database_url),
         min_size=1,
         max_size=2,
         statement_cache_size=0,

@@ -29,6 +29,8 @@ from typing import Any
 import asyncpg
 from dotenv import load_dotenv
 
+from shared.db_url import to_asyncpg_dsn
+
 load_dotenv()
 
 logger = logging.getLogger('miku.database')
@@ -47,6 +49,10 @@ async def get_pool() -> asyncpg.Pool:
         database_url = os.getenv('DATABASE_URL')
         if not database_url:
             raise ValueError("DATABASE_URL environment variable not set")
+
+        # asyncpg rejects the SQLAlchemy-style `postgresql+asyncpg://` scheme that
+        # the docs, docker-compose and CI all use, so strip the driver suffix.
+        database_url = to_asyncpg_dsn(database_url)
 
         # NOTE: `statement_cache_size=0` is intentional.
         # asyncpg caches prepared statements by default; after DDL (ALTER TABLE)

@@ -28,6 +28,7 @@ if config.config_file_name is not None:
 # Import our declarative Base and all models so autogenerate can detect them
 # (This imports from the legacy bot/ codebase which uses SQLAlchemy)
 from bot.extensions.leveling.models.sql import Base as LegacyBase  # noqa: E402
+from shared.db_url import to_async_sqlalchemy_url  # noqa: E402
 
 target_metadata = LegacyBase.metadata
 
@@ -73,13 +74,8 @@ def do_run_migrations(connection):
 
 async def run_async_migrations() -> None:
     """Run migrations in async mode using create_async_engine."""
-    # Use asyncpg driver for the URL
-    async_url = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
-    if "+asyncpg" not in async_url:
-        # Already has a driver specifier
-        parts = async_url.split("://", 1)
-        if "+" not in parts[0]:
-            async_url = f"{parts[0]}+asyncpg://{parts[1]}"
+    # Use the asyncpg driver for the URL, however the env var was spelled.
+    async_url = to_async_sqlalchemy_url(DATABASE_URL)
 
     connectable = create_async_engine(async_url, poolclass=pool.NullPool)
 

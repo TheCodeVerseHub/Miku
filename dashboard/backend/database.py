@@ -9,6 +9,10 @@ import logging
 
 import asyncpg
 
+# `main.py` puts the bot's `src/` on sys.path before importing this module; the
+# DSN helper is shared with the bot so both accept the same `DATABASE_URL`.
+from shared.db_url import to_asyncpg_dsn
+
 from .config import config
 
 logger = logging.getLogger("dashboard.db")
@@ -23,7 +27,7 @@ async def get_db() -> asyncpg.Pool:
         if not config.database_url:
             raise RuntimeError("DATABASE_URL not configured")
         _pool = await asyncpg.create_pool(
-            config.database_url,
+            to_asyncpg_dsn(config.database_url),
             min_size=1,
             max_size=5,
             command_timeout=30,
