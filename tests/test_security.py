@@ -57,23 +57,24 @@ class TestCSRFProtection:
         assert validate_csrf_token(token, "secret2") is False
 
     def test_expired_token(self, secret):
-        import hashlib
+        """A token older than ``max_age`` is rejected, a fresh one is accepted.
 
-        # We can't easily travel in time, but we can test with a very short
-        # max_age by manipulating the token
+        The age (100s) is comfortably between the two ``max_age`` values so the
+        test cannot fail on the boundary just because it took a second to run.
+        """
+        import hashlib
         import hmac
         import os
 
         from dashboard.backend.security import validate_csrf_token
 
-        data = f"{os.urandom(32).hex()}:{int(time.time()) - 7200}"  # 2 hours old
+        issued_at = int(time.time()) - 100
+        data = f"{os.urandom(32).hex()}:{issued_at}"
         sig = hmac.new(secret.encode(), data.encode(), hashlib.sha256).hexdigest()[:16]
-        old_token = f"{data}:{sig}"
+        token = f"{data}:{sig}"
 
-        # Should fail with 1-hour max age
-        assert validate_csrf_token(old_token, secret, max_age=3600) is False
-        # Should pass with 3-hour max age
-        assert validate_csrf_token(old_token, secret, max_age=7200) is True
+        assert validate_csrf_token(token, secret, max_age=60) is False
+        assert validate_csrf_token(token, secret, max_age=3600) is True
 
 
 class TestRateLimiter:
@@ -124,8 +125,12 @@ class TestInputValidation:
         assert sanitize_search_query("hello") == "hello"
         assert sanitize_search_query("hello world") == "hello world"
         assert sanitize_search_query("user@123") == "user@123"
+        # Quotes, parentheses and angle brackets are stripped.
         assert sanitize_search_query("script>alert('xss')<script") == "scriptalertxssscript"
-        assert sanitize_search_query("1=1--") == "11"
+        # `=` and `%` are stripped; hyphens and underscores are allowed by
+        # design (they appear in usernames) - the query itself is parameterized.
+        assert sanitize_search_query("1=1--") == "11--"
+        assert sanitize_search_query("100%_") == "100_"
         assert len(sanitize_search_query("a" * 200)) <= 100
 
     def test_validate_guild_id(self):

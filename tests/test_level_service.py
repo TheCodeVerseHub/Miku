@@ -17,20 +17,23 @@ class TestLevelService:
         return LevelService(mock_bot)
 
     def test_calculate_level(self, service):
-        """Test level calculation using default quadratic formula."""
-        assert service.calculate_level(0) == 1
-        assert service.calculate_level(220) >= 2
-        assert service.calculate_level(3850) >= 10
+        """Test level calculation using default quadratic formula (0-based)."""
+        assert service.calculate_level(0) == 0
+        assert service.calculate_level(155) == 1
+        assert service.calculate_level(375) == 2
+        assert service.calculate_level(5675) == 10
 
     def test_calculate_xp_for_level(self, service):
         """Test XP calculation for a level."""
-        assert service.calculate_xp_for_level(1) == 0
-        assert service.calculate_xp_for_level(2) == 220
+        assert service.calculate_xp_for_level(0) == 0
+        assert service.calculate_xp_for_level(1) == 155
+        assert service.calculate_xp_for_level(2) == 375
 
     def test_calculate_xp_to_next_level(self, service):
         """Test XP-to-next-level calculation."""
-        _xp_needed, xp_progress, xp_required = service.calculate_xp_to_next_level(0, 1)
-        assert xp_required == 220
+        xp_needed, xp_progress, xp_required = service.calculate_xp_to_next_level(0, 0)
+        assert xp_required == 155
+        assert xp_needed == 155
         assert xp_progress == 0
 
     def test_cooldown(self, service):
@@ -104,8 +107,9 @@ class TestLevelService:
     @pytest.mark.asyncio
     async def test_set_level(self, service):
         """Test admin set-level operation."""
-        with patch("utils.database.get_user_data",
-                   AsyncMock(return_value={"xp": 100, "level": 2, "messages": 5})), \
+        # 375 XP is a valid level 2 (level 1 costs 155, level 2 costs 220).
+        existing = {"xp": 375, "level": 2, "messages": 5}
+        with patch("utils.database.get_user_data", AsyncMock(return_value=existing)), \
              patch("utils.database.set_user_level", AsyncMock()), \
              patch("utils.database.insert_xp_log", AsyncMock()), \
              patch("utils.database.insert_audit_log", AsyncMock()):
@@ -119,7 +123,7 @@ class TestLevelService:
             )
             assert result["old_level"] == 2
             assert result["new_level"] == 10
-            assert result["xp"] > 0
+            assert result["xp"] == service.calculate_xp_for_level(10)
 
     @pytest.mark.asyncio
     async def test_set_level_negative_raises(self, service):
@@ -132,8 +136,8 @@ class TestLevelService:
     @pytest.mark.asyncio
     async def test_add_xp(self, service):
         """Test admin add-XP operation."""
-        with patch("utils.database.get_user_data",
-                   AsyncMock(return_value={"xp": 100, "level": 2, "messages": 5})), \
+        existing = {"xp": 375, "level": 2, "messages": 5}  # a consistent level/xp pair
+        with patch("utils.database.get_user_data", AsyncMock(return_value=existing)), \
              patch("utils.database.update_user_xp", AsyncMock()), \
              patch("utils.database.insert_xp_log", AsyncMock()), \
              patch("utils.database.insert_audit_log", AsyncMock()):
@@ -145,16 +149,17 @@ class TestLevelService:
                 admin_id=789,
                 reason="Bonus",
             )
-            assert result["old_xp"] == 100
-            assert result["new_xp"] == 600
+            assert result["old_xp"] == 375
+            assert result["new_xp"] == 875
             assert result["old_level"] == 2
-            assert result["new_level"] > 2
+            assert result["new_level"] == 3
 
     @pytest.mark.asyncio
     async def test_remove_xp(self, service):
         """Test admin remove-XP operation."""
-        with patch("utils.database.get_user_data",
-                   AsyncMock(return_value={"xp": 1000, "level": 10, "messages": 50})), \
+        # 5675 XP is exactly level 10, so 5675 - 200 = 5475 drops back to level 9.
+        existing = {"xp": 5675, "level": 10, "messages": 50}
+        with patch("utils.database.get_user_data", AsyncMock(return_value=existing)), \
              patch("utils.database.update_user_xp", AsyncMock()), \
              patch("utils.database.insert_xp_log", AsyncMock()), \
              patch("utils.database.insert_audit_log", AsyncMock()):
@@ -166,7 +171,8 @@ class TestLevelService:
                 admin_id=789,
                 reason="Correction",
             )
-            assert result["new_xp"] == 800
+            assert result["new_xp"] == 5475
+            assert result["new_level"] == 9
 
 
 class TestXpSource:

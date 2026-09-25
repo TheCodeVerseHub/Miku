@@ -76,26 +76,50 @@ async def test_rank_card_caching():
 
 @pytest.mark.asyncio
 async def test_avatar_fetch_caching():
-    """Test avatar caching."""
+    """Test that avatars are downloaded once and then served from cache."""
+    import io
+
+    from aioresponses import aioresponses
+    from PIL import Image
+
     from utils.rank_card import RankCardGenerator
 
+    url = "https://cdn.example.com/avatar.png"
     generator = RankCardGenerator(avatar_cache_size=10, avatar_cache_ttl=60)
 
-    # Mock the HTTP session
-    mock_image_data = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100  # Minimal PNG
-    mock_response = AsyncMock()
-    mock_response.status = 200
-    mock_response.read = AsyncMock(return_value=mock_image_data)
-    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_response.__aexit__ = AsyncMock()
+    # A real (tiny) PNG: the generator decodes the response with Pillow, so a
+    # hand-rolled byte string that only *looks* like a PNG returns None.
+    buffer = io.BytesIO()
+    Image.new("RGBA", (8, 8), (255, 0, 0, 255)).save(buffer, format="PNG")
+    png_bytes = buffer.getvalue()
 
-    with patch.object(generator._http, "get", AsyncMock(return_value=mock_response)):
-        avatar = await generator._fetch_avatar("https://example.com/avatar.png")
+    with aioresponses() as mocked:
+        mocked.get(url, status=200, body=png_bytes)
+
+        avatar = await generator._fetch_avatar(url)
         assert avatar is not None
 
-        # Second call should use cache (no HTTP request)
-        avatar2 = await generator._fetch_avatar("https://example.com/avatar.png")
-        assert avatar2 is avatar  # Same cached object
+        # A second fetch must be served from the avatar cache (aioresponses
+        # only registered one response for that URL).
+        avatar2 = await generator._fetch_avatar(url)
+        assert avatar2 is avatar
+
+    await generator.close()
+
+
+@pytest.mark.asyncio
+async def test_avatar_fetch_failure_returns_none():
+    """A failed avatar download must not raise - the card still renders."""
+    from aioresponses import aioresponses
+
+    from utils.rank_card import RankCardGenerator
+
+    url = "https://cdn.example.com/missing.png"
+    generator = RankCardGenerator()
+
+    with aioresponses() as mocked:
+        mocked.get(url, status=404)
+        assert await generator._fetch_avatar(url) is None
 
     await generator.close()
 

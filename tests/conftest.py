@@ -8,11 +8,10 @@ Provides:
 - Sample data factories
 """
 
-import asyncio
 import os
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+import discord
 import pytest
 import pytest_asyncio
 
@@ -31,14 +30,6 @@ def pytest_configure(config):
 # ──────────────────────────────────────────────────────────────────────
 # Database fixtures (require a running PostgreSQL instance)
 # ──────────────────────────────────────────────────────────────────────
-
-
-@pytest_asyncio.fixture(scope="session")
-def event_loop():
-    """Create a single event loop for the entire test session."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest_asyncio.fixture
@@ -118,8 +109,14 @@ def mock_discord_user():
 
 @pytest.fixture
 def mock_discord_member(mock_discord_user):
-    """Create a mock Discord guild member."""
-    member = MagicMock()
+    """Create a mock Discord guild member.
+
+    ``spec=discord.Member`` matters: production code guards on
+    ``isinstance(author, discord.Member)`` (see ``LevelService.award_message_xp``),
+    and a plain ``MagicMock`` fails that check, so the code under test silently
+    took its "not a member" path and the assertions never exercised anything.
+    """
+    member = MagicMock(spec=discord.Member)
     member.id = mock_discord_user.id
     member.name = mock_discord_user.name
     member.display_name = mock_discord_user.display_name
@@ -143,7 +140,7 @@ def mock_discord_member(mock_discord_user):
 @pytest.fixture
 def mock_discord_message(mock_discord_member):
     """Create a mock Discord message."""
-    message = MagicMock()
+    message = MagicMock(spec=discord.Message)
     message.id = 111111111111111111
     message.author = mock_discord_member
     message.guild = mock_discord_member.guild
@@ -168,35 +165,4 @@ def mock_bot():
     return bot
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Formula test data
-# ──────────────────────────────────────────────────────────────────────
 
-
-@pytest.fixture
-def sample_formula_data() -> dict[str, Any]:
-    """Sample XP/level data for formula tests."""
-    return {
-        "quadratic": {
-            "level_1_xp": 0,
-            "level_5_xp": 155 * 5,  # Total for levels 1-5
-            "level_10_xp": 3850,
-            "level_50_xp": 89250,
-        }
-    }
-
-
-# ──────────────────────────────────────────────────────────────────────
-# HTTP mock fixtures
-# ──────────────────────────────────────────────────────────────────────
-
-
-@pytest.fixture
-def mock_http_session():
-    """Create a mock aiohttp ClientSession."""
-    import aiohttp
-
-    session = MagicMock(spec=aiohttp.ClientSession)
-    session.closed = False
-    session.close = AsyncMock()
-    return session
