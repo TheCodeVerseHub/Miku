@@ -44,6 +44,13 @@ class DashboardConfig:
     port: int = field(
         default_factory=lambda: int(os.getenv("DASHBOARD_PORT", "8000"))
     )
+    #: Set to a truthy value when the app sits behind a reverse proxy, so
+    #: X-Forwarded-For can be trusted for rate limiting. Off by default: a
+    #: client reaching the app directly must not be able to name its own IP.
+    trusted_proxy: bool = field(
+        default_factory=lambda: os.getenv("TRUSTED_PROXY", "").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
 
 
 config = DashboardConfig()

@@ -13,9 +13,9 @@ import hmac
 import logging
 import os
 import time
-from collections import defaultdict
 from collections.abc import Callable
 
+from cachetools import TTLCache
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -29,12 +29,30 @@ logger = logging.getLogger("dashboard.security")
 
 
 class RateLimiter:
-    """Simple in-memory sliding-window rate limiter."""
+    """In-memory sliding-window rate limiter with a bounded store.
 
-    def __init__(self, max_requests: int = 60, window_seconds: int = 60):
+    The store is a `TTLCache`: a client that goes quiet for a whole window is
+    forgotten, and a hard `maxsize` caps how many clients can be remembered at
+    once. The previous `defaultdict(list)` pruned timestamps but never keys, so
+    every new IP/path pair added a permanent entry - an unauthenticated caller
+    could grow the process's memory without ever authenticating.
+    """
+
+    def __init__(
+        self,
+        max_requests: int = 60,
+        window_seconds: int = 60,
+        max_keys: int = 10_000,
+        timer: Callable[[], float] = time.monotonic,
+    ):
         self.max_requests = max_requests
         self.window = window_seconds
-        self._requests: dict[str, list[float]] = defaultdict(list)
+        self._timer = timer
+        # `ttl == window` is safe: when an idle key expires, everything it holds
+        # is already outside the sliding window, so no history is really lost.
+        self._requests: TTLCache = TTLCache(
+            maxsize=max_keys, ttl=window_seconds, timer=timer
+        )
 
     def check(self, key: str) -> tuple[bool, int]:
         """Check if *key* is rate-limited.
@@ -42,22 +60,47 @@ class RateLimiter:
         Returns:
             (allowed: bool, retry_after_seconds: int)
         """
-        now = time.time()
+        now = self._timer()
         window_start = now - self.window
 
-        # Prune old entries
-        timestamps = self._requests[key]
-        self._requests[key] = [t for t in timestamps if t > window_start]
+        self._requests.expire()  # drop clients that have gone quiet
+        timestamps = [t for t in self._requests.get(key, ()) if t > window_start]
 
-        if len(self._requests[key]) >= self.max_requests:
-            retry_after = int(self.window - (now - self._requests[key][0]))
+        if len(timestamps) >= self.max_requests:
+            # Re-insert so an active (but blocked) client does not lose the
+            # history that is still keeping it blocked.
+            self._requests[key] = timestamps
+            retry_after = int(self.window - (now - timestamps[0]))
             return False, max(1, retry_after)
 
-        self._requests[key].append(now)
+        timestamps.append(now)
+        self._requests[key] = timestamps
         return True, 0
 
     def reset(self, key: str) -> None:
         self._requests.pop(key, None)
+
+    def tracked_keys(self) -> int:
+        """Number of clients currently remembered (for tests/metrics)."""
+        self._requests.expire()
+        return len(self._requests)
+
+
+def client_identity(request: Request, trusted_proxy: bool = False) -> str:
+    """Identify the caller for rate-limiting purposes.
+
+    Behind the reverse proxy this dashboard is documented to run behind,
+    `request.client.host` is the *proxy's* address, so every user shares one
+    bucket: one client could exhaust it for everybody. `X-Forwarded-For` is only
+    believed when the operator has declared a proxy in front (`TRUSTED_PROXY`),
+    because otherwise a client can hand itself a fresh bucket per request.
+    """
+    if trusted_proxy:
+        forwarded = request.headers.get("x-forwarded-for", "")
+        first = forwarded.split(",")[0].strip()
+        if first:
+            return first
+    return request.client.host if request.client else "unknown"
 
 
 # Global rate limiter instances
@@ -190,18 +233,22 @@ def csrf_token_is_valid(cookie_token: str, header_token: str, secret: str) -> bo
     return validate_csrf_token(cookie_token, secret, max_age=CSRF_MAX_AGE_SECONDS)
 
 
-def setup_security(app: FastAPI, session_secret: str) -> None:
+def setup_security(
+    app: FastAPI, session_secret: str, trusted_proxy: bool = False
+) -> None:
     """Register all security middleware on the FastAPI app."""
     app.add_middleware(SecurityHeadersMiddleware)
 
     @app.middleware("http")
     async def rate_limit_middleware(request: Request, call_next: Callable) -> Response:
-        client_ip = request.client.host if request.client else "unknown"
         path = request.url.path
+        identity = client_identity(request, trusted_proxy)
 
-        # Stricter rate limiting for auth endpoints
+        # Stricter rate limiting for auth endpoints. One bucket per caller:
+        # keying on the path as well let a client multiply its allowance simply
+        # by spreading requests over different endpoints.
         if path.startswith("/auth/"):
-            allowed, retry_after = auth_limiter.check(f"auth:{client_ip}")
+            allowed, retry_after = auth_limiter.check(f"auth:{identity}")
             if not allowed:
                 return JSONResponse(
                     status_code=429,
@@ -209,9 +256,8 @@ def setup_security(app: FastAPI, session_secret: str) -> None:
                     headers={"Retry-After": str(retry_after)},
                 )
 
-        # General API rate limiting
         if path.startswith("/api/"):
-            allowed, retry_after = api_limiter.check(f"api:{client_ip}:{path}")
+            allowed, retry_after = api_limiter.check(f"api:{identity}")
             if not allowed:
                 return JSONResponse(
                     status_code=429,

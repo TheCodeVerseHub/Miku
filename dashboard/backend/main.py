@@ -100,7 +100,7 @@ app = FastAPI(
 )
 
 # Setup security middleware (CSRF, rate limiting, headers)
-setup_security(app, config.session_secret)
+setup_security(app, config.session_secret, config.trusted_proxy)
 
 # Register health check routes
 app.include_router(health_router)
