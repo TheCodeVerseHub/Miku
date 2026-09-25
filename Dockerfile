@@ -1,19 +1,21 @@
-"""
-Miku - Multi-stage Dockerfile
-
-Build:
-    docker build -t miku .
-
-Run (bot only):
-    docker run -e DISCORD_BOT_TOKEN=... -e DATABASE_URL=... miku
-
-Run (dashboard only):
-    docker run -e DASHBOARD_CLIENT_ID=... -e DASHBOARD_CLIENT_SECRET=... -e DATABASE_URL=... \
-        miku uvicorn dashboard.backend.main:app --host 0.0.0.0 --port 8000
-
-Run (both with docker-compose):
-    docker-compose up
-"""
+# Miku - Multi-stage Dockerfile
+#
+# Build:
+#     docker build -t miku .
+#
+# Run (bot only):
+#     docker run -e DISCORD_BOT_TOKEN=... -e DATABASE_URL=... miku
+#
+# Run (dashboard only):
+#     docker run -e DASHBOARD_CLIENT_ID=... -e DASHBOARD_CLIENT_SECRET=... -e DATABASE_URL=... \
+#         miku uvicorn dashboard.backend.main:app --host 0.0.0.0 --port 8000
+#
+# Run (both with docker compose):
+#     docker compose up
+#
+# NOTE: a Dockerfile only supports `#` comments. Do not put a Python docstring
+# at the top of this file - the daemon parses the first line as an instruction
+# and the build fails with `unknown instruction: """`.
 
 FROM python:3.14-slim AS builder
 
