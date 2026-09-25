@@ -270,7 +270,9 @@ class LevelingCache:
             if len(self._user_cache) > self.MAX_USER_CACHE:
                 self._evict_oldest_users()
         else:
-            # Store None-marker so we don't re-query DB for non-existent users
+            # Park the key so we don't re-query the DB for every message from a
+            # user who has no row yet. The marker is removed by
+            # `update_user_xp` the moment they earn XP (see there).
             self._user_cache[key] = _UserCacheEntry(
                 {"_exists": False, "user_id": user_id, "guild_id": guild_id},
                 new_user=True,
@@ -297,6 +299,12 @@ class LevelingCache:
                 entry.data["level"] = level
                 entry.data["messages"] = messages
                 entry.data["last_message_time"] = last_message_time
+                # The entry now describes a real member. Dropping the
+                # `_exists: False` marker is essential: callers treat a marked
+                # entry as "no data" and would otherwise reset the running total
+                # to this single message's XP on every message until the 5-minute
+                # TTL expired, silently discarding the XP in between.
+                entry.data.pop("_exists", None)
                 entry.dirty = True
             else:
                 self._user_cache[key] = _UserCacheEntry(

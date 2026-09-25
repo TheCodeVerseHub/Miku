@@ -97,6 +97,59 @@ class TestUserWritePath:
         assert cache._get_user_lock(1, 2) is not cache._get_user_lock(1, 3)
 
 
+class TestNewUserSentinel:
+    """A member with no database row yet must still accumulate XP."""
+
+    @pytest.mark.asyncio
+    async def test_marker_is_cleared_when_xp_is_written(self, cache):
+        with patch("utils.database.get_user_data", AsyncMock(return_value=None)):
+            assert await cache.get_user_data(USER_ID, GUILD_ID) is None
+
+        await cache.update_user_xp(USER_ID, GUILD_ID, 20, 0, 1, 1_000.0)
+
+        data = await cache.get_user_data(USER_ID, GUILD_ID)
+        assert data is not None, "the sentinel must not outlive the first XP write"
+        assert "_exists" not in data
+        assert data["xp"] == 20
+        assert data["messages"] == 1
+
+    @pytest.mark.asyncio
+    async def test_message_xp_accumulates_for_a_brand_new_user(self, bot, mock_discord_message):
+        """Regression: the running total used to reset to a single message's XP.
+
+        Callers treat a cached ``_exists: False`` entry as "no data", so every
+        message recomputed the total from zero until the 5-minute TTL expired -
+        a new member kept only their most recent message's XP.
+        """
+        cache = LevelingCache(bot)
+        service = LevelService(bot, cache=cache)
+
+        gains: list[int] = []
+        with (
+            patch("utils.database.get_user_data", AsyncMock(return_value=None)),
+            patch("utils.database.get_guild_settings", AsyncMock(return_value=None)),
+        ):
+            for _ in range(3):
+                service._cooldowns.clear()  # simulate the 60s cooldown elapsing
+                result = await service.award_message_xp(mock_discord_message)
+                assert result is not None
+                gains.append(result["xp_gained"])
+
+        data = await cache.get_user_data(USER_ID, GUILD_ID)
+        assert data is not None
+        assert data["xp"] == sum(gains), "XP from earlier messages was lost"
+        assert data["messages"] == 3
+
+    @pytest.mark.asyncio
+    async def test_existing_row_is_never_marked_as_missing(self, cache):
+        existing = {"user_id": USER_ID, "guild_id": GUILD_ID, "xp": 500, "level": 2, "messages": 9}
+        with patch("utils.database.get_user_data", AsyncMock(return_value=existing)):
+            data = await cache.get_user_data(USER_ID, GUILD_ID)
+
+        assert data == existing
+        assert "_exists" not in data
+
+
 class TestFlush:
     """Dirty entries are persisted in batches, then marked clean."""
 
