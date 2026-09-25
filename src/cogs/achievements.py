@@ -17,10 +17,15 @@ Achievement Types:
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 import discord
+from cachetools import TTLCache
 from discord.ext import commands
+
+from services.level_service import LevelService, XpSource
+from utils import database as db
 
 logger = logging.getLogger("miku.achievements")
 
@@ -138,14 +143,30 @@ ACHIEVEMENTS: list[Achievement] = [
 class Achievements(commands.Cog):
     """Achievement system — earn badges and rewards for milestones."""
 
+    #: Evaluate a member at most this often (milestones are not urgent).
+    CHECK_THROTTLE_SECONDS = 60
+    #: How long a member's unlocked-id set stays cached.
+    UNLOCKED_TTL_SECONDS = 1800
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self._all_achievements = {a.id: a for a in ACHIEVEMENTS}
+        self._service: LevelService | None = None
+        # (guild_id, user_id) -> set of unlocked achievement ids
+        self._unlocked: TTLCache = TTLCache(maxsize=5000, ttl=self.UNLOCKED_TTL_SECONDS)
+        # (guild_id, user_id) -> last time this member was evaluated
+        self._last_checked: TTLCache = TTLCache(maxsize=5000, ttl=self.CHECK_THROTTLE_SECONDS)
+
+    @property
+    def service(self) -> LevelService:
+        """The shared cache-aware LevelService, like other XP-aware cogs use."""
+        if self._service is None:
+            shared = getattr(self.bot, "leveling_service", None)
+            self._service = shared if shared is not None else LevelService(self.bot)
+        return self._service
 
     async def cog_load(self) -> None:
         """Ensure achievements table exists."""
-        from utils import database as db
-
         pool = await db.get_pool()
         async with pool.acquire() as conn:
             await conn.execute("""
@@ -164,54 +185,149 @@ class Achievements(commands.Cog):
             """)
         logger.info("Achievements cog loaded (%d achievements registered)", len(ACHIEVEMENTS))
 
-    async def check_achievements(
-        self, guild_id: int, user_id: int, stats: dict[str, Any]
-    ) -> list[Achievement]:
-        """Check a user's stats against all achievements and unlock new ones."""
-        from utils import database as db
+    async def _load_unlocked(self, guild_id: int, user_id: int) -> set[str]:
+        """Return the ids this member has unlocked, cached in memory."""
+        key = (guild_id, user_id)
+        cached = self._unlocked.get(key)
+        if cached is not None:
+            return cached
 
         pool = await db.get_pool()
         async with pool.acquire() as conn:
-            # Get already unlocked achievements for this user
-            unlocked_rows = await conn.fetch(
+            rows = await conn.fetch(
                 "SELECT achievement_id FROM user_achievements WHERE guild_id = $1 AND user_id = $2",
                 guild_id, user_id,
             )
-            unlocked_ids = {r["achievement_id"] for r in unlocked_rows}
 
-            newly_unlocked: list[Achievement] = []
+        unlocked = {r["achievement_id"] for r in rows}
+        self._unlocked[key] = unlocked
+        return unlocked
 
-            for achievement in ACHIEVEMENTS:
-                if achievement.id in unlocked_ids:
-                    continue
+    def _pending(self, unlocked: set[str], stats: dict[str, Any]) -> list[Achievement]:
+        """Achievements whose threshold the stats now meet but which are locked."""
+        return [
+            achievement
+            for achievement in ACHIEVEMENTS
+            if achievement.id not in unlocked
+            and stats.get(achievement.check, 0) >= achievement.threshold
+        ]
 
-                # Check if the threshold is met
-                stat_value = stats.get(achievement.check, 0)
-                if stat_value >= achievement.threshold:
-                    # Unlock the achievement
-                    await conn.execute(
-                        """
-                        INSERT INTO user_achievements (guild_id, user_id, achievement_id)
-                        VALUES ($1, $2, $3)
-                        ON CONFLICT DO NOTHING
-                        """,
-                        guild_id, user_id, achievement.id,
-                    )
-                    newly_unlocked.append(achievement)
+    async def check_achievements(
+        self, guild_id: int, user_id: int, stats: dict[str, Any]
+    ) -> list[Achievement]:
+        """Unlock any achievements the given stats qualify for and pay their XP.
 
-                    # Award XP reward if any
-                    if achievement.xp_reward > 0:
-                        try:
-                            await db.insert_xp_log(
-                                guild_id, user_id,
-                                achievement.xp_reward,
-                                "ACHIEVEMENT",
-                                f"Achievement: {achievement.name}",
-                            )
-                        except Exception:
-                            logger.exception("Failed to log XP reward for achievement")
+        Deliberately touches the database only when something is actually being
+        unlocked: the unlocked-id set is cached, and a member who is below every
+        threshold returns before any query runs - this is called from the message
+        path, so it has to be cheap.
+        """
+        unlocked = await self._load_unlocked(guild_id, user_id)
+        newly_unlocked = self._pending(unlocked, stats)
+        if not newly_unlocked:
+            return []
 
-            return newly_unlocked
+        pool = await db.get_pool()
+        async with pool.acquire() as conn:
+            await conn.executemany(
+                """
+                INSERT INTO user_achievements (guild_id, user_id, achievement_id)
+                VALUES ($1, $2, $3)
+                ON CONFLICT DO NOTHING
+                """,
+                [(guild_id, user_id, achievement.id) for achievement in newly_unlocked],
+            )
+
+        unlocked.update(achievement.id for achievement in newly_unlocked)
+
+        # Pay the reward. This used to only write an `xp_log` row, so the member
+        # was told they earned XP that never reached their total.
+        for achievement in newly_unlocked:
+            if achievement.xp_reward > 0:
+                await self._grant_reward(guild_id, user_id, achievement)
+
+        return newly_unlocked
+
+    async def _grant_reward(self, guild_id: int, user_id: int, achievement: Achievement) -> None:
+        """Award an achievement's XP through LevelService (cache-aware + logged)."""
+        try:
+            await self.service.add_xp(
+                guild_id,
+                user_id,
+                achievement.xp_reward,
+                admin_id=0,
+                source=XpSource.EVENT,
+                reason=f"Achievement: {achievement.name}",
+            )
+        except Exception:
+            logger.exception(
+                "Failed to grant achievement reward %s to user=%s guild=%s",
+                achievement.id, user_id, guild_id,
+            )
+
+    async def _collect_stats(self, guild_id: int, user_id: int) -> dict[str, int] | None:
+        """Read the stats achievements are evaluated against (cache-first)."""
+        data = await self.service.get_user_row(guild_id, user_id)
+        if not data:
+            return None
+        return {
+            "level": data.get("level") or 0,
+            "messages": data.get("messages") or 0,
+            "total_xp": data.get("xp") or 0,
+            # Not persisted anywhere yet, so the voice achievements cannot unlock.
+            "voice_hours": 0,
+        }
+
+    def _should_check(self, guild_id: int, user_id: int) -> bool:
+        """Throttle per member so the message path stays cheap."""
+        key = (guild_id, user_id)
+        if key in self._last_checked:
+            return False
+        self._last_checked[key] = time.time()
+        return True
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message) -> None:
+        """Unlock achievements when a member crosses a milestone."""
+        if message.author.bot or message.guild is None:
+            return
+        if not isinstance(message.author, discord.Member):
+            return
+        if not self._should_check(message.guild.id, message.author.id):
+            return
+
+        try:
+            stats = await self._collect_stats(message.guild.id, message.author.id)
+            if stats is None:
+                return
+            unlocked = await self.check_achievements(message.guild.id, message.author.id, stats)
+        except Exception:
+            logger.exception(
+                "Achievement check failed (user=%s guild=%s)",
+                message.author.id, message.guild.id,
+            )
+            return
+
+        if unlocked:
+            await self._announce(message, unlocked)
+
+    async def _announce(self, message: discord.Message, unlocked: list[Achievement]) -> None:
+        """Tell the member (and the channel) about new achievements."""
+        lines = [
+            f"{achievement.icon} **{achievement.name}** — {achievement.description}"
+            + (f" (+{achievement.xp_reward} XP)" if achievement.xp_reward else "")
+            for achievement in unlocked
+        ]
+        embed = discord.Embed(
+            title="\U0001F3C6 Achievement Unlocked!",
+            description=f"{message.author.mention}\n\n" + "\n".join(lines),
+            color=discord.Color.from_rgb(88, 101, 242),
+        )
+        embed.set_thumbnail(url=message.author.display_avatar.url)
+        try:
+            await message.channel.send(embed=embed)
+        except Exception:
+            logger.debug("Could not announce achievements in %s", message.channel)
 
     @commands.hybrid_command(
         name="achievements",
@@ -230,17 +346,7 @@ class Achievements(commands.Cog):
             await ctx.send("Bots don't have achievements!", ephemeral=True)
             return
 
-        from utils import database as db
-
-        pool = await db.get_pool()
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                "SELECT achievement_id, unlocked_at FROM user_achievements "
-                "WHERE guild_id = $1 AND user_id = $2 ORDER BY unlocked_at",
-                ctx.guild.id, target.id,
-            )
-
-        unlocked = {r["achievement_id"] for r in rows}
+        unlocked = await self._load_unlocked(ctx.guild.id, target.id)
 
         embed = discord.Embed(
             title=f"\U0001F3C6 {target.display_name}'s Achievements",

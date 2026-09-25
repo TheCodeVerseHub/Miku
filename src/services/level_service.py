@@ -344,6 +344,14 @@ class LevelService:
     # Cache-aware reads/writes
     # ══════════════════════════════════════════════════════════════════
 
+    async def get_user_row(self, guild_id: int, user_id: int) -> dict[str, Any] | None:
+        """Read a member's cached/raw row, or ``None`` if they have none yet.
+
+        Public counterpart of :meth:`_read_user` for cogs that need the raw
+        columns (messages, xp, level) instead of a computed stat block.
+        """
+        return await self._read_user(guild_id, user_id)
+
     async def _read_user(self, guild_id: int, user_id: int) -> dict[str, Any] | None:
         """Read a member's row, preferring the in-memory cache.
 
