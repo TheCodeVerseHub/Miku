@@ -7,6 +7,10 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from services.level_service import LevelService, RestrictionType, XpSource
+from utils.db_cache import LevelingCache
+
+GUILD_ID = 987654321098765432
+USER_ID = 123456789012345678
 
 
 class TestLevelService:
@@ -110,7 +114,7 @@ class TestLevelService:
         # 375 XP is a valid level 2 (level 1 costs 155, level 2 costs 220).
         existing = {"xp": 375, "level": 2, "messages": 5}
         with patch("utils.database.get_user_data", AsyncMock(return_value=existing)), \
-             patch("utils.database.set_user_level", AsyncMock()), \
+             patch("utils.database.update_user_xp", AsyncMock()), \
              patch("utils.database.insert_xp_log", AsyncMock()), \
              patch("utils.database.insert_audit_log", AsyncMock()):
 
@@ -173,6 +177,100 @@ class TestLevelService:
             )
             assert result["new_xp"] == 5475
             assert result["new_level"] == 9
+
+
+class TestAdminMutationsWithCache:
+    """Admin actions must go through the cache, not around it.
+
+    Writing the database directly and then invalidating the cache entry threw
+    away every XP point that had not been flushed yet (up to 30s worth).
+    """
+
+    @pytest.fixture
+    def cache(self, mock_bot) -> LevelingCache:
+        return LevelingCache(mock_bot)
+
+    @pytest.fixture
+    def service(self, mock_bot, cache) -> LevelService:
+        return LevelService(mock_bot, cache=cache)
+
+    @staticmethod
+    def _patch_db():
+        return (
+            patch("utils.database.get_user_data", AsyncMock(return_value=None)),
+            patch("utils.database.update_user_xp", AsyncMock()),
+            patch("utils.database.insert_xp_log", AsyncMock()),
+            patch("utils.database.insert_audit_log", AsyncMock()),
+        )
+
+    @pytest.mark.asyncio
+    async def test_add_xp_keeps_xp_that_is_only_in_the_cache(self, service, cache):
+        await cache.update_user_xp(USER_ID, GUILD_ID, 100, 0, 1, 10.0)  # unflushed message XP
+        get_user_data, update_user_xp, log_xp, log_audit = self._patch_db()
+
+        with get_user_data, update_user_xp as db_write, log_xp, log_audit:
+            result = await service.add_xp(GUILD_ID, USER_ID, 50, admin_id=1, reason="Bonus")
+
+        assert result["old_xp"] == 100
+        assert result["new_xp"] == 150
+        data = await cache.get_user_data(USER_ID, GUILD_ID)
+        assert data["xp"] == 150
+        db_write.assert_not_awaited(), "the write must stay in the cache until the next flush"
+
+    @pytest.mark.asyncio
+    async def test_set_level_keeps_messages_and_cached_values(self, service, cache):
+        await cache.update_user_xp(USER_ID, GUILD_ID, 100, 0, 7, 10.0)
+        get_user_data, update_user_xp, log_xp, log_audit = self._patch_db()
+
+        with get_user_data, update_user_xp, log_xp, log_audit:
+            result = await service.set_level(GUILD_ID, USER_ID, 5, admin_id=1)
+
+        assert result["new_level"] == 5
+        data = await cache.get_user_data(USER_ID, GUILD_ID)
+        assert data["level"] == 5
+        assert data["xp"] == service.calculate_xp_for_level(5)
+        assert data["messages"] == 7, "message count must survive an admin level change"
+
+    @pytest.mark.asyncio
+    async def test_reset_member_evicts_the_cache_before_deleting(self, service, cache):
+        await cache.update_user_xp(USER_ID, GUILD_ID, 100, 0, 1, 10.0)
+
+        async def reset_user_data(user_id, guild_id):
+            assert (guild_id, user_id) not in cache._user_cache, (
+                "an in-flight flush would re-create the row after the delete"
+            )
+
+        with patch("utils.database.reset_user_data", AsyncMock(side_effect=reset_user_data)), \
+             patch("utils.database.insert_audit_log", AsyncMock()):
+            await service.reset_member(GUILD_ID, USER_ID, admin_id=1)
+
+        assert (GUILD_ID, USER_ID) not in cache._user_cache
+
+    @pytest.mark.asyncio
+    async def test_reset_guild_clears_the_cache_before_deleting(self, service, cache):
+        await cache.update_user_xp(USER_ID, GUILD_ID, 100, 0, 1, 10.0)
+
+        async def reset_guild_data(guild_id):
+            assert cache._user_cache == {}, "the cache must be empty before the rows go away"
+
+        with patch("utils.database.reset_guild_data", AsyncMock(side_effect=reset_guild_data)), \
+             patch("utils.database.insert_audit_log", AsyncMock()):
+            await service.reset_guild(GUILD_ID, admin_id=1)
+
+    @pytest.mark.asyncio
+    async def test_without_a_cache_the_database_is_still_written(self, mock_bot):
+        """The direct-database fallback (tests, tooling) keeps working."""
+        service = LevelService(mock_bot)
+        existing = {"xp": 100, "level": 0, "messages": 1, "last_message_time": 5.0}
+
+        with patch("utils.database.get_user_data", AsyncMock(return_value=existing)), \
+             patch("utils.database.update_user_xp", AsyncMock()) as db_write, \
+             patch("utils.database.insert_xp_log", AsyncMock()), \
+             patch("utils.database.insert_audit_log", AsyncMock()):
+            result = await service.add_xp(GUILD_ID, USER_ID, 50, admin_id=1)
+
+        assert result["new_xp"] == 150
+        db_write.assert_awaited_once()
 
 
 class TestXpSource:

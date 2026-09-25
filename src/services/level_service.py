@@ -204,12 +204,7 @@ class LevelService:
         xp_gain = max(1, round(base_xp * multiplier))
 
         # ── Cache-first user data (no DB query under normal operation) ──
-        if self.cache is not None:
-            user_data = await self.cache.get_user_data(user_id, guild_id)
-            if user_data and not user_data.get("_exists", True):
-                user_data = None
-        else:
-            user_data = await db.get_user_data(user_id, guild_id)
+        user_data = await self._read_user(guild_id, user_id)
 
         if user_data:
             current_xp = user_data["xp"]
@@ -336,13 +331,7 @@ class LevelService:
 
     async def refresh_rewards(self, guild: discord.Guild, member: discord.Member) -> None:
         """Assign any role rewards the member is missing for their current level."""
-        # Use cache if available, otherwise fall back to DB
-        if self.cache is not None:
-            user_data = await self.cache.get_user_data(member.id, guild.id)
-            if user_data and not user_data.get("_exists", True):
-                user_data = None
-        else:
-            user_data = await db.get_user_data(member.id, guild.id)
+        user_data = await self._read_user(guild.id, member.id)
         if not user_data:
             return
         level = user_data["level"]
@@ -350,6 +339,45 @@ class LevelService:
         for reward in rewards:
             if reward["level"] <= level:
                 await self.assign_role_reward(guild, member, reward["level"])
+
+    # ══════════════════════════════════════════════════════════════════
+    # Cache-aware reads/writes
+    # ══════════════════════════════════════════════════════════════════
+
+    async def _read_user(self, guild_id: int, user_id: int) -> dict[str, Any] | None:
+        """Read a member's row, preferring the in-memory cache.
+
+        Reading the database directly while the cache holds newer values means
+        computing deltas from a stale base and then losing the difference.
+        """
+        if self.cache is not None:
+            data = await self.cache.get_user_data(user_id, guild_id)
+            if data and not data.get("_exists", True):
+                return None
+            return data
+        return await db.get_user_data(user_id, guild_id)
+
+    async def _write_user(
+        self,
+        guild_id: int,
+        user_id: int,
+        xp: int,
+        level: int,
+        messages: int,
+        last_message_time: float,
+    ) -> None:
+        """Persist a member's XP, through the cache when one is attached.
+
+        This is about correctness, not speed. The cache is the authority for the
+        message hot path, so a direct database write (followed by invalidating
+        the cache entry) threw away every XP point earned since the last flush.
+        """
+        if self.cache is not None:
+            await self.cache.update_user_xp(
+                user_id, guild_id, xp, level, messages, last_message_time
+            )
+        else:
+            await db.update_user_xp(user_id, guild_id, xp, level, messages, last_message_time)
 
     # ══════════════════════════════════════════════════════════════════
     # Admin XP mutations
@@ -363,16 +391,15 @@ class LevelService:
         if level < 0:
             raise ValueError("Level must be 0 or higher")
         xp = self.calculate_xp_for_level(level, guild_id)
-        user_data = await db.get_user_data(user_id, guild_id)
+        user_data = await self._read_user(guild_id, user_id)
         old_level = user_data["level"] if user_data else 0
+        old_xp = user_data["xp"] if user_data else 0
+        messages = user_data["messages"] if user_data else 0
+        last_message_time = (user_data or {}).get("last_message_time") or 0.0
 
-        await db.set_user_level(user_id, guild_id, level, xp)
+        await self._write_user(guild_id, user_id, xp, level, messages, last_message_time)
 
-        # Invalidate cache after admin mutation
-        if self.cache is not None:
-            self.cache.invalidate_user(user_id, guild_id)
-
-        await self._log_xp(guild_id, user_id, xp - (user_data["xp"] if user_data else 0), XpSource.ADMIN, reason)
+        await self._log_xp(guild_id, user_id, xp - old_xp, XpSource.ADMIN, reason)
         await self._log_audit(
             guild_id, user_id, admin_id, "set_level",
             {"old_level": old_level, "new_level": level, "reason": reason},
@@ -385,16 +412,13 @@ class LevelService:
         if xp < 0:
             raise ValueError("XP must be 0 or higher")
         new_level = self.calculate_level(xp, guild_id)
-        user_data = await db.get_user_data(user_id, guild_id)
+        user_data = await self._read_user(guild_id, user_id)
         messages = user_data["messages"] if user_data else 0
         old_xp = user_data["xp"] if user_data else 0
         old_level = user_data["level"] if user_data else 0
+        last_message_time = (user_data or {}).get("last_message_time") or 0.0
 
-        await db.update_user_xp(user_id, guild_id, xp, new_level, messages, time.time())
-
-        # Invalidate cache after admin mutation
-        if self.cache is not None:
-            self.cache.invalidate_user(user_id, guild_id)
+        await self._write_user(guild_id, user_id, xp, new_level, messages, last_message_time)
 
         await self._log_xp(guild_id, user_id, xp - old_xp, XpSource.ADMIN, reason)
         await self._log_audit(
@@ -410,7 +434,7 @@ class LevelService:
         admin_id: int, source: str = XpSource.ADMIN, reason: str = "",
     ) -> dict[str, Any]:
         """Add XP to a user."""
-        user_data = await db.get_user_data(user_id, guild_id)
+        user_data = await self._read_user(guild_id, user_id)
         if user_data:
             current_xp = user_data["xp"]
             current_level = user_data["level"]
@@ -422,12 +446,9 @@ class LevelService:
 
         new_xp = max(0, current_xp + amount)
         new_level = self.calculate_level(new_xp, guild_id)
+        last_message_time = (user_data or {}).get("last_message_time") or 0.0
 
-        await db.update_user_xp(user_id, guild_id, new_xp, new_level, messages, time.time())
-
-        # Invalidate cache after admin mutation
-        if self.cache is not None:
-            self.cache.invalidate_user(user_id, guild_id)
+        await self._write_user(guild_id, user_id, new_xp, new_level, messages, last_message_time)
 
         await self._log_xp(guild_id, user_id, amount, source, reason)
         if source == XpSource.ADMIN:
@@ -443,19 +464,21 @@ class LevelService:
         return await self.add_xp(guild_id, user_id, -amount, admin_id, XpSource.ADMIN, reason)
 
     async def reset_member(self, guild_id: int, user_id: int, admin_id: int, reason: str = "") -> None:
-        """Reset a user's XP data entirely."""
-        await db.reset_user_data(user_id, guild_id)
-        # Invalidate cache after admin mutation
+        """Reset a user's XP data entirely.
+
+        The cache entry is dropped *before* the row is deleted so an in-flight
+        flush cannot write the old values back after the delete.
+        """
         if self.cache is not None:
             self.cache.invalidate_user(user_id, guild_id)
+        await db.reset_user_data(user_id, guild_id)
         await self._log_audit(guild_id, user_id, admin_id, "reset_member", {"reason": reason})
 
     async def reset_guild(self, guild_id: int, admin_id: int, reason: str = "") -> None:
-        """Reset all XP data for a guild."""
-        await db.reset_guild_data(guild_id)
-        # Invalidate cache after admin mutation
+        """Reset all XP data for a guild (cache cleared before the delete)."""
         if self.cache is not None:
             self.cache.clear_all()
+        await db.reset_guild_data(guild_id)
         await self._log_audit(guild_id, 0, admin_id, "reset_guild", {"reason": reason})
 
     # ══════════════════════════════════════════════════════════════════
@@ -485,12 +508,7 @@ class LevelService:
 
     async def get_member_stats(self, guild_id: int, user_id: int) -> dict[str, Any] | None:
         """Get member stats. Uses cache when available."""
-        if self.cache is not None:
-            user_data = await self.cache.get_user_data(user_id, guild_id)
-            if user_data and not user_data.get("_exists", True):
-                user_data = None
-        else:
-            user_data = await db.get_user_data(user_id, guild_id)
+        user_data = await self._read_user(guild_id, user_id)
         if not user_data:
             return None
         rank = await db.get_user_rank(user_id, guild_id)
