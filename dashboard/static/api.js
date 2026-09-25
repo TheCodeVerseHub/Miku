@@ -1,10 +1,22 @@
 /* Miku Dashboard - API client */
 
+/* The signed CSRF token, put in a JS-readable cookie by the backend. State
+ * changing requests must repeat it in a header (double submit); the cookie is
+ * compared against the header *and* against its signature server side. */
+function csrfToken() {
+    const match = document.cookie.match(/(?:^|;\s*)csrf=([^;]+)/);
+    return match ? match[1] : '';
+}
+
 const API = {
     async fetch(url, opts = {}) {
+        const headers = { 'Content-Type': 'application/json', ...opts.headers };
+        const token = csrfToken();
+        if (token) headers['X-CSRF-Token'] = token;
         const resp = await fetch(url, {
-            headers: { 'Content-Type': 'application/json', ...opts.headers },
             ...opts,
+            headers,
+            credentials: 'same-origin',
         });
         if (resp.status === 401) {
             window.location.href = '/auth/login';

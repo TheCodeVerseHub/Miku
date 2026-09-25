@@ -70,6 +70,20 @@ api_limiter = RateLimiter(max_requests=120, window_seconds=60)  # 120 API req/mi
 # ──────────────────────────────────────────────────────────────────────
 
 
+#: Name of the cookie that carries the token, and of the header that must
+#: repeat it. The cookie is deliberately *not* HttpOnly: the dashboard's
+#: JavaScript has to read it to echo it back in the header (double submit).
+CSRF_COOKIE_NAME = "csrf"
+CSRF_HEADER_NAME = "X-CSRF-Token"
+#: Same lifetime as the session cookie it is paired with.
+CSRF_MAX_AGE_SECONDS = 86400 * 7
+
+#: Methods that need a token: they change state.
+UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+#: The OAuth callback/redirect flow is protected by the `state` parameter.
+CSRF_EXEMPT_PREFIXES = ("/auth/",)
+
+
 def generate_csrf_token(secret: str) -> str:
     """Generate a CSRF token using HMAC."""
     data = f"{os.urandom(32).hex()}:{int(time.time())}"
@@ -160,6 +174,22 @@ def validate_xp_amount(amount: int) -> bool:
 # ──────────────────────────────────────────────────────────────────────
 
 
+def csrf_token_is_valid(cookie_token: str, header_token: str, secret: str) -> bool:
+    """True if the header repeats the signed cookie token.
+
+    The cookie is compared against the header (a cross-site attacker can make
+    the browser *send* the cookie but cannot read it), and the cookie is checked
+    against its signature (an attacker on a sibling subdomain can *set* a cookie
+    but cannot sign one). Both halves are needed for the double-submit pattern
+    to mean anything.
+    """
+    if not cookie_token or not header_token:
+        return False
+    if not hmac.compare_digest(cookie_token, header_token):
+        return False
+    return validate_csrf_token(cookie_token, secret, max_age=CSRF_MAX_AGE_SECONDS)
+
+
 def setup_security(app: FastAPI, session_secret: str) -> None:
     """Register all security middleware on the FastAPI app."""
     app.add_middleware(SecurityHeadersMiddleware)
@@ -191,28 +221,59 @@ def setup_security(app: FastAPI, session_secret: str) -> None:
 
         return await call_next(request)
 
-    # CSRF protection is handled by the session cookie (HTTP-only + SameSite=strict).
-    # Modern browsers enforce SameSite=strict which prevents CSRF at the browser level.
-    # The OAuth state parameter provides additional CSRF protection for the login flow.
-    # All state-changing API routes also require authentication via require_auth/require_guild_access
-    # which checks the session cookie. This layered defense is sufficient for our threat model.
+    # CSRF: a signed token in a readable cookie, repeated in a header.
     #
-    # If you deploy behind a reverse proxy that terminates SSL, consider adding:
-    #   - A per-request nonce system for critical actions (account deletion, etc.)
-    #   - Additional origin/referer header checks
-    #
-    # Log a warning if no CSRF header is present on state-changing requests (informational only).
+    # `SameSite=strict` on the session cookie already stops the classic
+    # cross-site form POST, and the OAuth flow is protected by `state`. But the
+    # old middleware only *logged* the absence of a token while the (dead)
+    # `generate_csrf_token`/`validate_csrf_token` pair sat unused next to it, so
+    # the protection disappeared the moment anything weakened the cookie flags
+    # (a reverse proxy rewrite, `secure=False` for local development, an old
+    # browser that ignores SameSite). It is enforced now.
     @app.middleware("http")
-    async def csrf_observability_middleware(request: Request, call_next: Callable) -> Response:
-        """Log when state-changing requests are made without CSRF headers (informational)."""
-        if request.method in ("POST", "PUT", "PATCH", "DELETE") and not request.url.path.startswith("/auth/"):
-            csrf_token = request.headers.get("X-CSRF-Token") or request.headers.get("X-XSRF-Token")
-            if not csrf_token:
-                logger.debug(
-                    "State-changing request without CSRF header: %s %s",
-                    request.method,
-                    request.url.path,
-                )
-        return await call_next(request)
+    async def csrf_middleware(request: Request, call_next: Callable) -> Response:
+        """Enforce the double-submit token on session-carrying writes."""
+        path = request.url.path
+        csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME, "")
+        exempt = path.startswith(CSRF_EXEMPT_PREFIXES)
+        # Requests without a session have nothing to forge, and rejecting them
+        # here would turn a clear 401 into a 403.
+        has_session = bool(request.cookies.get("session"))
+
+        if (
+            request.method in UNSAFE_METHODS
+            and not exempt
+            and (has_session or csrf_cookie)
+            and not csrf_token_is_valid(
+                csrf_cookie,
+                request.headers.get(CSRF_HEADER_NAME, ""),
+                session_secret,
+            )
+        ):
+            logger.warning(
+                "Rejected %s %s: missing or invalid CSRF token", request.method, path
+            )
+            return JSONResponse(
+                status_code=403,
+                content={"error": "Invalid or missing CSRF token", "code": "csrf_failed"},
+            )
+
+        response = await call_next(request)
+
+        # Make sure every page load that carries a session also carries a token,
+        # so the JavaScript on that page has one to echo back.
+        if has_session and (
+            not csrf_cookie
+            or not validate_csrf_token(csrf_cookie, session_secret, max_age=CSRF_MAX_AGE_SECONDS)
+        ):
+            response.set_cookie(
+                CSRF_COOKIE_NAME,
+                generate_csrf_token(session_secret),
+                max_age=CSRF_MAX_AGE_SECONDS,
+                httponly=False,
+                secure=True,
+                samesite="strict",
+            )
+        return response
 
     logger.info("Security middleware configured: CSRF, rate limiting, security headers")
