@@ -40,8 +40,8 @@ def mock_pool():
 @pytest.mark.asyncio
 async def test_get_user_data(mock_pool):
     """Test that get_user_data returns the correct dict."""
-    with patch("src.utils.database._pool", mock_pool):
-        from src.utils import database as db
+    with patch("utils.database._pool", mock_pool):
+        from utils import database as db
 
         result = await db.get_user_data(123, 456)
         assert result is not None
@@ -52,8 +52,8 @@ async def test_get_user_data(mock_pool):
 @pytest.mark.asyncio
 async def test_get_user_rank(mock_pool):
     """Test that get_user_rank returns the rank."""
-    with patch("src.utils.database._pool", mock_pool):
-        from src.utils import database as db
+    with patch("utils.database._pool", mock_pool):
+        from utils import database as db
 
         conn = mock_pool.acquire.return_value.__aenter__.return_value
         conn.fetchrow = AsyncMock(return_value={"rank": 5})
@@ -64,8 +64,8 @@ async def test_get_user_rank(mock_pool):
 @pytest.mark.asyncio
 async def test_get_leaderboard(mock_pool):
     """Test leaderboard returns sorted list."""
-    with patch("src.utils.database._pool", mock_pool):
-        from src.utils import database as db
+    with patch("utils.database._pool", mock_pool):
+        from utils import database as db
 
         rows = await db.get_leaderboard(456, limit=10, offset=0)
         assert len(rows) == 2
@@ -75,8 +75,8 @@ async def test_get_leaderboard(mock_pool):
 @pytest.mark.asyncio
 async def test_get_total_users(mock_pool):
     """Test total user count."""
-    with patch("src.utils.database._pool", mock_pool):
-        from src.utils import database as db
+    with patch("utils.database._pool", mock_pool):
+        from utils import database as db
 
         conn = mock_pool.acquire.return_value.__aenter__.return_value
         conn.fetchrow = AsyncMock(return_value={"count": 42})
@@ -87,8 +87,8 @@ async def test_get_total_users(mock_pool):
 @pytest.mark.asyncio
 async def test_update_user_xp(mock_pool):
     """Test XP update calls the correct SQL."""
-    with patch("src.utils.database._pool", mock_pool):
-        from src.utils import database as db
+    with patch("utils.database._pool", mock_pool):
+        from utils import database as db
 
         conn = mock_pool.acquire.return_value.__aenter__.return_value
         await db.update_user_xp(123, 456, 1000, 10, 50, 1234567890.0)
@@ -103,8 +103,8 @@ async def test_update_user_xp(mock_pool):
 @pytest.mark.asyncio
 async def test_get_guild_settings(mock_pool):
     """Test guild settings retrieval."""
-    with patch("src.utils.database._pool", mock_pool):
-        from src.utils import database as db
+    with patch("utils.database._pool", mock_pool):
+        from utils import database as db
 
         conn = mock_pool.acquire.return_value.__aenter__.return_value
         conn.fetchrow = AsyncMock(
@@ -118,8 +118,8 @@ async def test_get_guild_settings(mock_pool):
 @pytest.mark.asyncio
 async def test_get_role_rewards(mock_pool):
     """Test role rewards retrieval."""
-    with patch("src.utils.database._pool", mock_pool):
-        from src.utils import database as db
+    with patch("utils.database._pool", mock_pool):
+        from utils import database as db
 
         conn = mock_pool.acquire.return_value.__aenter__.return_value
         conn.fetch = AsyncMock(

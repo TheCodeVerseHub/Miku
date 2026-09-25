@@ -10,7 +10,7 @@ import pytest
 @pytest.mark.asyncio
 async def test_rank_card_initialization():
     """Test RankCardGenerator initializes correctly."""
-    from src.utils.rank_card import RankCardGenerator
+    from utils.rank_card import RankCardGenerator
 
     generator = RankCardGenerator(width=800, height=200)
     assert generator.width == 800
@@ -22,7 +22,7 @@ async def test_rank_card_initialization():
 @pytest.mark.asyncio
 async def test_rank_card_generation():
     """Test rank card generation returns bytes."""
-    from src.utils.rank_card import RankCardGenerator
+    from utils.rank_card import RankCardGenerator
 
     generator = RankCardGenerator()
 
@@ -47,7 +47,7 @@ async def test_rank_card_generation():
 @pytest.mark.asyncio
 async def test_rank_card_caching():
     """Test that identical cards are cached."""
-    from src.utils.rank_card import RankCardGenerator
+    from utils.rank_card import RankCardGenerator
 
     generator = RankCardGenerator(card_cache_size=10, card_cache_ttl=60)
 
@@ -77,7 +77,7 @@ async def test_rank_card_caching():
 @pytest.mark.asyncio
 async def test_avatar_fetch_caching():
     """Test avatar caching."""
-    from src.utils.rank_card import RankCardGenerator
+    from utils.rank_card import RankCardGenerator
 
     generator = RankCardGenerator(avatar_cache_size=10, avatar_cache_ttl=60)
 
@@ -105,7 +105,7 @@ async def test_save_to_bytes():
     """Test the backwards-compatible save_to_bytes method."""
     from PIL import Image
 
-    from src.utils.rank_card import RankCardGenerator
+    from utils.rank_card import RankCardGenerator
 
     generator = RankCardGenerator()
     img = Image.new("RGB", (100, 100), (255, 0, 0))

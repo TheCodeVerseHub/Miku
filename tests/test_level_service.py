@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.services.level_service import LevelService, RestrictionType, XpSource
+from services.level_service import LevelService, RestrictionType, XpSource
 
 
 class TestLevelService:
@@ -70,10 +70,10 @@ class TestLevelService:
     @pytest.mark.asyncio
     async def test_award_message_xp_success(self, service, mock_discord_message):
         """Test successful XP award flow."""
-        with patch("src.utils.database.get_user_data", AsyncMock(return_value=None)), \
-             patch("src.utils.database.update_user_xp", AsyncMock()), \
-             patch("src.utils.database.insert_xp_log", AsyncMock()), \
-             patch("src.utils.database.get_guild_settings", AsyncMock(return_value=None)):
+        with patch("utils.database.get_user_data", AsyncMock(return_value=None)), \
+             patch("utils.database.update_user_xp", AsyncMock()), \
+             patch("utils.database.insert_xp_log", AsyncMock()), \
+             patch("utils.database.get_guild_settings", AsyncMock(return_value=None)):
 
             result = await service.award_message_xp(mock_discord_message)
 
@@ -95,7 +95,7 @@ class TestLevelService:
     @pytest.mark.asyncio
     async def test_award_message_xp_disabled(self, service, mock_discord_message):
         """Test that disabled XP system blocks awards."""
-        with patch("src.utils.database.get_guild_settings",
+        with patch("utils.database.get_guild_settings",
                    AsyncMock(return_value={"xp_enabled": False})):
 
             result = await service.award_message_xp(mock_discord_message)
@@ -104,11 +104,11 @@ class TestLevelService:
     @pytest.mark.asyncio
     async def test_set_level(self, service):
         """Test admin set-level operation."""
-        with patch("src.utils.database.get_user_data",
+        with patch("utils.database.get_user_data",
                    AsyncMock(return_value={"xp": 100, "level": 2, "messages": 5})), \
-             patch("src.utils.database.set_user_level", AsyncMock()), \
-             patch("src.utils.database.insert_xp_log", AsyncMock()), \
-             patch("src.utils.database.insert_audit_log", AsyncMock()):
+             patch("utils.database.set_user_level", AsyncMock()), \
+             patch("utils.database.insert_xp_log", AsyncMock()), \
+             patch("utils.database.insert_audit_log", AsyncMock()):
 
             result = await service.set_level(
                 guild_id=123,
@@ -132,11 +132,11 @@ class TestLevelService:
     @pytest.mark.asyncio
     async def test_add_xp(self, service):
         """Test admin add-XP operation."""
-        with patch("src.utils.database.get_user_data",
+        with patch("utils.database.get_user_data",
                    AsyncMock(return_value={"xp": 100, "level": 2, "messages": 5})), \
-             patch("src.utils.database.update_user_xp", AsyncMock()), \
-             patch("src.utils.database.insert_xp_log", AsyncMock()), \
-             patch("src.utils.database.insert_audit_log", AsyncMock()):
+             patch("utils.database.update_user_xp", AsyncMock()), \
+             patch("utils.database.insert_xp_log", AsyncMock()), \
+             patch("utils.database.insert_audit_log", AsyncMock()):
 
             result = await service.add_xp(
                 guild_id=123,
@@ -153,11 +153,11 @@ class TestLevelService:
     @pytest.mark.asyncio
     async def test_remove_xp(self, service):
         """Test admin remove-XP operation."""
-        with patch("src.utils.database.get_user_data",
+        with patch("utils.database.get_user_data",
                    AsyncMock(return_value={"xp": 1000, "level": 10, "messages": 50})), \
-             patch("src.utils.database.update_user_xp", AsyncMock()), \
-             patch("src.utils.database.insert_xp_log", AsyncMock()), \
-             patch("src.utils.database.insert_audit_log", AsyncMock()):
+             patch("utils.database.update_user_xp", AsyncMock()), \
+             patch("utils.database.insert_xp_log", AsyncMock()), \
+             patch("utils.database.insert_audit_log", AsyncMock()):
 
             result = await service.remove_xp(
                 guild_id=123,

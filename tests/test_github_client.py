@@ -10,7 +10,7 @@ import pytest
 @pytest.mark.asyncio
 async def test_client_initialization():
     """Test GitHubClient initializes without token."""
-    from src.utils.github_client import GitHubClient
+    from utils.github_client import GitHubClient
 
     client = GitHubClient()
     assert client._token is None
@@ -22,7 +22,7 @@ async def test_client_initialization():
 @pytest.mark.asyncio
 async def test_client_with_token():
     """Test GitHubClient initializes with token."""
-    from src.utils.github_client import GitHubClient
+    from utils.github_client import GitHubClient
 
     client = GitHubClient(token="ghp_test_token")
     assert client._token == "ghp_test_token"
@@ -54,7 +54,7 @@ class MockResponse:
 @pytest.mark.asyncio
 async def test_get_repo_success():
     """Test successful repo fetch."""
-    from src.utils.github_client import GitHubClient
+    from utils.github_client import GitHubClient
 
     client = GitHubClient()
     mock_data = {
@@ -76,7 +76,7 @@ async def test_get_repo_success():
 @pytest.mark.asyncio
 async def test_get_user_success():
     """Test successful user fetch."""
-    from src.utils.github_client import GitHubClient
+    from utils.github_client import GitHubClient
 
     client = GitHubClient()
     mock_data = {
@@ -97,7 +97,7 @@ async def test_get_user_success():
 @pytest.mark.asyncio
 async def test_search_repos():
     """Test repository search."""
-    from src.utils.github_client import GitHubClient
+    from utils.github_client import GitHubClient
 
     client = GitHubClient()
     mock_data = {
@@ -119,7 +119,7 @@ async def test_search_repos():
 @pytest.mark.asyncio
 async def test_error_handling():
     """Test error handling for API failures."""
-    from src.utils.github_client import (
+    from utils.github_client import (
         GitHubAPIError,
         GitHubClient,
         GitHubNotFoundError,

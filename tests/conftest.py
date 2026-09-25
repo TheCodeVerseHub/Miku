@@ -70,7 +70,7 @@ async def clean_db(db_pool):
     """Ensure database tables exist and are clean before each test."""
     async with db_pool.acquire() as conn:
         # Create tables if they don't exist
-        from src.utils import database as db
+        from utils import database as db
 
         # Monkey-patch the pool
         original = db._pool

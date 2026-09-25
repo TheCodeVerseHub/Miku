@@ -153,7 +153,7 @@ class Quests(commands.Cog):
 
     async def cog_load(self) -> None:
         """Ensure quest tracking table exists."""
-        from src.utils import database as db
+        from utils import database as db
 
         pool = await db.get_pool()
         async with pool.acquire() as conn:
@@ -196,7 +196,7 @@ class Quests(commands.Cog):
 
     async def _load_quests(self, guild_id: int, user_id: int, period: str) -> list[Quest]:
         """Load a user's quests from the database."""
-        from src.utils import database as db
+        from utils import database as db
 
         pool = await db.get_pool()
         async with pool.acquire() as conn:
@@ -229,7 +229,7 @@ class Quests(commands.Cog):
 
     async def _save_quest(self, guild_id: int, user_id: int, quest: Quest) -> None:
         """Save a quest's progress to the database."""
-        from src.utils import database as db
+        from utils import database as db
 
         pool = await db.get_pool()
         async with pool.acquire() as conn:
@@ -286,7 +286,7 @@ class Quests(commands.Cog):
         if not quest.is_complete:
             return False
 
-        from src.utils import database as db
+        from utils import database as db
 
         pool = await db.get_pool()
         async with pool.acquire() as conn:

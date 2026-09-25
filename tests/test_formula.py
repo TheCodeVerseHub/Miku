@@ -4,7 +4,7 @@ Tests for the XP formula system (formula_registry.py).
 
 import pytest
 
-from src.services.formula_registry import (
+from services.formula_registry import (
     FormulaRegistry,
     LinearFormula,
     QuadraticFormula,
