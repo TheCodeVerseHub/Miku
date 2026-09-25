@@ -282,7 +282,13 @@ class Quests(commands.Cog):
                         )
 
     async def _claim_quest(self, guild_id: int, user_id: int, quest: Quest) -> bool:
-        """Claim a completed quest's reward."""
+        """Claim a completed quest's reward, at most once.
+
+        The claim is a single conditional UPDATE: only the caller that flips
+        ``claimed`` from FALSE to TRUE gets a row back, and only that caller is
+        awarded XP. Previously the UPDATE was unconditional, so a user could run
+        ``/claim all`` repeatedly and receive the reward every single time.
+        """
         if not quest.is_complete:
             return False
 
@@ -290,20 +296,33 @@ class Quests(commands.Cog):
 
         pool = await db.get_pool()
         async with pool.acquire() as conn:
-            await conn.execute(
-                "UPDATE quest_progress SET claimed = TRUE "
-                "WHERE guild_id = $1 AND user_id = $2 AND quest_type = $3 AND quest_name = $4 AND period = $5",
+            claimed_row = await conn.fetchrow(
+                """
+                UPDATE quest_progress
+                SET claimed = TRUE
+                WHERE guild_id = $1 AND user_id = $2
+                  AND quest_type = $3 AND quest_name = $4 AND period = $5
+                  AND claimed = FALSE
+                RETURNING progress
+                """,
                 guild_id, user_id, quest.type, quest.name, quest.period,
             )
+
+        if claimed_row is None:
+            logger.info(
+                "Ignored duplicate quest claim (guild=%s user=%s quest=%s period=%s)",
+                guild_id, user_id, quest.name, quest.period,
+            )
+            return False
 
         # Award XP
         user_data = await db.get_user_data(user_id, guild_id)
         current_xp = user_data["xp"] if user_data else 0
-        user_data["level"] if user_data else 0
         messages = user_data["messages"] if user_data else 0
+        last_message_time = (user_data or {}).get("last_message_time") or 0.0
         new_xp = current_xp + quest.xp_reward
         new_level = self.service.calculate_level(new_xp, guild_id)
-        await db.update_user_xp(user_id, guild_id, new_xp, new_level, messages, 0)
+        await db.update_user_xp(user_id, guild_id, new_xp, new_level, messages, last_message_time)
         await db.insert_xp_log(guild_id, user_id, quest.xp_reward, XpSource.EVENT, f"Quest: {quest.name}")
 
         return True
