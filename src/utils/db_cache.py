@@ -175,7 +175,6 @@ class LevelingCache:
         # ── User data cache: (guild_id, user_id) -> _UserCacheEntry ──
         self._user_cache: dict[tuple[int, int], _UserCacheEntry] = {}
         self._user_locks: dict[tuple[int, int], asyncio.Lock] = {}
-        self._user_locks_lock = asyncio.Lock()  # protects the locks dict
 
         # ── Guild config cache: guild_id -> _GuildConfigEntry ────────
         self._guild_cache: dict[int, _GuildConfigEntry] = {}
@@ -215,19 +214,24 @@ class LevelingCache:
         await self.flush_all()
         logger.info("LevelingCache shut down")
 
-    async def _get_user_lock(self, guild_id: int, user_id: int) -> asyncio.Lock:
-        """Get or create a per-user asyncio.Lock.
+    def _get_user_lock(self, guild_id: int, user_id: int) -> asyncio.Lock:
+        """Get or create a per-user :class:`asyncio.Lock`.
 
-        Uses ``_user_locks_lock`` to prevent two concurrent coroutines from
-        creating separate Lock instances for the same user.
+        This is deliberately a plain ``def``: it is used as an async context
+        manager (``async with self._get_user_lock(...)``). When it was ``async``,
+        every caller raised ``TypeError: 'coroutine' object does not support the
+        asynchronous context manager protocol`` - so no XP was ever written.
+
+        No internal lock is needed around the dict: ``dict.get`` plus assignment
+        contain no ``await``, so the event loop cannot switch tasks in between
+        and two callers cannot end up with different Lock objects.
         """
         key = (guild_id, user_id)
-        async with self._user_locks_lock:
-            lock = self._user_locks.get(key)
-            if lock is None:
-                lock = asyncio.Lock()
-                self._user_locks[key] = lock
-            return lock
+        lock = self._user_locks.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._user_locks[key] = lock
+        return lock
 
     # ── User data cache ─────────────────────────────────────────────
 
@@ -434,8 +438,7 @@ class LevelingCache:
         """Batch-write all dirty user entries to PostgreSQL."""
         # Snapshot dirty entries under their individual locks (fast)
         dirty: list[tuple[int, _UserCacheEntry]] = []
-        async with self._user_locks_lock:
-            keys = list(self._user_cache.keys())
+        keys = list(self._user_cache.keys())
 
         for key in keys:
             entry = self._user_cache.get(key)
