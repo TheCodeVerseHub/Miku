@@ -47,6 +47,7 @@ A feature-rich Discord leveling bot inspired by Arcane, with support for both **
 | **roll** | `/roll [sides]` | `&roll [sides]` | Roll a dice (default d6) |
 | **choose** | `/choose <a, b, c>` | `&choose <a, b, c>` | Choose one option from a comma-separated list |
 | **rps** | `/rps <choice>` | `&rps <choice>` | Play rock-paper-scissors |
+| **tod** | `/tod <choice>` | `&tod <choice>` | Play truth or dare |
 
 ### Info Commands
 

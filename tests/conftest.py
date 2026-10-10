@@ -16,6 +16,45 @@ import pytest
 import pytest_asyncio
 
 # ──────────────────────────────────────────────────────────────────────
+# aiohttp 3.14 / aioresponses compatibility
+# ──────────────────────────────────────────────────────────────────────
+
+
+class _DummyStreamWriter:
+    """Stand-in for aiohttp's stream writer; only ``output_size`` is read."""
+
+    output_size = 0
+
+
+def _patch_client_response_stream_writer() -> None:
+    """Make aioresponses work on aiohttp >= 3.14.
+
+    aiohttp 3.14 made ``stream_writer`` a required keyword-only argument of
+    ``ClientResponse.__init__``, but aioresponses (<= 0.7.9) builds responses
+    without it, so every mocked request raised TypeError
+    (pnuckowski/aioresponses#288, fix unreleased). Supply a stand-in when the
+    caller omits the argument. No-op on aiohttp < 3.14 and once aioresponses
+    passes it itself.
+    """
+    import inspect
+
+    from aiohttp import client_reqrep
+
+    original_init = client_reqrep.ClientResponse.__init__
+    if "stream_writer" not in inspect.signature(original_init).parameters:
+        return
+
+    def _client_response_init(self, *args, **kwargs):
+        kwargs.setdefault("stream_writer", _DummyStreamWriter())
+        original_init(self, *args, **kwargs)
+
+    client_reqrep.ClientResponse.__init__ = _client_response_init
+
+
+_patch_client_response_stream_writer()
+
+
+# ──────────────────────────────────────────────────────────────────────
 # Configuration
 # ──────────────────────────────────────────────────────────────────────
 

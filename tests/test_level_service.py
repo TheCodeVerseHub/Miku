@@ -96,7 +96,8 @@ class TestLevelService:
         """Test cooldown prevents double XP."""
         service.set_cooldown(mock_discord_message.author.id, mock_discord_message.guild.id)
 
-        result = await service.award_message_xp(mock_discord_message)
+        with patch("utils.database.get_guild_settings", AsyncMock(return_value=None)):
+            result = await service.award_message_xp(mock_discord_message)
         assert result is None
 
     @pytest.mark.asyncio

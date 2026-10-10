@@ -102,6 +102,86 @@ class Fun(commands.Cog):
         embed = discord.Embed(title="Choice", description=f"I choose: **{pick}**", color=EMBED_COLOR)
         await self._send(ctx, embed=embed)
 
+    @commands.hybrid_command(name="tod", description="Play truth or dare")
+    @app_commands.describe(choice="Truth or dare")
+    @app_commands.choices(
+        choice=[
+            app_commands.Choice(name="Truth", value="truth"),
+            app_commands.Choice(name="Dare", value="dare"),
+        ]
+    )
+    async def tod(self, ctx: commands.Context, choice: str | None = None) -> None:
+        if choice is None:
+            await self._send(
+                ctx,
+                embed=discord.Embed(
+                    title="Truth or Dare",
+                    description="Pick one: `&tod truth` or `&tod dare` (slash: `/tod`).",
+                    color=EMBED_COLOR,
+                ),
+            )
+            return
+        choice_n = choice.strip().lower()
+        truths = [
+            "What is the last thing you searched for on your phone?",
+            "What is your most embarrassing song on your playlist?",
+            "Have you ever pretend-deleted an app just to look busy?",
+            "What is the longest you've gone without showering?",
+            "What is the most embarrassing thing you've accidentally liked on social media?",
+            "What is a secret hobby you've never told anyone about?",
+            "What is the silliest thing you're afraid of?",
+            "Have you ever read the terms and conditions?",
+            "What is your weird food combination that you actually like?",
+            "What is the most childish thing you still do?",
+            "What is the last lie you told?",
+            "If you could swap lives with anyone for a day, who would it be?",
+            "What is the funniest name you've given a pet or a file on your computer?",
+            "Have you ever laughed so hard you cried in public?",
+            "What is your biggest irrational fear?",
+        ]
+        dares = [
+            "Do your best impression of a robot for 10 seconds.",
+            "Speak in an accent until your next turn.",
+            "Let the chat pick your status message for the next hour.",
+            "Do 10 jumping jacks right now.",
+            "Sing the chorus of the first song in your playlist.",
+            "Compliment the person who sent the last message.",
+            "Say 'mmm tasty' after everything you type for 3 messages.",
+            "Act like a cat for the next 2 minutes.",
+            "Type with your eyes closed for one whole message.",
+            "Post the most recent photo in your camera roll (no context).",
+            "Do your best evil villain laugh in voice chat.",
+            "Swap your profile picture with your banner for an hour.",
+            "Try to make the funniest face and send it as an emoji reaction.",
+            "Read your last 5 messages out loud in a dramatic voice.",
+            "Balance something on your head for 30 seconds.",
+        ]
+        if choice_n not in {"truth", "dare"}:
+            await self._send(
+                ctx,
+                embed=discord.Embed(
+                    title="Invalid choice",
+                    description="Choose **truth** or **dare**.",
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+            )
+            return
+
+        if choice_n == "truth":
+            embed = discord.Embed(
+                title="🤫 Truth",
+                description=random.choice(truths),
+                color=EMBED_COLOR,
+            )
+        else:
+            embed = discord.Embed(
+                title="🔥 Dare",
+                description=random.choice(dares),
+                color=EMBED_COLOR,
+            )
+        await self._send(ctx, embed=embed)
+
     @commands.hybrid_command(name="rps", description="Play rock-paper-scissors")
     @app_commands.describe(choice="Your choice")
     async def rps(self, ctx: commands.Context, choice: str) -> None:

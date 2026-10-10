@@ -141,6 +141,7 @@ def create_fun_help_embed() -> discord.Embed:
         {"name": "roll", "usage": "&roll [sides]", "description": "Roll a dice (default d6)"},
         {"name": "choose", "usage": "&choose <a, b, c>", "description": "Pick one option from a list"},
         {"name": "rps", "usage": "&rps <rock|paper|scissors>", "description": "Play rock-paper-scissors"},
+        {"name": "tod", "usage": "&tod <truth|dare>", "description": "Play truth or dare"},
     ]
 
     for cmd in commands_list:
